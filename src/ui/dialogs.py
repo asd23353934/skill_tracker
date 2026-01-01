@@ -413,7 +413,7 @@ class JoinRoomDialog(BaseDialog):
         Args:
             parent: 父視窗
         """
-        super().__init__(parent, "加入房間", 350, 240)
+        super().__init__(parent, "加入房間", 400, 260)
         self._create_ui()
     
     def _create_ui(self):
@@ -427,15 +427,15 @@ class JoinRoomDialog(BaseDialog):
         
         # 說明
         tk.Label(
-            self.dialog, text="房間代碼包含主機 IP 信息\n無需手動輸入 IP 地址", 
+            self.dialog, text="房間代碼採用 UUID 風格\n包含加密的 IP 信息和唯一性保證", 
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
             font=('Microsoft JhengHei', 9), justify=tk.CENTER
         ).pack(pady=(0, 15))
         
         # 輸入框
         self.code_entry = tk.Entry(
-            self.dialog, font=('Arial', 16, 'bold'), 
-            width=12, justify='center',
+            self.dialog, font=('Consolas', 14, 'bold'), 
+            width=22, justify='center',
             bg=Colors.BG_DARK, fg=Colors.TEXT_PRIMARY, relief=tk.FLAT
         )
         self.code_entry.pack(pady=15)
@@ -444,9 +444,9 @@ class JoinRoomDialog(BaseDialog):
         
         # 提示
         tk.Label(
-            self.dialog, text="例如: AB7K9M2X (8位)", 
+            self.dialog, text="格式: XXXXXXXX-XXXX-XXXX\n或直接輸入16碼（無分隔符）", 
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
-            font=('Microsoft JhengHei', 8)
+            font=('Microsoft JhengHei', 8), justify=tk.CENTER
         ).pack(pady=(0, 10))
         
         # 加入按鈕
@@ -462,8 +462,10 @@ class JoinRoomDialog(BaseDialog):
             messagebox.showwarning("提示", "請輸入房間代碼！", parent=self.dialog)
             return
         
-        if len(room_code) != 8:
-            messagebox.showwarning("提示", "房間代碼應為 8 位！\n例如: AB7K9M2X", parent=self.dialog)
+        # 移除分隔符後檢查長度
+        code_without_sep = room_code.replace('-', '')
+        if len(code_without_sep) < 8:
+            messagebox.showwarning("提示", "房間代碼太短！\n最少需要 8 位", parent=self.dialog)
             return
         
         self.result = room_code

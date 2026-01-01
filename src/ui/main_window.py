@@ -1024,9 +1024,9 @@ class MainWindow:
         room_code = self.network.create_room()
         if room_code:
             self.room_info_label.config(text=f"● 房間: {room_code} (主機)", fg=Colors.ACCENT_GREEN)
-            self.create_btn.config_state(tk.DISABLED)
-            self.join_btn.config_state(tk.DISABLED)
-            self.leave_btn.config_state(tk.NORMAL)
+            self.create_btn.configure(state=tk.DISABLED)
+            self.join_btn.configure(state=tk.DISABLED)
+            self.leave_btn.configure(state=tk.NORMAL)
             self._on_members_update([])
             messagebox.showinfo("房間已創建", f"房間代碼: {room_code}\n分享給隊友!", parent=self.root)
         else:
@@ -1044,9 +1044,9 @@ class MainWindow:
             room_code = result
             if self.network.join_room(room_code, self.player_name):
                 self.room_info_label.config(text=f"● 房間: {room_code} (已連線)", fg=Colors.ACCENT_GREEN)
-                self.create_btn.config_state(tk.DISABLED)
-                self.join_btn.config_state(tk.DISABLED)
-                self.leave_btn.config_state(tk.NORMAL)
+                self.create_btn.configure(state=tk.DISABLED)
+                self.join_btn.configure(state=tk.DISABLED)
+                self.leave_btn.configure(state=tk.NORMAL)
                 messagebox.showinfo("成功", "已加入房間!", parent=self.root)
             else:
                 messagebox.showerror("錯誤", "加入房間失敗\n請確認房間代碼正確或主機是否在線", parent=self.root)
@@ -1058,9 +1058,9 @@ class MainWindow:
         if messagebox.askyesno("確認", "確定要退出房間嗎?", parent=self.root):
             self.network.leave_room()
             self.room_info_label.config(text="● 未連線", fg=Colors.TEXT_SECONDARY)
-            self.create_btn.config_state(tk.NORMAL)
-            self.join_btn.config_state(tk.NORMAL)
-            self.leave_btn.config_state(tk.DISABLED)
+            self.create_btn.configure(state=tk.NORMAL)
+            self.join_btn.configure(state=tk.NORMAL)
+            self.leave_btn.configure(state=tk.DISABLED)
             self.members_list.delete(0, tk.END)
     
     def _on_members_update(self, members):

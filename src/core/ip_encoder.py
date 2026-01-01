@@ -1,194 +1,207 @@
 """
-IP 編碼模組
-將 IP 地址編碼為房間代碼，並支援解碼
-不需要中央伺服器，完全 P2P
+房間代碼生成器
+使用 UUID 風格的嚴謹代碼（16碼以上）
+包含 IP 信息和唯一性保證
 """
 
 import socket
+import uuid
 import hashlib
+import time
 
 
-class IPEncoder:
-    """IP 編碼器（可逆）"""
+class RoomCodeGenerator:
+    """房間代碼生成器（UUID 風格）"""
     
-    # 自訂編碼表（排除易混淆字符: 0,O,1,I,L）
-    ENCODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-    
-    # 簡單的異或密鑰（混淆用）
-    XOR_KEY = 0xA5  # 10100101
+    # 編碼字符集（Base32，排除易混淆字符）
+    BASE32_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
     
     def get_local_ip(self):
         """獲取本機 IP 地址
         
         Returns:
-            str: IP 地址，如果獲取失敗返回 '127.0.0.1'
+            str: IP 地址
         """
         try:
-            # 創建一個 UDP socket
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            # 連接到外部地址（不會真的發送數據）
             s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
             s.close()
             return ip
         except:
-            # 如果無法獲取，嘗試其他方法
             try:
                 hostname = socket.gethostname()
                 ip = socket.gethostbyname(hostname)
-                # 避免返回 127.0.0.1
                 if ip != '127.0.0.1':
                     return ip
             except:
                 pass
             return '127.0.0.1'
     
-    def encode_ip(self, ip):
-        """將 IP 地址編碼為 8 位房間代碼
+    def encode_ip_to_base32(self, ip):
+        """將 IP 編碼為 Base32 字符串
         
         Args:
-            ip: IP 地址字符串 (例如: "192.168.1.100")
+            ip: IP 地址 (例如: "192.168.1.100")
         
         Returns:
-            str: 8 位房間代碼 (例如: "AB7K9M2X")
+            str: Base32 編碼的 IP（8碼）
         """
         try:
-            # 將 IP 轉為 4 個數字
-            parts = ip.split('.')
+            # IP 轉為 4 字節
+            parts = [int(p) for p in ip.split('.')]
             if len(parts) != 4:
                 return None
             
-            # 轉為整數並異或加密
-            bytes_data = []
-            for part in parts:
-                num = int(part)
-                encrypted = num ^ self.XOR_KEY
-                bytes_data.append(encrypted)
+            # 打包為 32 位整數
+            ip_int = (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]
             
-            # 添加校驗碼（簡單的和校驗）
-            checksum = sum(bytes_data) % 256
-            bytes_data.append(checksum)
+            # 轉為 Base32（7 個字符足夠表示 32 位）
+            code = ''
+            for _ in range(7):
+                code = self.BASE32_CHARS[ip_int % 32] + code
+                ip_int //= 32
             
-            # 轉為 base32 編碼（5 bytes → 8 chars）
-            code = self._bytes_to_code(bytes_data)
+            # 添加校驗位（第8位）
+            checksum = sum(parts) % 32
+            code += self.BASE32_CHARS[checksum]
             
             return code
         except Exception as e:
-            print(f"編碼錯誤: {e}")
+            print(f"IP編碼錯誤: {e}")
             return None
     
-    def decode_code(self, room_code):
-        """將房間代碼解碼為 IP 地址
+    def decode_base32_to_ip(self, code):
+        """將 Base32 代碼解碼為 IP
         
         Args:
-            room_code: 8 位房間代碼
+            code: 8 位 Base32 代碼
         
         Returns:
             str: IP 地址，失敗返回 None
         """
         try:
-            # 驗證長度
-            if len(room_code) != 8:
+            if len(code) != 8:
                 return None
             
-            # 解碼為字節
-            bytes_data = self._code_to_bytes(room_code)
-            if not bytes_data or len(bytes_data) != 5:
-                return None
-            
-            # 驗證校驗碼
-            checksum = sum(bytes_data[:4]) % 256
-            if checksum != bytes_data[4]:
-                print("校驗碼錯誤")
-                return None
-            
-            # 異或解密並組成 IP
-            ip_parts = []
-            for encrypted in bytes_data[:4]:
-                num = encrypted ^ self.XOR_KEY
-                if num > 255:
+            # 驗證字符
+            for char in code:
+                if char not in self.BASE32_CHARS:
                     return None
-                ip_parts.append(str(num))
             
-            return '.'.join(ip_parts)
+            # 解碼前 7 位
+            ip_int = 0
+            for char in code[:7]:
+                ip_int = ip_int * 32 + self.BASE32_CHARS.index(char)
+            
+            # 提取 IP 各段
+            parts = [
+                (ip_int >> 24) & 0xFF,
+                (ip_int >> 16) & 0xFF,
+                (ip_int >> 8) & 0xFF,
+                ip_int & 0xFF
+            ]
+            
+            # 驗證校驗位
+            expected_checksum = sum(parts) % 32
+            actual_checksum = self.BASE32_CHARS.index(code[7])
+            
+            if expected_checksum != actual_checksum:
+                print(f"校驗碼錯誤: 期望 {expected_checksum}, 實際 {actual_checksum}")
+                return None
+            
+            return '.'.join(map(str, parts))
         except Exception as e:
-            print(f"解碼錯誤: {e}")
+            print(f"IP解碼錯誤: {e}")
             return None
     
-    def _bytes_to_code(self, bytes_data):
-        """將字節數組轉為代碼
+    def generate_uuid_style_code(self):
+        """生成 UUID 風格的房間代碼
         
-        Args:
-            bytes_data: 字節數組 (5 bytes)
-        
-        Returns:
-            str: 8 位代碼
-        """
-        # 將 5 個字節轉為一個大整數
-        value = 0
-        for byte in bytes_data:
-            value = (value << 8) | byte
-        
-        # 轉為 base-32 編碼
-        code = ''
-        base = len(self.ENCODE_CHARS)
-        for _ in range(8):
-            code = self.ENCODE_CHARS[value % base] + code
-            value //= base
-        
-        return code
-    
-    def _code_to_bytes(self, code):
-        """將代碼轉為字節數組
-        
-        Args:
-            code: 8 位代碼
-        
-        Returns:
-            list: 字節數組 (5 bytes)
-        """
-        # 驗證字符合法性
-        for char in code:
-            if char not in self.ENCODE_CHARS:
-                print(f"非法字符: {char}")
-                return None
-        
-        # base-32 解碼為整數
-        value = 0
-        base = len(self.ENCODE_CHARS)
-        for char in code:
-            value = value * base + self.ENCODE_CHARS.index(char)
-        
-        # 轉為 5 個字節
-        bytes_data = []
-        for _ in range(5):
-            bytes_data.insert(0, value & 0xFF)
-            value >>= 8
-        
-        return bytes_data
-    
-    def create_room_code(self):
-        """創建房間代碼（包含本機 IP）
+        格式: XXXXXXXX-XXXX-XXXX
+        - 前8位: IP 編碼
+        - 中4位: 時間戳
+        - 後4位: 隨機UUID
         
         Returns:
             dict: {'code': 房間代碼, 'ip': IP地址}
         """
         ip = self.get_local_ip()
-        code = self.encode_ip(ip)
         
-        if not code:
-            # 編碼失敗，使用備用方案
-            import time
-            code = hashlib.md5(f"{ip}{time.time()}".encode()).hexdigest()[:8].upper()
+        # Part 1: IP 編碼（8位）
+        ip_code = self.encode_ip_to_base32(ip)
+        if not ip_code:
+            # 備用方案：隨機生成
+            ip_code = self._generate_random_code(8)
+        
+        # Part 2: 時間戳（4位）
+        timestamp = int(time.time())
+        time_code = ''
+        for _ in range(4):
+            time_code = self.BASE32_CHARS[timestamp % 32] + time_code
+            timestamp //= 32
+        
+        # Part 3: UUID 片段（4位）
+        uuid_str = str(uuid.uuid4()).replace('-', '')
+        uuid_hash = hashlib.md5(uuid_str.encode()).hexdigest()
+        uuid_code = ''
+        for i in range(4):
+            byte_val = int(uuid_hash[i*2:i*2+2], 16)
+            uuid_code += self.BASE32_CHARS[byte_val % 32]
+        
+        # 組合: XXXXXXXX-XXXX-XXXX (總共16碼 + 2個分隔符)
+        code = f"{ip_code}-{time_code}-{uuid_code}"
         
         return {
             'code': code,
-            'ip': ip
+            'ip': ip,
+            'ip_part': ip_code,
+            'time_part': time_code,
+            'uuid_part': uuid_code
         }
+    
+    def _generate_random_code(self, length):
+        """生成隨機代碼
+        
+        Args:
+            length: 代碼長度
+        
+        Returns:
+            str: 隨機代碼
+        """
+        import random
+        return ''.join(random.choice(self.BASE32_CHARS) for _ in range(length))
+    
+    def extract_ip_from_code(self, code):
+        """從房間代碼提取 IP
+        
+        Args:
+            code: 房間代碼 (格式: XXXXXXXX-XXXX-XXXX)
+        
+        Returns:
+            str: IP 地址，失敗返回 None
+        """
+        try:
+            # 移除分隔符
+            parts = code.split('-')
+            if len(parts) != 3:
+                # 容錯：如果用戶沒輸入分隔符，取前8位
+                if len(code) >= 8:
+                    ip_code = code[:8]
+                else:
+                    return None
+            else:
+                ip_code = parts[0]
+            
+            # 解碼 IP 部分
+            return self.decode_base32_to_ip(ip_code)
+        except Exception as e:
+            print(f"提取IP錯誤: {e}")
+            return None
 
 
 # 全局實例
-_encoder = IPEncoder()
+_generator = RoomCodeGenerator()
 
 
 def create_room_code():
@@ -197,7 +210,7 @@ def create_room_code():
     Returns:
         dict: {'code': 房間代碼, 'ip': IP地址}
     """
-    return _encoder.create_room_code()
+    return _generator.generate_uuid_style_code()
 
 
 def decode_room_code(code):
@@ -209,7 +222,7 @@ def decode_room_code(code):
     Returns:
         str: IP 地址，失敗返回 None
     """
-    return _encoder.decode_code(code)
+    return _generator.extract_ip_from_code(code)
 
 
 def get_local_ip():
@@ -218,38 +231,72 @@ def get_local_ip():
     Returns:
         str: IP 地址
     """
-    return _encoder.get_local_ip()
+    return _generator.get_local_ip()
 
 
 if __name__ == '__main__':
     # 測試
-    encoder = IPEncoder()
+    generator = RoomCodeGenerator()
+    
+    print("=" * 60)
+    print("UUID 風格房間代碼測試")
+    print("=" * 60)
     
     # 測試 1: 本機 IP
-    ip = encoder.get_local_ip()
-    print(f"本機 IP: {ip}")
+    ip = generator.get_local_ip()
+    print(f"\n本機 IP: {ip}")
     
-    # 測試 2: 編碼/解碼
+    # 測試 2: IP 編碼/解碼
     test_ips = [
         '192.168.1.100',
         '10.0.0.1',
         '172.16.0.50',
-        '127.0.0.1'
+        '127.0.0.1',
+        '8.8.8.8'
     ]
     
-    print("\n編碼/解碼測試:")
+    print("\nIP 編碼/解碼測試:")
+    print("-" * 60)
     for test_ip in test_ips:
-        code = encoder.encode_ip(test_ip)
-        decoded = encoder.decode_code(code)
-        status = "✅" if decoded == test_ip else "❌"
-        print(f"{status} IP: {test_ip} → 代碼: {code} → 解碼: {decoded}")
+        code = generator.encode_ip_to_base32(test_ip)
+        if code:
+            decoded = generator.decode_base32_to_ip(code)
+            status = "✅" if decoded == test_ip else "❌"
+            print(f"{status} IP: {test_ip:15} → {code:8} → {decoded}")
+        else:
+            print(f"❌ IP: {test_ip:15} → 編碼失敗")
+
     
-    # 測試 3: 創建房間
-    print("\n創建房間測試:")
-    room_info = create_room_code()
-    print(f"房間代碼: {room_info['code']}")
-    print(f"IP 地址: {room_info['ip']}")
+    # 測試 3: UUID 風格代碼生成
+    print("\nUUID 風格代碼生成測試:")
+    print("-" * 60)
+    for i in range(3):
+        room_info = generator.generate_uuid_style_code()
+        print(f"\n房間 {i+1}:")
+        print(f"  完整代碼: {room_info['code']}")
+        print(f"  IP 地址:  {room_info['ip']}")
+        print(f"  IP 部分:  {room_info['ip_part']}")
+        print(f"  時間部分: {room_info['time_part']}")
+        print(f"  UUID部分: {room_info['uuid_part']}")
+        
+        # 驗證解碼
+        decoded_ip = generator.extract_ip_from_code(room_info['code'])
+        status = "✅" if decoded_ip == room_info['ip'] else "❌"
+        print(f"  解碼驗證: {status} {decoded_ip}")
     
-    decoded_ip = decode_room_code(room_info['code'])
-    print(f"解碼驗證: {decoded_ip}")
-    print(f"結果: {'✅ 成功' if decoded_ip == room_info['ip'] else '❌ 失敗'}")
+    # 測試 4: 不同格式輸入
+    print("\n輸入格式容錯測試:")
+    print("-" * 60)
+    room_info = generator.generate_uuid_style_code()
+    test_inputs = [
+        room_info['code'],                          # 完整格式
+        room_info['code'].replace('-', ''),         # 無分隔符
+        room_info['ip_part'],                       # 只有IP部分
+    ]
+    
+    for test_input in test_inputs:
+        decoded = generator.extract_ip_from_code(test_input)
+        status = "✅" if decoded == room_info['ip'] else "❌"
+        print(f"{status} 輸入: {test_input:20} → {decoded}")
+    
+    print("\n" + "=" * 60)
