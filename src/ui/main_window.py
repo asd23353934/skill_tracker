@@ -1028,9 +1028,35 @@ class MainWindow:
             self.join_btn.configure(state=tk.DISABLED)
             self.leave_btn.configure(state=tk.NORMAL)
             self._on_members_update([])
-            messagebox.showinfo("房間已創建", f"房間代碼: {room_code}\n分享給隊友!", parent=self.root)
+            
+            # 檢查是否需要顯示手動設定指引
+            if not self.network.use_external_ip and self.network.host_ip:
+                # UPnP 失敗，顯示手動設定對話框
+                from src.ui.manual_setup_dialog import ManualSetupDialog
+                from src.core.ip_encoder import RoomCodeGenerator
+                
+                generator = RoomCodeGenerator()
+                local_ip = generator.get_local_ip()
+                
+                # 先顯示房間代碼
+                messagebox.showinfo(
+                    "房間已創建", 
+                    f"房間代碼: {room_code}\n\n⚠️ UPnP 自動設定失敗\n需要手動設定端口轉發才能跨網路連線\n\n點擊「確定」查看設定指引",
+                    parent=self.root
+                )
+                
+                # 顯示手動設定指引
+                setup_dialog = ManualSetupDialog(self.root, self.network.host_ip, local_ip)
+                setup_dialog.show()
+            else:
+                # UPnP 成功
+                messagebox.showinfo(
+                    "房間已創建", 
+                    f"房間代碼: {room_code}\n\n✅ 跨網路連線已啟用\n任何網路的玩家都可以加入！\n\n分享給隊友吧！",
+                    parent=self.root
+                )
         else:
-            messagebox.showerror("錯誤", "創建房間失敗", parent=self.root)
+            messagebox.showerror("錯誤", "創建房間失敗\n請檢查網路連線", parent=self.root)
     
     def _join_room(self):
         """加入房間"""

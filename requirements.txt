@@ -1,2 +1,4 @@
 pynput==1.7.6
 Pillow>=11.0.0
+requests>=2.31.0
+miniupnpc>=2.2.2
