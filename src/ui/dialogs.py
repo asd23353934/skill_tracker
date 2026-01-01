@@ -413,7 +413,7 @@ class JoinRoomDialog(BaseDialog):
         Args:
             parent: 父視窗
         """
-        super().__init__(parent, "加入房間", 320, 180)
+        super().__init__(parent, "加入房間", 350, 240)
         self._create_ui()
     
     def _create_ui(self):
@@ -423,7 +423,14 @@ class JoinRoomDialog(BaseDialog):
             self.dialog, text="🚪 輸入房間代碼", 
             bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
             font=Fonts.TITLE_SMALL
-        ).pack(pady=20)
+        ).pack(pady=(20, 10))
+        
+        # 說明
+        tk.Label(
+            self.dialog, text="房間代碼包含主機 IP 信息\n無需手動輸入 IP 地址", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
+            font=('Microsoft JhengHei', 9), justify=tk.CENTER
+        ).pack(pady=(0, 15))
         
         # 輸入框
         self.code_entry = tk.Entry(
@@ -435,15 +442,29 @@ class JoinRoomDialog(BaseDialog):
         self.code_entry.focus()
         self.code_entry.bind('<Return>', lambda e: self._join())
         
+        # 提示
+        tk.Label(
+            self.dialog, text="例如: AB7K9M2X (8位)", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
+            font=('Microsoft JhengHei', 8)
+        ).pack(pady=(0, 10))
+        
         # 加入按鈕
         RoundedButton(
             self.dialog, "✓ 加入房間", self._join, 
             Colors.ACCENT_BLUE, width=150, height=35
-        ).pack(pady=15)
+        ).pack(pady=10)
     
     def _join(self):
         """加入房間"""
         room_code = self.code_entry.get().strip().upper()
-        if room_code:
-            self.result = room_code
-            self.close()
+        if not room_code:
+            messagebox.showwarning("提示", "請輸入房間代碼！", parent=self.dialog)
+            return
+        
+        if len(room_code) != 8:
+            messagebox.showwarning("提示", "房間代碼應為 8 位！\n例如: AB7K9M2X", parent=self.dialog)
+            return
+        
+        self.result = room_code
+        self.close()

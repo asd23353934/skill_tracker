@@ -8,7 +8,7 @@ import socket
 import socketserver
 import threading
 import time
-import hashlib
+from src.core.ip_encoder import create_room_code, decode_room_code
 
 
 class NetworkManager:
@@ -26,6 +26,7 @@ class NetworkManager:
         self.server = None
         self.client = None
         self.room_code = None
+        self.host_ip = None
         self.is_host = False
         self.members = []
     
@@ -36,13 +37,24 @@ class NetworkManager:
             成功返回房間代碼，失敗返回 None
         """
         try:
-            self.room_code = hashlib.md5(str(time.time()).encode()).hexdigest()[:6].upper()
+            # 創建房間代碼（包含本機 IP）
+            room_info = create_room_code()
+            self.room_code = room_info['code']
+            self.host_ip = room_info['ip']
             self.is_host = True
             self.members = []
+            
+            # 啟動伺服器
             self.server = SkillServer(self.skill_callback, self._on_member_update)
             threading.Thread(target=self.server.serve_forever, daemon=True).start()
+            
+            print(f"✅ 房間已創建")
+            print(f"   房間代碼: {self.room_code}")
+            print(f"   主機 IP: {self.host_ip}")
+            
             return self.room_code
-        except:
+        except Exception as e:
+            print(f"❌ 創建房間失敗: {e}")
             return None
     
     def join_room(self, room_code, player_name):
@@ -58,8 +70,39 @@ class NetworkManager:
         try:
             self.room_code = room_code
             self.is_host = False
+            
+            # 從房間代碼解碼 IP
+            self.host_ip = decode_room_code(room_code)
+            
+            if not self.host_ip:
+                print(f"❌ 無法解碼房間代碼: {room_code}")
+                return False
+            
+            print(f"🔗 嘗試連線到: {self.host_ip}:9999")
+            
+            # 連接到主機
             self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client.connect(('127.0.0.1', 9999))
+            self.client.settimeout(5)  # 5 秒超時
+            self.client.connect((self.host_ip, 9999))
+            
+            join_msg = json.dumps({'type': 'join', 'player': player_name})
+            self.client.send(join_msg.encode())
+            
+            threading.Thread(target=self._receive_messages, daemon=True).start()
+            
+            print(f"✅ 成功加入房間: {room_code}")
+            print(f"   主機 IP: {self.host_ip}")
+            
+            return True
+        except Exception as e:
+            print(f"❌ 加入房間失敗: {e}")
+            if self.client:
+                try:
+                    self.client.close()
+                except:
+                    pass
+                self.client = None
+            return False
             
             join_msg = json.dumps({'type': 'join', 'player': player_name})
             self.client.send(join_msg.encode())
