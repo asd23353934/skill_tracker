@@ -502,7 +502,7 @@ class SkillHandler(socketserver.BaseRequestHandler):
             print(f"\n🔑 房間代碼: {self.room_code}")
             print(f"🔗 連線到中繼伺服器...")
             
-            from src.core.relay_client import RelayClient
+            from src.core.relay_client_http import RelayClientHTTP as RelayClient
             
             self.relay_client = RelayClient(
                 self.room_code,
@@ -533,7 +533,7 @@ class SkillHandler(socketserver.BaseRequestHandler):
             self.is_host = False
             self.use_relay = True
             
-            from src.core.relay_client import RelayClient
+            from src.core.relay_client_http import RelayClientHTTP as RelayClient
             
             self.relay_client = RelayClient(
                 room_code,

@@ -14,11 +14,10 @@ class RelayClient:
     
     # 公開中繼伺服器列表（可以自架或使用免費服務）
     RELAY_SERVERS = [
-        # 主要伺服器（需要自己架設）
-        # ('relay.yourdomain.com', 8888),
-        
-        # 備用：使用 ngrok 等服務
-        # ('0.tcp.ngrok.io', 12345),
+        # Render.com 伺服器（HTTP/HTTPS 端口）
+        # 注意：Render 的 Web Service 使用 HTTP，實際端口由 $PORT 環境變數指定
+        # 但對外訪問需要使用 443 (HTTPS) 或 80 (HTTP)
+        ('skill-tracker-mqpk.onrender.com', 10000),  # Render 預設使用 10000
         
         # 測試用（本地）
         ('127.0.0.1', 8888),
