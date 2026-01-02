@@ -21,11 +21,11 @@ class BaseDialog:
             width: 寬度
             height: 高度
         """
+        self.parent = parent  # 保存父視窗引用
         self.dialog = tk.Toplevel(parent)
         self.dialog.title(title)
-        self.dialog.attributes('-topmost', True)
+        self.dialog.attributes('-topmost', True)  # 保持最上層
         self.dialog.transient(parent)
-        self.dialog.grab_set()
         self.dialog.overrideredirect(True)  # 移除邊框以便自訂
         self.dialog.configure(bg=Colors.BG_DARK)
         
@@ -106,6 +106,32 @@ class BaseDialog:
     def close(self):
         """關閉對話框"""
         self.dialog.destroy()
+    
+    def _show_input_dialog(self, title, prompt, initialvalue=None):
+        """顯示輸入對話框（處理 z-index 問題）
+        
+        Args:
+            title: 對話框標題
+            prompt: 提示文字
+            initialvalue: 初始值
+            
+        Returns:
+            str: 用戶輸入的文字，取消則返回 None
+        """
+        # 暫時降低當前對話框的 topmost
+        self.dialog.attributes('-topmost', False)
+        
+        # 使用父視窗作為 parent
+        if initialvalue:
+            result = simpledialog.askstring(title, prompt, initialvalue=initialvalue, parent=self.parent)
+        else:
+            result = simpledialog.askstring(title, prompt, parent=self.parent)
+        
+        # 恢復 topmost
+        self.dialog.attributes('-topmost', True)
+        self.dialog.lift()
+        
+        return result
 
 
 class ProfileManagerDialog(BaseDialog):
@@ -233,44 +259,44 @@ class ProfileManagerDialog(BaseDialog):
     
     def _create_new_profile(self):
         """新增配置"""
-        name = simpledialog.askstring("新增配置", "輸入新配置名稱:", parent=self.dialog)
+        # 使用統一的輸入對話框方法
+        name = self._show_input_dialog("新增配置", "輸入新配置名稱:")
+        
         if name and name.strip():
             name = name.strip()
             
             # 檢查是否已存在
             if name in self.config_manager.list_profiles():
-                messagebox.showerror("錯誤", f"配置 '{name}' 已存在!", parent=self.dialog)
+                messagebox.showerror("錯誤", f"配置 '{name}' 已存在!", parent=self.parent)
                 return
             
-            # 創建初始配置 - 包含所有技能的預設值
-            from src.ui.skill_manager import SkillManager
+            # 創建初始配置
             all_skills = self.main_window.skill_manager.get_all_skills().keys()
             
             initial_settings = {
-                'hotkeys': {},  # 所有技能無快捷鍵
-                'send': {skill_id: True for skill_id in all_skills},  # 預設勾選
-                'receive': {skill_id: True for skill_id in all_skills},  # 預設勾選
-                'permanent': {skill_id: False for skill_id in all_skills},  # 預設不駐留
-                'cooldown_overrides': {}  # 使用 config.json 中的原始秒數
+                'hotkeys': {},
+                'permanent': {skill_id: False for skill_id in all_skills},
+                'loop': {skill_id: False for skill_id in all_skills},
+                'cooldown_overrides': {}
             }
             
             if self.config_manager.save_profile(name, initial_settings):
                 self._refresh_list()
                 print(f"✅ 已新增配置 '{name}'")
             else:
-                messagebox.showerror("錯誤", f"新增配置失敗!", parent=self.dialog)
+                messagebox.showerror("錯誤", f"新增配置失敗!", parent=self.parent)
     
     def _copy_profile(self):
         """複製選中的配置"""
         source_name = self._get_selected_profile_name()
         if not source_name:
-            messagebox.showwarning("提示", "請先選擇要複製的配置!", parent=self.dialog)
+            messagebox.showwarning("提示", "請先選擇要複製的配置!", parent=self.parent)
             return
         
-        new_name = simpledialog.askstring(
-            "複製配置", 
-            f"輸入新配置名稱:\n(將複製自 '{source_name}')", 
-            parent=self.dialog
+        # 使用統一的輸入對話框方法
+        new_name = self._show_input_dialog(
+            "複製配置",
+            f"輸入新配置名稱:\n(將複製自 '{source_name}')"
         )
         
         if new_name and new_name.strip():
@@ -278,7 +304,7 @@ class ProfileManagerDialog(BaseDialog):
             
             # 檢查是否已存在
             if new_name in self.config_manager.list_profiles():
-                messagebox.showerror("錯誤", f"配置 '{new_name}' 已存在!", parent=self.dialog)
+                messagebox.showerror("錯誤", f"配置 '{new_name}' 已存在!", parent=self.parent)
                 return
             
             # 載入源配置
@@ -289,22 +315,22 @@ class ProfileManagerDialog(BaseDialog):
                     self._refresh_list()
                     print(f"✅ 已複製配置 '{source_name}' → '{new_name}'")
                 else:
-                    messagebox.showerror("錯誤", "複製配置失敗!", parent=self.dialog)
+                    messagebox.showerror("錯誤", "複製配置失敗!", parent=self.parent)
             else:
-                messagebox.showerror("錯誤", f"無法讀取配置 '{source_name}'!", parent=self.dialog)
+                messagebox.showerror("錯誤", f"無法讀取配置 '{source_name}'!", parent=self.parent)
     
     def _rename_profile(self):
         """重命名選中的配置"""
         old_name = self._get_selected_profile_name()
         if not old_name:
-            messagebox.showwarning("提示", "請先選擇要重命名的配置!", parent=self.dialog)
+            messagebox.showwarning("提示", "請先選擇要重命名的配置!", parent=self.parent)
             return
         
-        new_name = simpledialog.askstring(
-            "重命名配置", 
-            f"輸入新名稱:\n(當前: '{old_name}')", 
-            initialvalue=old_name,
-            parent=self.dialog
+        # 使用統一的輸入對話框方法
+        new_name = self._show_input_dialog(
+            "重命名配置",
+            f"輸入新名稱:\n(當前: '{old_name}')",
+            initialvalue=old_name
         )
         
         if new_name and new_name.strip() and new_name.strip() != old_name:
@@ -312,7 +338,7 @@ class ProfileManagerDialog(BaseDialog):
             
             # 檢查是否已存在
             if new_name in self.config_manager.list_profiles():
-                messagebox.showerror("錯誤", f"配置 '{new_name}' 已存在!", parent=self.dialog)
+                messagebox.showerror("錯誤", f"配置 '{new_name}' 已存在!", parent=self.parent)
                 return
             
             # 重命名
@@ -330,17 +356,17 @@ class ProfileManagerDialog(BaseDialog):
                 self._refresh_list()
                 print(f"✅ 已重命名配置 '{old_name}' → '{new_name}'")
             else:
-                messagebox.showerror("錯誤", "重命名失敗!", parent=self.dialog)
+                messagebox.showerror("錯誤", "重命名失敗!", parent=self.parent)
     
     def _switch_profile(self):
         """切換到選中的配置"""
         profile_name = self._get_selected_profile_name()
         if not profile_name:
-            messagebox.showwarning("提示", "請先選擇要切換的配置!", parent=self.dialog)
+            messagebox.showwarning("提示", "請先選擇要切換的配置!", parent=self.parent)
             return
         
         if profile_name == self.current_profile:
-            messagebox.showinfo("提示", "已經是當前配置了!", parent=self.dialog)
+            messagebox.showinfo("提示", "已經是當前配置了!", parent=self.parent)
             return
         
         # 載入配置數據
@@ -357,27 +383,27 @@ class ProfileManagerDialog(BaseDialog):
             
             print(f"✅ 已切換到配置 '{profile_name}'")
         else:
-            messagebox.showerror("錯誤", f"無法載入配置 '{profile_name}'!", parent=self.dialog)
+            messagebox.showerror("錯誤", f"無法載入配置 '{profile_name}'!", parent=self.parent)
     
     def _delete_profile(self):
         """刪除選中的配置"""
         profile_name = self._get_selected_profile_name()
         if not profile_name:
-            messagebox.showwarning("提示", "請先選擇要刪除的配置!", parent=self.dialog)
+            messagebox.showwarning("提示", "請先選擇要刪除的配置!", parent=self.parent)
             return
         
         # 不能刪除當前配置
         if profile_name == self.current_profile:
-            messagebox.showerror("錯誤", "無法刪除當前正在使用的配置!", parent=self.dialog)
+            messagebox.showerror("錯誤", "無法刪除當前正在使用的配置!", parent=self.parent)
             return
         
         # 確認刪除
-        if messagebox.askyesno("確認刪除", f"確定要刪除配置 '{profile_name}' 嗎？", parent=self.dialog):
+        if messagebox.askyesno("確認刪除", f"確定要刪除配置 '{profile_name}' 嗎？", parent=self.parent):
             if self.config_manager.delete_profile(profile_name):
                 self._refresh_list()
                 print(f"✅ 配置 '{profile_name}' 已刪除")
             else:
-                messagebox.showerror("錯誤", "刪除失敗!", parent=self.dialog)
+                messagebox.showerror("錯誤", "刪除失敗!", parent=self.parent)
 
 
 class SettingsDialog(BaseDialog):
@@ -390,7 +416,7 @@ class SettingsDialog(BaseDialog):
             parent: 父視窗
             current_settings: 當前設定字典
         """
-        super().__init__(parent, "設定", 450, 500)
+        super().__init__(parent, "設定", 450, 450)
         self.current_settings = current_settings
         
         self._create_ui()
@@ -493,7 +519,7 @@ class SettingsDialog(BaseDialog):
             
             # 簡單的範圍檢查
             if x_val < 0 or y_val < 0:
-                messagebox.showerror("錯誤", "座標值不能為負數！", parent=self.dialog)
+                messagebox.showerror("錯誤", "座標值不能為負數！", parent=self.parent)
                 return
             
             self.result = {
@@ -506,6 +532,6 @@ class SettingsDialog(BaseDialog):
             self.close()
             
         except ValueError:
-            messagebox.showerror("錯誤", "座標值必須是整數！", parent=self.dialog)
+            messagebox.showerror("錯誤", "座標值必須是整數！", parent=self.parent)
         except Exception as e:
-            messagebox.showerror("錯誤", f"設定格式錯誤：{e}", parent=self.dialog)
+            messagebox.showerror("錯誤", f"設定格式錯誤：{e}", parent=self.parent)
