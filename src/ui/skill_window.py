@@ -23,6 +23,7 @@ class SkillWindow:
         self.skill_id = skill_id
         self.is_permanent = is_permanent
         self.is_loop = is_loop
+        self.skill_image = skill_image  # 儲存傳入的圖片
 
         self.window_alpha = window_alpha if window_alpha is not None else 0.95
 
@@ -32,7 +33,7 @@ class SkillWindow:
         self.after_id = None
         self.running = False
 
-        self._create_window(position, skill_image)
+        self._create_window(position)
 
         if not start_at_zero:
             self.start_countdown()
@@ -42,9 +43,8 @@ class SkillWindow:
     # --------------------------------------------------
     # UI
     # --------------------------------------------------
-    def _create_window(self, position, skill_image):
-        from PIL import Image, ImageDraw, ImageTk
-        import os
+    def _create_window(self, position):
+        from PIL import Image, ImageTk
 
         window_size = 64
 
@@ -63,33 +63,30 @@ class SkillWindow:
         )
         self.canvas.pack()
 
-        # ---------- 背景圖片 ----------
-        skill_img_pil = None
-        possible_paths = [
-            f"resources/images/{self.skill['icon']}",
-            f"images/{self.skill['icon']}",
-            os.path.join(os.path.dirname(__file__), "..", "..", "resources", "images", self.skill["icon"]),
-        ]
-
-        for path in possible_paths:
-            if os.path.exists(path):
-                try:
-                    skill_img_pil = Image.open(path)
-                    break
-                except:
-                    pass
-
-        if skill_img_pil is None:
-            skill_img_pil = Image.new("RGB", (64, 64), "black")
-
-        skill_img_pil = skill_img_pil.resize((window_size, window_size), Image.Resampling.LANCZOS)
-
-        mask = Image.new("L", (window_size, window_size), 255)
-        output = Image.new("RGBA", (window_size, window_size))
-        output.paste(skill_img_pil.convert("RGB"), (0, 0))
-        output.putalpha(mask)
-
-        self.bg_image = ImageTk.PhotoImage(output)
+        # ---------- 背景圖片（使用傳入的 skill_image）----------
+        if self.skill_image:
+            # 如果傳入的是 PhotoImage，直接使用
+            # 如果需要調整大小，可以在外部處理好再傳入
+            try:
+                # 嘗試將 PhotoImage 轉換為 PIL Image 以便處理
+                # 這裡假設外部已經處理好圖片大小
+                self.bg_image = self.skill_image
+            except:
+                # 如果轉換失敗，創建默認圖片
+                skill_img_pil = Image.new("RGB", (window_size, window_size), "black")
+                mask = Image.new("L", (window_size, window_size), 255)
+                output = Image.new("RGBA", (window_size, window_size))
+                output.paste(skill_img_pil, (0, 0))
+                output.putalpha(mask)
+                self.bg_image = ImageTk.PhotoImage(output)
+        else:
+            # 如果沒有圖片，創建默認黑色背景
+            skill_img_pil = Image.new("RGB", (window_size, window_size), "black")
+            mask = Image.new("L", (window_size, window_size), 255)
+            output = Image.new("RGBA", (window_size, window_size))
+            output.paste(skill_img_pil, (0, 0))
+            output.putalpha(mask)
+            self.bg_image = ImageTk.PhotoImage(output)
 
         self.canvas.create_image(
             window_size // 2,
@@ -102,7 +99,7 @@ class SkillWindow:
             window_size // 2,
             window_size // 2,
             text=str(self.remaining),
-            fill="black",                     # ← 黑色
+            fill="black",
             font=("Arial", 24, "bold"),
             anchor="center"
         )
@@ -116,7 +113,7 @@ class SkillWindow:
             padding,
             window_size - padding,
             border_size + padding,
-            outline="#FF0000",                # 紅色 border
+            outline="#FF0000",
             width=2
         )
 
@@ -151,7 +148,6 @@ class SkillWindow:
         self._update_display()
         self.after_id = self.window.after(1000, self._tick)
 
-
     def stop_countdown(self):
         self.running = False
         if self.after_id:
@@ -169,11 +165,11 @@ class SkillWindow:
     def _tick(self):
         if not self.running:
             return
- 
+
         if self.remaining > 0:
             self.remaining -= 1
             self._update_display()
- 
+
             if self.remaining > 0:
                 self.after_id = self.window.after(1000, self._tick)
             else:
@@ -200,7 +196,7 @@ class SkillWindow:
             self.canvas.itemconfig(
                 self.timer_text,
                 text=str(self.remaining),
-                fill="black"                   # ← 保持黑色
+                fill="black"
             )
         else:
             self.canvas.itemconfig(

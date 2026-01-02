@@ -204,7 +204,7 @@
       "id": "Snipaste_2026-01-03_00-29-33",
       "name": "飄雪結晶",
       "icon": "Snipaste_2026-01-03_00-29-33.png",
-      "cooldown": 300,
+      "cooldown": 600,
       "hotkey": "",
       "category": "item",
       "subcategory": "道具"
@@ -213,7 +213,7 @@
       "id": "Snipaste_2026-01-03_00-30-56",
       "name": "漫天花語",
       "icon": "Snipaste_2026-01-03_00-30-56.png",
-      "cooldown": 300,
+      "cooldown": 600,
       "hotkey": "",
       "category": "item",
       "subcategory": "道具"
