@@ -83,7 +83,7 @@ class MainWindow:
         self.skill_start_x = settings.get('skill_start_x', 1700)
         self.skill_start_y = settings.get('skill_start_y', 850)
         self.enable_sound = settings.get('enable_sound', True)
-        self.window_alpha = settings.get('window_alpha', 0.95)
+        self.window_alpha = 0.95  # 固定透明度
         
         # 技能設定 - 從配置檔案載入
         if profile_data:
@@ -777,7 +777,7 @@ class MainWindow:
         # 自動保存當前配置
         self._auto_save_current_profile()
     
-    def _update_skill_setting_exclusive(self, skill_id,     setting_type, var):
+    def _update_skill_setting_exclusive(self, skill_id, setting_type, var):
         new_value = var.get()
     
         if new_value:
@@ -1063,25 +1063,39 @@ class MainWindow:
         dialog = SettingsDialog(self.root, {
             'x': self.skill_start_x,
             'y': self.skill_start_y,
-            'sound': self.enable_sound,
-            'alpha': self.window_alpha
+            'sound': self.enable_sound
         })
         
         result = dialog.show()
         
         if result:
+            # 更新設定
+            old_x = self.skill_start_x
+            old_y = self.skill_start_y
+            
             self.skill_start_x = result['x']
             self.skill_start_y = result['y']
             self.enable_sound = result['sound']
-            self.window_alpha = result['alpha']
             
+            # 保存到 config.json
             self.config_manager.set_settings('skill_start_x', self.skill_start_x)
             self.config_manager.set_settings('skill_start_y', self.skill_start_y)
             self.config_manager.set_settings('enable_sound', self.enable_sound)
-            self.config_manager.set_settings('window_alpha', self.window_alpha)
             self.config_manager.save()
             
-            print(f"✅ 設定已保存: 透明度={self.window_alpha}")
+            # 立即套用：更新現有視窗的音效設定
+            for window in self.active_windows.values():
+                window.enable_sound = self.enable_sound
+            
+            # 如果位置改變，重新定位所有視窗
+            if old_x != self.skill_start_x or old_y != self.skill_start_y:
+                self._reposition_windows()
+                print(f"✅ 位置已更新：({old_x}, {old_y}) → ({self.skill_start_x}, {self.skill_start_y})    ")
+            
+            print(f"✅ 設定已套用：位置({self.skill_start_x}, {self.skill_start_y}), 音效={self.    enable_sound}")
+            
+            # 顯示成功訊息
+            messagebox.showinfo("設定已套用", "設定已成功保存並套用！", parent=self.root)
         
         self.keyboard_enabled = True
     

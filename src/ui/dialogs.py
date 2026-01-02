@@ -390,23 +390,31 @@ class SettingsDialog(BaseDialog):
             parent: 父視窗
             current_settings: 當前設定字典
         """
-        super().__init__(parent, "設定", 450, 320)  # 減少高度（移除尺寸設定）
+        super().__init__(parent, "設定", 450, 500)
         self.current_settings = current_settings
         
         self._create_ui()
     
     def _create_ui(self):
         """創建 UI"""
+        # 標題區域
+        title_label = tk.Label(
+            self.content, text="⚙️ 系統設定", 
+            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
+            font=Fonts.TITLE_MEDIUM
+        )
+        title_label.pack(pady=(10, 20))
+        
         # 位置設定
         pos_label = tk.Label(
-            self.content, text="技能視窗起始位置", 
+            self.content, text="📍 技能視窗起始位置", 
             bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
             font=Fonts.BODY_LARGE
         )
-        pos_label.pack(anchor='w', padx=20, pady=(15, 5))
+        pos_label.pack(anchor='w', padx=20, pady=(5, 5))
         
         pos_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
-        pos_frame.pack(pady=5, padx=20, fill='x')
+        pos_frame.pack(pady=10, padx=20, fill='x')
         
         tk.Label(
             pos_frame, text="X:", 
@@ -434,39 +442,70 @@ class SettingsDialog(BaseDialog):
         self.y_entry.insert(0, str(self.current_settings.get('y', 850)))
         self.y_entry.grid(row=0, column=3, padx=8)
         
+        # 分隔線
+        separator = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
+        separator.pack(fill=tk.X, padx=20, pady=15)
+        
         # 音效設定
+        sound_label = tk.Label(
+            self.content, text="🔊 音效設定", 
+            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
+            font=Fonts.BODY_LARGE
+        )
+        sound_label.pack(anchor='w', padx=20, pady=(5, 5))
+        
         self.sound_var = tk.BooleanVar(value=self.current_settings.get('sound', True))
-        tk.Checkbutton(
-            self.content, text="🔊 啟用音效", variable=self.sound_var,
-            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_PRIMARY, 
-            font=Fonts.BODY_LARGE,
-            selectcolor=Colors.BG_DARK, activebackground=Colors.BG_MEDIUM
-        ).pack(pady=15)
+        sound_checkbox = tk.Checkbutton(
+            self.content, 
+            text=" 啟用倒數完成音效提示", 
+            variable=self.sound_var,
+            bg=Colors.BG_MEDIUM, 
+            fg=Colors.TEXT_PRIMARY, 
+            font=Fonts.BODY_MEDIUM,
+            selectcolor=Colors.BG_DARK, 
+            activebackground=Colors.BG_MEDIUM,
+            activeforeground=Colors.TEXT_PRIMARY
+        )
+        sound_checkbox.pack(anchor='w', padx=40, pady=10)
         
         # 提示
         tk.Label(
-            self.content, text="💡 視窗尺寸自動適應技能圖片大小", 
+            self.content, text="💡 提示：視窗尺寸會自動適應技能圖片大小", 
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
             font=Fonts.BODY_SMALL
-        ).pack(pady=5)
+        ).pack(pady=(10, 5))
         
         # 儲存按鈕
+        btn_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
+        btn_frame.pack(pady=15)
+        
         RoundedButton(
-            self.content, "✓ 儲存設定", self._save, 
-            Colors.ACCENT_GREEN, width=150, height=35
-        ).pack(pady=20)
+            btn_frame, "✓ 儲存設定", self._save, 
+            Colors.ACCENT_GREEN, width=150, height=38
+        ).pack()
     
     def _save(self):
         """儲存設定"""
         try:
+            # 驗證輸入
+            x_val = int(self.x_entry.get())
+            y_val = int(self.y_entry.get())
+            
+            # 簡單的範圍檢查
+            if x_val < 0 or y_val < 0:
+                messagebox.showerror("錯誤", "座標值不能為負數！", parent=self.dialog)
+                return
+            
             self.result = {
-                'x': int(self.x_entry.get()),
-                'y': int(self.y_entry.get()),
-                'alpha': float(self.alpha_entry.get()),
+                'x': x_val,
+                'y': y_val,
                 'sound': self.sound_var.get()
             }
+            
+            print(f"✅ 設定已保存：位置({x_val}, {y_val}), 音效={self.sound_var.get()}")
             self.close()
+            
+        except ValueError:
+            messagebox.showerror("錯誤", "座標值必須是整數！", parent=self.dialog)
         except Exception as e:
-            from tkinter import messagebox
             messagebox.showerror("錯誤", f"設定格式錯誤：{e}", parent=self.dialog)
-
