@@ -6,11 +6,11 @@
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 from src.ui.components import RoundedButton, BorderedFrame
-from src.utils.styles import Colors, Fonts
+from src.ui.styles import Colors, Fonts
 
 
 class BaseDialog:
-    """基礎對話框"""
+    """基礎對話框（圓角）"""
     
     def __init__(self, parent, title, width=400, height=300):
         """初始化對話框
@@ -26,12 +26,77 @@ class BaseDialog:
         self.dialog.attributes('-topmost', True)
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        self.dialog.configure(bg=Colors.BG_MEDIUM)
-        self.dialog.geometry(f"{width}x{height}")
+        self.dialog.overrideredirect(True)  # 移除邊框以便自訂
+        self.dialog.configure(bg=Colors.BG_DARK)
+        
+        # 計算置中位置
+        screen_width = parent.winfo_screenwidth()
+        screen_height = parent.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        
         self.dialog.lift()
         self.dialog.focus_force()
         
+        # 使用圓角框架作為容器
+        from src.ui.components import RoundedFrame
+        
+        self.container = RoundedFrame(
+            self.dialog,
+            radius=15,
+            bg=Colors.BG_MEDIUM,
+            border_color=Colors.ACCENT_YELLOW,
+            border_width=2
+        )
+        self.container.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        # 標題列（可拖動）
+        self.title_bar = tk.Frame(self.container.get_content(), bg=Colors.BG_MEDIUM, cursor='hand2')
+        self.title_bar.pack(fill=tk.X, pady=(10, 5))
+        
+        tk.Label(
+            self.title_bar, text=title,
+            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
+            font=Fonts.TITLE_SMALL
+        ).pack(side=tk.LEFT, padx=15)
+        
+        # 關閉按鈕
+        close_btn = tk.Label(
+            self.title_bar, text="✕",
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
+            font=('Arial', 14, 'bold'),
+            cursor='hand2'
+        )
+        close_btn.pack(side=tk.RIGHT, padx=15)
+        close_btn.bind('<Button-1>', lambda e: self.close())
+        
+        # 啟用拖動
+        self._enable_drag()
+        
+        # 內容區域（子類使用）
+        self.content = self.container.get_content()
+        
         self.result = None
+    
+    def _enable_drag(self):
+        """啟用對話框拖動"""
+        self.title_bar.bind('<Button-1>', self._start_drag)
+        self.title_bar.bind('<B1-Motion>', self._on_drag)
+        
+        self._drag_x = 0
+        self._drag_y = 0
+    
+    def _start_drag(self, event):
+        """開始拖動"""
+        self._drag_x = event.x
+        self._drag_y = event.y
+    
+    def _on_drag(self, event):
+        """拖動中"""
+        x = self.dialog.winfo_x() + event.x - self._drag_x
+        y = self.dialog.winfo_y() + event.y - self._drag_y
+        self.dialog.geometry(f"+{x}+{y}")
     
     def show(self):
         """顯示對話框"""
@@ -66,7 +131,7 @@ class ProfileManagerDialog(BaseDialog):
     def _create_ui(self):
         """創建 UI"""
         # 標題
-        title_frame = tk.Frame(self.dialog, bg=Colors.BG_MEDIUM)
+        title_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
         title_frame.pack(fill=tk.X, pady=10)
         
         tk.Label(
@@ -90,7 +155,7 @@ class ProfileManagerDialog(BaseDialog):
         self.current_label.pack(side=tk.LEFT)
         
         # 配置列表
-        list_frame = BorderedFrame(self.dialog, bg=Colors.BG_DARK)
+        list_frame = BorderedFrame(self.content, bg=Colors.BG_DARK)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
         
         scrollbar = tk.Scrollbar(list_frame)
@@ -111,7 +176,7 @@ class ProfileManagerDialog(BaseDialog):
         self._refresh_list()
         
         # 按鈕組
-        btn_frame = tk.Frame(self.dialog, bg=Colors.BG_MEDIUM)
+        btn_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
         btn_frame.pack(pady=10)
         
         RoundedButton(
@@ -141,7 +206,7 @@ class ProfileManagerDialog(BaseDialog):
         
         # 提示
         tk.Label(
-            self.dialog, 
+            self.content, 
             text="💡 雙擊配置名稱可快速切換 | 所有修改會自動保存到當前配置", 
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
             font=Fonts.BODY_SMALL
@@ -178,7 +243,7 @@ class ProfileManagerDialog(BaseDialog):
                 return
             
             # 創建初始配置 - 包含所有技能的預設值
-            from src.core.skill_manager import SkillManager
+            from src.ui.skill_manager import SkillManager
             all_skills = self.main_window.skill_manager.get_all_skills().keys()
             
             initial_settings = {
@@ -325,23 +390,23 @@ class SettingsDialog(BaseDialog):
             parent: 父視窗
             current_settings: 當前設定字典
         """
-        super().__init__(parent, "設定", 380, 280)
+        super().__init__(parent, "設定", 450, 320)  # 減少高度（移除尺寸設定）
         self.current_settings = current_settings
         
         self._create_ui()
     
     def _create_ui(self):
         """創建 UI"""
-        # 標題
-        tk.Label(
-            self.dialog, text="⚙️ 技能視窗起始位置", 
-            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
-            font=Fonts.TITLE_SMALL
-        ).pack(pady=15)
-        
         # 位置設定
-        pos_frame = tk.Frame(self.dialog, bg=Colors.BG_MEDIUM)
-        pos_frame.pack(pady=10)
+        pos_label = tk.Label(
+            self.content, text="技能視窗起始位置", 
+            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
+            font=Fonts.BODY_LARGE
+        )
+        pos_label.pack(anchor='w', padx=20, pady=(15, 5))
+        
+        pos_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
+        pos_frame.pack(pady=5, padx=20, fill='x')
         
         tk.Label(
             pos_frame, text="X:", 
@@ -372,7 +437,7 @@ class SettingsDialog(BaseDialog):
         # 音效設定
         self.sound_var = tk.BooleanVar(value=self.current_settings.get('sound', True))
         tk.Checkbutton(
-            self.dialog, text="🔊 啟用音效", variable=self.sound_var,
+            self.content, text="🔊 啟用音效", variable=self.sound_var,
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_PRIMARY, 
             font=Fonts.BODY_LARGE,
             selectcolor=Colors.BG_DARK, activebackground=Colors.BG_MEDIUM
@@ -380,14 +445,14 @@ class SettingsDialog(BaseDialog):
         
         # 提示
         tk.Label(
-            self.dialog, text="💡 提示: 技能視窗從右下往左排列", 
+            self.content, text="💡 視窗尺寸自動適應技能圖片大小", 
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
             font=Fonts.BODY_SMALL
         ).pack(pady=5)
         
         # 儲存按鈕
         RoundedButton(
-            self.dialog, "✓ 儲存設定", self._save, 
+            self.content, "✓ 儲存設定", self._save, 
             Colors.ACCENT_GREEN, width=150, height=35
         ).pack(pady=20)
     
@@ -397,76 +462,11 @@ class SettingsDialog(BaseDialog):
             self.result = {
                 'x': int(self.x_entry.get()),
                 'y': int(self.y_entry.get()),
+                'alpha': float(self.alpha_entry.get()),
                 'sound': self.sound_var.get()
             }
             self.close()
-        except:
-            pass
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("錯誤", f"設定格式錯誤：{e}", parent=self.dialog)
 
-
-class JoinRoomDialog(BaseDialog):
-    """加入房間對話框"""
-    
-    def __init__(self, parent):
-        """初始化加入房間對話框
-        
-        Args:
-            parent: 父視窗
-        """
-        super().__init__(parent, "加入房間", 400, 260)
-        self._create_ui()
-    
-    def _create_ui(self):
-        """創建 UI"""
-        # 標題
-        tk.Label(
-            self.dialog, text="🚪 輸入房間代碼", 
-            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
-            font=Fonts.TITLE_SMALL
-        ).pack(pady=(20, 10))
-        
-        # 說明
-        tk.Label(
-            self.dialog, text="房間代碼採用 UUID 風格\n包含加密的 IP 信息和唯一性保證", 
-            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
-            font=('Microsoft JhengHei', 9), justify=tk.CENTER
-        ).pack(pady=(0, 15))
-        
-        # 輸入框
-        self.code_entry = tk.Entry(
-            self.dialog, font=('Consolas', 14, 'bold'), 
-            width=22, justify='center',
-            bg=Colors.BG_DARK, fg=Colors.TEXT_PRIMARY, relief=tk.FLAT
-        )
-        self.code_entry.pack(pady=15)
-        self.code_entry.focus()
-        self.code_entry.bind('<Return>', lambda e: self._join())
-        
-        # 提示
-        tk.Label(
-            self.dialog, text="格式: XXXXXXXX-XXXX-XXXX\n或直接輸入16碼（無分隔符）", 
-            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
-            font=('Microsoft JhengHei', 8), justify=tk.CENTER
-        ).pack(pady=(0, 10))
-        
-        # 加入按鈕
-        RoundedButton(
-            self.dialog, "✓ 加入房間", self._join, 
-            Colors.ACCENT_BLUE, width=150, height=35
-        ).pack(pady=10)
-    
-    def _join(self):
-        """加入房間"""
-        room_code = self.code_entry.get().strip().upper()
-        if not room_code:
-            messagebox.showwarning("提示", "請輸入房間代碼！", parent=self.dialog)
-            return
-        
-        # 移除分隔符後檢查長度
-        code_without_sep = room_code.replace('-', '')
-        if len(code_without_sep) < 8:
-            messagebox.showwarning("提示", "房間代碼太短！\n最少需要 8 位", parent=self.dialog)
-            return
-        
-        self.result = room_code
-        self.close()

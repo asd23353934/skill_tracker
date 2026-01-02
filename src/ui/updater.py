@@ -5,8 +5,13 @@
 import os
 import sys
 
-# 當前版本
-CURRENT_VERSION = "1.0.0"
+# 從 version.py 獲取版本號
+try:
+    from version import get_version
+    CURRENT_VERSION = get_version()
+except ImportError:
+    # 如果無法導入，使用默認值
+    CURRENT_VERSION = "1.0.8"
 
 # GitHub Release API
 GITHUB_API_URL = "https://api.github.com/repos/asd23353934/skill_tracker/releases/latest"

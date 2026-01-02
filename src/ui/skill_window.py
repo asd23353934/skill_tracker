@@ -4,182 +4,225 @@
 """
 
 import tkinter as tk
-import threading
-import time
 import winsound
-from src.utils.styles import Colors, Sizes
+from src.ui.styles import Colors
 
 
 class SkillWindow:
     """技能倒數視窗"""
-    
-    def __init__(self, skill, player, position, skill_image, on_close, 
-                 enable_sound, skill_id, is_permanent, start_at_zero=False):
-        """初始化技能視窗
-        
-        Args:
-            skill: 技能資料字典
-            player: 玩家名稱
-            position: 視窗位置 (x, y)
-            skill_image: 技能圖片
-            on_close: 關閉回調函數
-            enable_sound: 是否啟用音效
-            skill_id: 技能 ID
-            is_permanent: 是否為常駐技能
-            start_at_zero: 是否從 0 秒開始
-        """
+
+    def __init__(
+        self, skill, player, position, skill_image, on_close,
+        enable_sound, skill_id, is_permanent, is_loop=False,
+        start_at_zero=False, window_alpha=None
+    ):
         self.skill = skill
         self.player = player
         self.on_close = on_close
         self.enable_sound = enable_sound
         self.skill_id = skill_id
         self.is_permanent = is_permanent
-        self.running = True
-        
-        if start_at_zero:
-            self.remaining = 0
-            self.total = skill['cooldown']
-        else:
-            self.remaining = skill['cooldown']
-            self.total = skill['cooldown']
-        
+        self.is_loop = is_loop
+
+        self.window_alpha = window_alpha if window_alpha is not None else 0.95
+
+        self.total = skill["cooldown"]
+        self.remaining = 0 if start_at_zero else self.total
+
+        self.after_id = None
+        self.running = False
+
         self._create_window(position, skill_image)
-        
+
         if not start_at_zero:
-            threading.Thread(target=self._countdown, daemon=True).start()
+            self.start_countdown()
         else:
             self._update_display()
-    
+
+    # --------------------------------------------------
+    # UI
+    # --------------------------------------------------
     def _create_window(self, position, skill_image):
-        """創建視窗"""
+        from PIL import Image, ImageDraw, ImageTk
+        import os
+
+        window_size = 64
+
         self.window = tk.Toplevel()
-        self.window.title("")
-        self.window.attributes('-topmost', True)
-        self.window.attributes('-alpha', 0.95)
+        self.window.attributes("-topmost", True)
+        self.window.attributes("-alpha", self.window_alpha)
         self.window.overrideredirect(True)
-        self.window.configure(bg=Colors.BG_DARK)
-        
-        # 容器
-        container = tk.Frame(
-            self.window, bg=Colors.BG_MEDIUM, 
-            highlightbackground=Colors.ACCENT_BLUE, 
-            highlightthickness=Sizes.BORDER_WIDTH
+        self.window.configure(bg="black")
+
+        self.canvas = tk.Canvas(
+            self.window,
+            width=window_size,
+            height=window_size,
+            bg="black",
+            highlightthickness=0
         )
-        container.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-        
-        # 技能名稱
-        tk.Label(
-            container, text=self.skill['name'], 
-            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
-            font=('Microsoft JhengHei', 8, 'bold')
-        ).pack(pady=(3, 1))
-        
-        # 技能圖示
-        if skill_image:
-            img_label = tk.Label(container, image=skill_image, bg=Colors.BG_MEDIUM)
-            img_label.image = skill_image
-            img_label.pack(pady=2)
-        
-        # 倒數時間
-        self.timer_label = tk.Label(
-            container, text=f"{self.remaining}秒", 
-            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_PRIMARY,
-            font=('Microsoft JhengHei', 18, 'bold')
-        )
-        self.timer_label.pack(pady=2)
-        
-        # 玩家名稱
-        tk.Label(
-            container, text=f"{self.player}", 
-            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
-            font=('Microsoft JhengHei', 6)
-        ).pack(pady=(0, 1))
-        
-        # 重置按鈕
-        reset_btn = tk.Button(
-            container,
-            text="🔄 重置",
-            bg=Colors.BG_DARK,
-            fg=Colors.TEXT_SECONDARY,
-            font=('Microsoft JhengHei', 6),
-            relief=tk.FLAT,
-            cursor='hand2',
-            command=self.reset_countdown
-        )
-        reset_btn.pack(pady=(0, 3))
-        
-        # 設定位置
-        self.window.geometry(
-            f"{Sizes.SKILL_WINDOW_WIDTH}x{Sizes.SKILL_WINDOW_HEIGHT}"
-            f"+{position[0]}+{position[1]}"
-        )
-    
-    def restart_countdown(self):
-        """重新開始倒數（用於常駐技能）"""
-        if self.remaining == 0:
-            self.remaining = self.total
-            self.running = True
-            threading.Thread(target=self._countdown, daemon=True).start()
-    
-    def reset_countdown(self):
-        """重置倒數（重置到初始秒數）"""
-        self.remaining = self.total
-        self.running = True
-        threading.Thread(target=self._countdown, daemon=True).start()
-        self._update_display()
-    
-    def update_position(self, x, y):
-        """更新視窗位置
-        
-        Args:
-            x: X 座標
-            y: Y 座標
-        """
-        try:
-            self.window.geometry(
-                f"{Sizes.SKILL_WINDOW_WIDTH}x{Sizes.SKILL_WINDOW_HEIGHT}+{x}+{y}"
-            )
-        except:
-            pass
-    
-    def _countdown(self):
-        """倒數計時"""
-        while self.running and self.remaining > 0:
-            time.sleep(1)
-            self.remaining -= 1
-            if self.running:
+        self.canvas.pack()
+
+        # ---------- 背景圖片 ----------
+        skill_img_pil = None
+        possible_paths = [
+            f"resources/images/{self.skill['icon']}",
+            f"images/{self.skill['icon']}",
+            os.path.join(os.path.dirname(__file__), "..", "..", "resources", "images", self.skill["icon"]),
+        ]
+
+        for path in possible_paths:
+            if os.path.exists(path):
                 try:
-                    self._update_display()
-                except:
+                    skill_img_pil = Image.open(path)
                     break
-        
-        if self.running:
-            if self.enable_sound:
-                self._play_sound()
-            
-            if not self.is_permanent:
-                time.sleep(2)
-                self.close()
-            else:
-                self._update_display()
-    
-    def _update_display(self):
-        """更新顯示"""
+                except:
+                    pass
+
+        if skill_img_pil is None:
+            skill_img_pil = Image.new("RGB", (64, 64), "black")
+
+        skill_img_pil = skill_img_pil.resize((window_size, window_size), Image.Resampling.LANCZOS)
+
+        mask = Image.new("L", (window_size, window_size), 255)
+        output = Image.new("RGBA", (window_size, window_size))
+        output.paste(skill_img_pil.convert("RGB"), (0, 0))
+        output.putalpha(mask)
+
+        self.bg_image = ImageTk.PhotoImage(output)
+
+        self.canvas.create_image(
+            window_size // 2,
+            window_size // 2,
+            image=self.bg_image
+        )
+
+        # ---------- 倒數文字（黑色） ----------
+        self.timer_text = self.canvas.create_text(
+            window_size // 2,
+            window_size // 2,
+            text=str(self.remaining),
+            fill="black",                     # ← 黑色
+            font=("Arial", 24, "bold"),
+            anchor="center"
+        )
+
+        # ---------- 關閉 X 紅色邊框 ----------
+        border_size = 16
+        padding = 2
+
+        self.close_border = self.canvas.create_rectangle(
+            window_size - border_size - padding,
+            padding,
+            window_size - padding,
+            border_size + padding,
+            outline="#FF0000",                # 紅色 border
+            width=2
+        )
+
+        self.close_btn = self.canvas.create_text(
+            window_size - border_size // 2 - padding,
+            border_size // 2 + padding,
+            text="✕",
+            fill="#FF0000",
+            font=("Arial", 12, "bold"),
+            anchor="center"
+        )
+
+        for item in (self.close_border, self.close_btn):
+            self.canvas.tag_bind(item, "<Button-1>", lambda e: self.close())
+            self.canvas.tag_bind(
+                item, "<Enter>",
+                lambda e: self.canvas.itemconfig(self.close_border, outline="#FF6666")
+            )
+            self.canvas.tag_bind(
+                item, "<Leave>",
+                lambda e: self.canvas.itemconfig(self.close_border, outline="#FF0000")
+            )
+
+        self.window.geometry(f"+{position[0]}+{position[1]}")
+
+    # --------------------------------------------------
+    # Countdown Logic (NO THREADING)
+    # --------------------------------------------------
+    def start_countdown(self):
+        self.stop_countdown()
+        self.running = True
+        self._update_display()
+        self.after_id = self.window.after(1000, self._tick)
+
+
+    def stop_countdown(self):
+        self.running = False
+        if self.after_id:
+            self.window.after_cancel(self.after_id)
+            self.after_id = None
+
+    def reset_countdown(self):
+        self.remaining = self.total
+        self._update_display()
+        self.start_countdown()
+
+    def restart_countdown(self):
+        self.reset_countdown()
+
+    def _tick(self):
+        if not self.running:
+            return
+ 
         if self.remaining > 0:
-            self.timer_label.config(text=f"{self.remaining}秒", fg=Colors.TEXT_PRIMARY)
+            self.remaining -= 1
+            self._update_display()
+ 
+            if self.remaining > 0:
+                self.after_id = self.window.after(1000, self._tick)
+            else:
+                self._on_finish()
+
+    def _on_finish(self):
+        if self.enable_sound:
+            self._play_sound()
+
+        if self.is_loop:
+            self.remaining = self.total
+            self._update_display()
+            self.after_id = self.window.after(1000, self._tick)
+        elif not self.is_permanent:
+            self.after_id = self.window.after(2000, self.close)
         else:
-            self.timer_label.config(text="0秒", fg=Colors.ACCENT_GREEN)
-    
+            self._update_display()
+
+    # --------------------------------------------------
+    # Utils
+    # --------------------------------------------------
+    def _update_display(self):
+        if self.remaining > 0:
+            self.canvas.itemconfig(
+                self.timer_text,
+                text=str(self.remaining),
+                fill="black"                   # ← 保持黑色
+            )
+        else:
+            self.canvas.itemconfig(
+                self.timer_text,
+                text="0",
+                fill="black"
+            )
+
     def _play_sound(self):
-        """播放音效"""
         try:
             winsound.Beep(800, 300)
         except:
             pass
-    
+
+    def update_position(self, x, y):
+        try:
+            self.window.geometry(f"+{x}+{y}")
+        except:
+            pass
+
     def close(self):
-        """關閉視窗"""
-        self.running = False
+        self.stop_countdown()
         try:
             self.window.destroy()
         except:

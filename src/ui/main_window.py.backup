@@ -11,10 +11,10 @@ import time
 from src.ui.components import RoundedButton, SectionFrame, ScrollableFrame
 from src.ui.dialogs import ProfileManagerDialog, SettingsDialog
 from src.ui.skill_window import SkillWindow
-from src.ui.config_manager import ConfigManager
-from src.ui.skill_manager import SkillManager
-from src.ui.styles import Colors, Fonts, Sizes
-from src.ui.helpers import resource_path
+from src.core.config_manager import ConfigManager
+from src.core.skill_manager import SkillManager
+from src.utils.styles import Colors, Fonts, Sizes
+from src.utils.helpers import resource_path
 
 
 class MainWindow:
@@ -24,8 +24,8 @@ class MainWindow:
         """初始化主視窗"""
         # 獲取版本號
         try:
-            from version import get_version
-            version_str = f" v{get_version()}"
+            from version import VERSION
+            version_str = f" v{VERSION}"
         except:
             version_str = ""
         
@@ -83,12 +83,12 @@ class MainWindow:
         self.skill_start_x = settings.get('skill_start_x', 1700)
         self.skill_start_y = settings.get('skill_start_y', 850)
         self.enable_sound = settings.get('enable_sound', True)
-        self.window_alpha = settings.get('window_alpha', 0.95)
         
         # 技能設定 - 從配置檔案載入
         if profile_data:
+            self.skill_send = profile_data.get('send', {})
+            self.skill_receive = profile_data.get('receive', {})
             self.skill_permanent = profile_data.get('permanent', {})
-            self.skill_loop = profile_data.get('loop', {})  # 新增循環設定
             
             # 載入快捷鍵到技能管理器
             hotkeys = profile_data.get('hotkeys', {})
@@ -104,13 +104,15 @@ class MainWindow:
                 if skill:
                     skill['cooldown'] = cooldown
         else:
+            self.skill_send = {}
+            self.skill_receive = {}
             self.skill_permanent = {}
-            self.skill_loop = {}
         
         # 初始化所有技能的預設值
         for skill_id in self.skill_manager.get_all_skills():
+            self.skill_send.setdefault(skill_id, True)
+            self.skill_receive.setdefault(skill_id, True)
             self.skill_permanent.setdefault(skill_id, False)
-            self.skill_loop.setdefault(skill_id, False)
         
         # UI 控制
         self.keyboard_enabled = True
@@ -118,8 +120,9 @@ class MainWindow:
         self.waiting_skill_name = None
         
         # UI 元件字典
+        self.send_vars = {}
+        self.receive_vars = {}
         self.permanent_vars = {}
-        self.loop_vars = {}
         self.hotkey_buttons = {}
         self.cooldown_buttons = {}  # 秒數按鈕字典
     
@@ -134,20 +137,25 @@ class MainWindow:
         main_container = tk.Frame(self.root, bg=Colors.BG_DARK)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 第一欄：玩家技能
+        # 第一欄：房間管理
         col1 = tk.Frame(main_container, bg=Colors.BG_DARK)
         col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
-        self._create_player_skills_column(col1)
+        self._create_room_column(col1)
         
-        # 第二欄：BOSS 技能
+        # 第二欄：玩家技能
         col2 = tk.Frame(main_container, bg=Colors.BG_DARK)
         col2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
-        self._create_boss_skills_column(col2)
+        self._create_player_skills_column(col2)
         
-        # 第三欄：道具
+        # 第三欄：BOSS 技能
         col3 = tk.Frame(main_container, bg=Colors.BG_DARK)
         col3.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
-        self._create_items_column(col3)
+        self._create_boss_skills_column(col3)
+        
+        # 第四欄：道具
+        col4 = tk.Frame(main_container, bg=Colors.BG_DARK)
+        col4.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+        self._create_items_column(col4)
     
     def _create_header(self):
         """創建頂部標題列"""
@@ -210,7 +218,7 @@ class MainWindow:
         
         # 清空按鍵按鈕
         RoundedButton(
-            right_buttons, "清空按鍵", self._clear_all_hotkeys,
+            right_buttons, "🗑️ 清空按鍵", self._clear_all_hotkeys,
             Colors.ACCENT_RED, width=100, height=30
         ).pack(side=tk.LEFT, padx=3)
         
@@ -231,13 +239,18 @@ class MainWindow:
         ).pack(side=tk.LEFT, padx=3)
         
         RoundedButton(
-            quick_btns, "常駐", lambda: self._toggle_all('permanent'),
-            Colors.ACCENT_YELLOW, width=50, height=25
+            quick_btns, "發送", lambda: self._toggle_all('send'),
+            Colors.ACCENT_GREEN, width=50, height=25
         ).pack(side=tk.LEFT, padx=1)
         
         RoundedButton(
-            quick_btns, "循環", lambda: self._toggle_all('loop'),
-            Colors.ACCENT_GREEN, width=50, height=25
+            quick_btns, "接收", lambda: self._toggle_all('receive'),
+            Colors.ACCENT_BLUE, width=50, height=25
+        ).pack(side=tk.LEFT, padx=1)
+        
+        RoundedButton(
+            quick_btns, "常駐", lambda: self._toggle_all('permanent'),
+            Colors.ACCENT_YELLOW, width=50, height=25
         ).pack(side=tk.LEFT, padx=1)
         
         # 設定按鈕
@@ -253,6 +266,106 @@ class MainWindow:
             font=Fonts.BODY_LARGE_BOLD
         )
         self.hotkey_hint_label.pack(side=tk.RIGHT, padx=20, pady=15)
+    
+    def _create_room_column(self, parent):
+        """創建房間管理欄"""
+        # 標題
+        self._create_column_title(parent, "🏠 房間管理")
+        
+        content = tk.Frame(parent, bg=Colors.BG_DARK)
+        content.pack(fill=tk.BOTH, expand=True)
+        
+        # 房間狀態
+        status_frame = SectionFrame(content, "房間狀態")
+        status_frame.pack(fill=tk.X, pady=5)
+        
+        status_content = status_frame.get_content()
+        
+        self.room_info_label = tk.Label(
+            status_content, text="● 未連線",
+            bg=Colors.BG_LIGHT, fg=Colors.TEXT_SECONDARY,
+            font=Fonts.BODY_MEDIUM
+        )
+        self.room_info_label.pack(pady=15)
+        
+        # 按鈕組
+        btn_frame = tk.Frame(status_content, bg=Colors.BG_LIGHT)
+        btn_frame.pack(pady=10, padx=10, fill=tk.X)
+        
+        self.create_btn = tk.Button(
+            btn_frame, text="創建房間", command=self._create_room,
+            bg=Colors.ACCENT_BLUE, fg='white',
+            font=Fonts.BUTTON, relief=tk.FLAT, cursor='hand2',
+            activebackground=Colors.BG_DARK
+        )
+        self.create_btn.pack(fill=tk.X, pady=3)
+        
+        self.join_btn = tk.Button(
+            btn_frame, text="加入房間", command=self._join_room,
+            bg=Colors.ACCENT_PURPLE, fg='white',
+            font=Fonts.BUTTON, relief=tk.FLAT, cursor='hand2',
+            activebackground=Colors.BG_DARK
+        )
+        self.join_btn.pack(fill=tk.X, pady=3)
+        
+        self.leave_btn = tk.Button(
+            btn_frame, text="退出房間", command=self._leave_room,
+            bg=Colors.ACCENT_RED, fg='white',
+            font=Fonts.BUTTON, relief=tk.FLAT, cursor='hand2',
+            state=tk.DISABLED, activebackground=Colors.BG_DARK
+        )
+        self.leave_btn.pack(fill=tk.X, pady=3)
+        
+        # 玩家資訊
+        player_frame = tk.Frame(status_content, bg=Colors.BG_LIGHT)
+        player_frame.pack(pady=10, fill=tk.X)
+        
+        self.player_label = tk.Label(
+            player_frame, text=f"👤 玩家: {self.player_name}",
+            bg=Colors.BG_LIGHT, fg=Colors.ACCENT_GREEN,
+            font=Fonts.BODY_MEDIUM_BOLD
+        )
+        self.player_label.pack(side=tk.LEFT, padx=15)
+        
+        tk.Button(
+            player_frame, text="✏️ 修改", command=self._change_player_name,
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_PRIMARY,
+            font=Fonts.BODY_SMALL, relief=tk.FLAT, cursor='hand2',
+            activebackground=Colors.BG_DARK
+        ).pack(side=tk.RIGHT, padx=15)
+        
+        # 成員列表
+        members_frame = SectionFrame(content, "房間成員")
+        members_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        members_content = members_frame.get_content()
+        
+        self.members_list = tk.Listbox(
+            members_content, bg=Colors.BG_DARK,
+            fg=Colors.TEXT_PRIMARY,
+            font=Fonts.BODY_SMALL, height=8,
+            selectbackground=Colors.ACCENT_BLUE,
+            relief=tk.FLAT, bd=0
+        )
+        self.members_list.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 提示
+        from src.ui.components import RoundedFrame
+        
+        tip_wrapper = RoundedFrame(
+            content, radius=8, bg=Colors.BG_MEDIUM,
+            border_color=Colors.ACCENT_GREEN, border_width=2
+        )
+        tip_wrapper.pack(fill=tk.X, pady=10, padx=5)
+        
+        tip_frame = tip_wrapper.get_content()
+        
+        tk.Label(
+            tip_frame,
+            text="💡 提示:\n• 再次按快捷鍵可關閉倒數\n• 點擊快捷鍵按鈕可重新設定\n• 配置管理可儲存多種場景",
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
+            font=Fonts.BODY_SMALL, justify=tk.LEFT
+        ).pack(padx=15, pady=10)
     
     def _create_player_skills_column(self, parent):
         """創建玩家技能欄"""
@@ -420,20 +533,10 @@ class MainWindow:
             bottom_info, f"{skill['cooldown']}秒",
             lambda sid=skill_id: self._edit_cooldown(sid),
             Colors.ACCENT_BLUE if is_modified else Colors.BG_MEDIUM,
-            fg_color='#FFFFFF' if is_modified else Colors.TEXT_PRIMARY,
+            fg_color='#FFFFFF' if is_modified else Colors.TEXT_SECONDARY,
             width=60, height=20
         )
-        cooldown_btn.pack(side=tk.LEFT, padx=(0, 2))
-        
-        # 重置秒數按鈕
-        reset_cooldown_btn = RoundedButton(
-            bottom_info, "🔄",
-            lambda sid=skill_id: self._reset_cooldown(sid),
-            Colors.BG_MEDIUM,
-            fg_color=Colors.TEXT_SECONDARY,
-            width=20, height=20
-        )
-        reset_cooldown_btn.pack(side=tk.LEFT, padx=(0, 5))
+        cooldown_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 記錄秒數按鈕（用於更新顯示）
         if not hasattr(self, 'cooldown_buttons'):
@@ -450,18 +553,8 @@ class MainWindow:
             fg_color='#000000' if has_hotkey else Colors.TEXT_SECONDARY,
             width=60, height=20
         )
-        hotkey_btn.pack(side=tk.LEFT, padx=(0, 2))
+        hotkey_btn.pack(side=tk.LEFT)
         self.hotkey_buttons[skill_id] = hotkey_btn
-        
-        # 重置按鍵按鈕
-        reset_hotkey_btn = RoundedButton(
-            bottom_info, "🔄",
-            lambda sid=skill_id: self._reset_hotkey(sid),
-            Colors.BG_MEDIUM,
-            fg_color=Colors.TEXT_SECONDARY,
-            width=20, height=20
-        )
-        reset_hotkey_btn.pack(side=tk.LEFT)
         
         # 右側：選項
         options_frame = tk.Frame(item_frame, bg=Colors.BG_DARK)
@@ -470,36 +563,27 @@ class MainWindow:
         self._create_skill_checkboxes(options_frame, skill_id)
     
     def _create_skill_checkboxes(self, parent, skill_id):
-        """創建技能選項（常駐和循環，互斥）"""
-        # 常駐 checkbox
-        permanent_var = tk.BooleanVar(value=self.skill_permanent.get(skill_id, False))
-        self.permanent_vars[skill_id] = permanent_var
+        """創建技能選項"""
+        checkboxes = [
+            ('send', '發', Colors.ACCENT_GREEN, self.skill_send, self.send_vars),
+            ('receive', '收', Colors.ACCENT_BLUE, self.skill_receive, self.receive_vars),
+            ('permanent', '駐', Colors.ACCENT_YELLOW, self.skill_permanent, self.permanent_vars)
+        ]
         
-        permanent_cb = tk.Checkbutton(
-            parent, text='常駐', variable=permanent_var,
-            command=lambda sid=skill_id, v=permanent_var:
-                self._update_skill_setting_exclusive(sid, 'permanent', v),
-            bg=Colors.BG_DARK, fg=Colors.ACCENT_YELLOW,
-            font=Fonts.BODY_SMALL,
-            selectcolor=Colors.BG_MEDIUM,
-            activebackground=Colors.BG_DARK
-        )
-        permanent_cb.pack(side=tk.LEFT, padx=2)
-        
-        # 循環 checkbox
-        loop_var = tk.BooleanVar(value=self.skill_loop.get(skill_id, False))
-        self.loop_vars[skill_id] = loop_var
-        
-        loop_cb = tk.Checkbutton(
-            parent, text='循環', variable=loop_var,
-            command=lambda sid=skill_id, v=loop_var:
-                self._update_skill_setting_exclusive(sid, 'loop', v),
-            bg=Colors.BG_DARK, fg=Colors.ACCENT_GREEN,
-            font=Fonts.BODY_SMALL,
-            selectcolor=Colors.BG_MEDIUM,
-            activebackground=Colors.BG_DARK
-        )
-        loop_cb.pack(side=tk.LEFT, padx=2)
+        for setting_type, text, color, settings_dict, vars_dict in checkboxes:
+            var = tk.BooleanVar(value=settings_dict.get(skill_id, True))
+            vars_dict[skill_id] = var
+            
+            cb = tk.Checkbutton(
+                parent, text=text, variable=var,
+                command=lambda sid=skill_id, t=setting_type, v=var:
+                    self._update_skill_setting(sid, t, v),
+                bg=Colors.BG_DARK, fg=color,
+                font=Fonts.BODY_SMALL,
+                selectcolor=Colors.BG_MEDIUM,
+                activebackground=Colors.BG_DARK
+            )
+            cb.pack(side=tk.LEFT, padx=2)
     
     # ==================== 配置管理 ====================
     
@@ -546,8 +630,9 @@ class MainWindow:
                 sid: skill.get('hotkey', '')
                 for sid, skill in self.skill_manager.get_all_skills().items()
             },
+            'send': self.skill_send.copy(),
+            'receive': self.skill_receive.copy(),
             'permanent': self.skill_permanent.copy(),
-            'loop': self.skill_loop.copy(),
             'cooldown_overrides': cooldown_overrides
         }
     
@@ -600,10 +685,14 @@ class MainWindow:
                 skill['cooldown'] = cooldown
         
         # 更新設定
+        self.skill_send = profile_data.get('send', {}).copy()
+        self.skill_receive = profile_data.get('receive', {}).copy()
         self.skill_permanent = profile_data.get('permanent', {}).copy()
         
         # 確保所有技能都有預設值
         for skill_id in self.skill_manager.get_all_skills():
+            self.skill_send.setdefault(skill_id, True)
+            self.skill_receive.setdefault(skill_id, True)
             self.skill_permanent.setdefault(skill_id, False)
         
         self._save_config()
@@ -618,6 +707,8 @@ class MainWindow:
             widget.destroy()
         
         # 重新初始化變數
+        self.send_vars = {}
+        self.receive_vars = {}
         self.permanent_vars = {}
         self.hotkey_buttons = {}
         self.cooldown_buttons = {}  # 重置秒數按鈕
@@ -646,11 +737,10 @@ class MainWindow:
                     btn.update_text('未設定')
                     btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)
                 
-                # 更新秒數按鈕顯示（重置為預設顏色）
+                # 更新秒數按鈕顯示
                 if skill_id in self.cooldown_buttons:
                     btn = self.cooldown_buttons[skill_id]
                     btn.update_text(f'{original_cooldown}秒')
-                    btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_PRIMARY)  # 重置顏色
             
             # 自動保存當前配置（會清空 hotkeys 和 cooldown_overrides）
             self._auto_save_current_profile()
@@ -735,93 +825,39 @@ class MainWindow:
     
     def _toggle_all(self, setting_type):
         """切換所有技能的設定"""
-        if setting_type == 'permanent':
-            # 檢查是否所有技能都已勾選
-            all_checked = all(self.skill_permanent.get(sid, False) 
-                             for sid in self.skill_manager.get_all_skills().keys())
-            new_value = not all_checked
-            
-            # 更新所有技能
-            for skill_id in self.skill_manager.get_all_skills().keys():
-                self._update_permanent_skill(skill_id, new_value)
-                self.skill_permanent[skill_id] = new_value
-                if skill_id in self.permanent_vars:
-                    self.permanent_vars[skill_id].set(new_value)
+        settings_map = {
+            'send': (self.skill_send, self.send_vars),
+            'receive': (self.skill_receive, self.receive_vars),
+            'permanent': (self.skill_permanent, self.permanent_vars)
+        }
         
-        elif setting_type == 'loop':
-            # 檢查是否所有技能都已勾選
-            all_checked = all(self.skill_loop.get(sid, False) 
-                             for sid in self.skill_manager.get_all_skills().keys())
-            new_value = not all_checked
-            
-            # 更新所有技能
-            for skill_id in self.skill_manager.get_all_skills().keys():
-                self._update_loop_skill(skill_id, new_value)
-                self.skill_loop[skill_id] = new_value
-                if skill_id in self.loop_vars:
-                    self.loop_vars[skill_id].set(new_value)
+        settings_dict, vars_dict = settings_map[setting_type]
+        all_checked = all(settings_dict.get(sid, True) for sid in self.skill_manager.get_all_skills().keys())
+        new_value = not all_checked
+        
+        for skill_id in self.skill_manager.get_all_skills().keys():
+            if setting_type == 'permanent':
+                self._update_permanent_skill(skill_id, new_value)
+            settings_dict[skill_id] = new_value
+            if skill_id in vars_dict:
+                vars_dict[skill_id].set(new_value)
         
         self._save_config()
     
     def _update_skill_setting(self, skill_id, setting_type, var):
-        """更新技能設定（常駐和循環）"""
+        """更新技能設定"""
         new_value = var.get()
-        if setting_type == 'permanent':
+        if setting_type == 'send':
+            self.skill_send[skill_id] = new_value
+        elif setting_type == 'receive':
+            self.skill_receive[skill_id] = new_value
+        elif setting_type == 'permanent':
             self._update_permanent_skill(skill_id, new_value)
             self.skill_permanent[skill_id] = new_value
-        elif setting_type == 'loop':
-            self._update_loop_skill(skill_id, new_value)
-            self.skill_loop[skill_id] = new_value
         self._save_config()
         
         # 自動保存當前配置
         self._auto_save_current_profile()
-    
-    def _update_skill_setting_exclusive(self, skill_id,     setting_type, var):
-        new_value = var.get()
-    
-        if new_value:
-            if setting_type == 'permanent':
-                # 取消循環
-                if self.skill_loop.get(skill_id, False):
-                    self.skill_loop[skill_id] = False
-                    if skill_id in self.loop_vars:
-                        self.loop_vars[skill_id].set(False)
-                    if skill_id in self.active_windows:
-                        self.active_windows[skill_id].close()
-    
-                self.skill_permanent[skill_id] = True
-    
-                if skill_id not in self.active_windows:
-                    self._create_permanent_window(skill_id)
-    
-            elif setting_type == 'loop':
-                # 取消常駐
-                if self.skill_permanent.get(skill_id, False):
-                    self.skill_permanent[skill_id] = False
-                    if skill_id in self.permanent_vars:
-                        self.permanent_vars[skill_id].set(False)
-                    if skill_id in self.active_windows:
-                        self.active_windows[skill_id].close()
-    
-                self.skill_loop[skill_id] = True
-    
-                if skill_id not in self.active_windows:
-                    self._create_loop_window(skill_id)
-    
-        else:
-            # 取消勾選 → 關閉視窗
-            if skill_id in self.active_windows:
-                self.active_windows[skill_id].close()
-    
-            if setting_type == 'permanent':
-                self.skill_permanent[skill_id] = False
-            elif setting_type == 'loop':
-                self.skill_loop[skill_id] = False
-    
-        self._save_config()
-        self._auto_save_current_profile()
-
     
     def _update_permanent_skill(self, skill_id, is_permanent):
         """更新駐留技能"""
@@ -833,25 +869,11 @@ class MainWindow:
             if skill_id in self.active_windows:
                 self.active_windows[skill_id].close()
     
-    def _update_loop_skill(self, skill_id, is_loop):
-        """更新循環技能"""
-        was_loop = self.skill_loop.get(skill_id, False)
-        if is_loop and not was_loop:
-            if skill_id not in self.active_windows:
-                self._create_loop_window(skill_id)
-        elif not is_loop and was_loop:
-            if skill_id in self.active_windows:
-                self.active_windows[skill_id].close()
-    
     def _initialize_permanent_skills(self):
-        """初始化駐留技能和循環技能"""
+        """初始化駐留技能"""
         for skill_id, is_permanent in self.skill_permanent.items():
             if is_permanent and skill_id not in self.active_windows:
                 self._create_permanent_window(skill_id)
-        
-        for skill_id, is_loop in self.skill_loop.items():
-            if is_loop and skill_id not in self.active_windows:
-                self._create_loop_window(skill_id)
     
     def _create_permanent_window(self, skill_id):
         """創建駐留視窗"""
@@ -868,30 +890,7 @@ class MainWindow:
         skill_window = SkillWindow(
             skill, self.player_name, position, skill_image,
             lambda w: self._on_window_close(w, skill_id),
-            self.enable_sound, skill_id, is_permanent=True, is_loop=False,
-            start_at_zero=True,
-            window_alpha=self.window_alpha
-        )
-        self.active_windows[skill_id] = skill_window
-    
-    def _create_loop_window(self, skill_id):
-        """創建循環視窗"""
-        skill = self.skill_manager.get_skill(skill_id)
-        if not skill:
-            return
-        
-        if skill_id not in self.window_order:
-            self.window_order.append(skill_id)
-        
-        position = self._calculate_position(skill_id)
-        skill_image = self.skill_manager.skill_images.get(skill_id)
-        
-        skill_window = SkillWindow(
-            skill, self.player_name, position, skill_image,
-            lambda w: self._on_window_close(w, skill_id),
-            self.enable_sound, skill_id, is_permanent=False, is_loop=True,
-            start_at_zero=False,  # 循環從滿秒數開始
-            window_alpha=self.window_alpha
+            self.enable_sound, skill_id, True, start_at_zero=True
         )
         self.active_windows[skill_id] = skill_window
     
@@ -899,7 +898,7 @@ class MainWindow:
     
     def _check_for_updates(self):
         """檢查更新（非阻塞）"""
-        from src.ui.updater import Updater
+        from src.core.updater import Updater
         
         try:
             updater = Updater()
@@ -986,61 +985,6 @@ class MainWindow:
             status = "修改" if original_cooldown != new_cooldown else "恢復預設"
             print(f"✅ 已將 {skill['name']} 的冷卻時間{status}為 {new_cooldown}秒")
     
-    def _reset_cooldown(self, skill_id):
-        """重置技能冷卻時間為預設值"""
-        skill = self.skill_manager.get_skill(skill_id)
-        if not skill:
-            return
-        
-        # 獲取原始秒數
-        original_cooldown = self._get_original_cooldown(skill_id)
-        if not original_cooldown:
-            return
-        
-        # 如果已經是預設值，不做任何事
-        if skill['cooldown'] == original_cooldown:
-            print(f"ℹ️ {skill['name']} 已經是預設秒數")
-            return
-        
-        # 恢復原始秒數
-        skill['cooldown'] = original_cooldown
-        
-        # 更新按鈕顯示和顏色
-        if skill_id in self.cooldown_buttons:
-            btn = self.cooldown_buttons[skill_id]
-            btn.update_text(f"{original_cooldown}秒")
-            btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_PRIMARY)  # 恢復預設顏色
-        
-        # 自動保存當前配置
-        self._auto_save_current_profile()
-        
-        print(f"✅ 已將 {skill['name']} 的冷卻時間重置為預設值 {original_cooldown}秒")
-    
-    def _reset_hotkey(self, skill_id):
-        """重置技能快捷鍵"""
-        skill = self.skill_manager.get_skill(skill_id)
-        if not skill:
-            return
-        
-        # 如果沒有設定快捷鍵，不做任何事
-        if not skill.get('hotkey'):
-            print(f"ℹ️ {skill['name']} 沒有設定快捷鍵")
-            return
-        
-        # 清空快捷鍵
-        skill['hotkey'] = ''
-        
-        # 更新按鈕顯示和顏色
-        if skill_id in self.hotkey_buttons:
-            btn = self.hotkey_buttons[skill_id]
-            btn.update_text('未設定')
-            btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)  # 恢復預設顏色
-        
-        # 自動保存當前配置
-        self._auto_save_current_profile()
-        
-        print(f"✅ 已清空 {skill['name']} 的快捷鍵")
-    
     def _change_player_name(self):
         """修改玩家名稱"""
         self.keyboard_enabled = False
@@ -1063,8 +1007,7 @@ class MainWindow:
         dialog = SettingsDialog(self.root, {
             'x': self.skill_start_x,
             'y': self.skill_start_y,
-            'sound': self.enable_sound,
-            'alpha': self.window_alpha
+            'sound': self.enable_sound
         })
         
         result = dialog.show()
@@ -1073,17 +1016,176 @@ class MainWindow:
             self.skill_start_x = result['x']
             self.skill_start_y = result['y']
             self.enable_sound = result['sound']
-            self.window_alpha = result['alpha']
             
             self.config_manager.set_settings('skill_start_x', self.skill_start_x)
             self.config_manager.set_settings('skill_start_y', self.skill_start_y)
             self.config_manager.set_settings('enable_sound', self.enable_sound)
-            self.config_manager.set_settings('window_alpha', self.window_alpha)
             self.config_manager.save()
-            
-            print(f"✅ 設定已保存: 透明度={self.window_alpha}")
         
         self.keyboard_enabled = True
+    
+    def _create_room(self):
+        """創建房間（使用中繼伺服器）"""
+        print("\n" + "="*60)
+        print("🌟 使用中繼伺服器模式")
+        print("="*60)
+        
+        # 獲取玩家名稱
+        import random
+        import string
+        player_name = f"玩家{random.randint(1000, 9999)}"
+        
+        try:
+            from src.core.relay_client_http import RelayClientHTTP
+            
+            # 生成房間代碼
+            room_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            
+            print(f"\n🔑 房間代碼: {room_code}")
+            print(f"🔗 連線到中繼伺服器...")
+            
+            # 創建中繼客戶端
+            relay_client = RelayClientHTTP(
+                room_code,
+                player_name,
+                self._on_network_skill,
+                self._on_members_update
+            )
+            
+            # 連線
+            if relay_client.connect():
+                # 更新 network 物件的屬性
+                self.network.room_code = room_code
+                self.network.is_host = True
+                self.network.use_relay = True
+                self.network.relay_client = relay_client
+                
+                print(f"\n✅ 中繼房間創建成功")
+                print(f"   房間代碼: {room_code}")
+                print("="*60 + "\n")
+                
+                # 更新 UI
+                self.room_info_label.config(text=f"● 房間: {room_code} (房主)", fg=Colors.ACCENT_GREEN)
+                self.create_btn.configure(state=tk.DISABLED)
+                self.join_btn.configure(state=tk.DISABLED)
+                self.leave_btn.configure(state=tk.NORMAL)
+                self._on_members_update([])
+                
+                messagebox.showinfo(
+                    "房間已創建", 
+                    f"房間代碼: {room_code}\n\n✅ 中繼伺服器模式\n✅ 任何網路都可加入\n\n分享代碼給隊友！",
+                    parent=self.root
+                )
+            else:
+                print(f"\n❌ 中繼伺服器連線失敗")
+                messagebox.showerror(
+                    "創建失敗", 
+                    "中繼伺服器連線失敗\n\n可能原因：\n1. 伺服器未啟動\n2. 網路連線問題\n\n請稍後再試",
+                    parent=self.root
+                )
+                
+        except Exception as e:
+            print(f"\n❌ 創建中繼房間失敗: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror(
+                "錯誤", 
+                f"創建房間時發生錯誤：\n{e}",
+                parent=self.root
+            )
+    
+    def _join_room(self):
+        """加入房間（使用中繼伺服器）"""
+        self.keyboard_enabled = False
+        
+        dialog = JoinRoomDialog(self.root)
+        result = dialog.show()
+        
+        if result:
+            room_code = result
+            
+            # 生成隨機玩家名稱
+            import random
+            player_name = f"玩家{random.randint(1000, 9999)}"
+            
+            print(f"\n🔗 使用中繼伺服器加入房間: {room_code}")
+            
+            try:
+                from src.core.relay_client_http import RelayClientHTTP
+                
+                # 創建中繼客戶端
+                relay_client = RelayClientHTTP(
+                    room_code,
+                    player_name,
+                    self._on_network_skill,
+                    self._on_members_update
+                )
+                
+                # 連線
+                if relay_client.connect():
+                    # 更新 network 物件的屬性
+                    self.network.room_code = room_code
+                    self.network.is_host = False
+                    self.network.use_relay = True
+                    self.network.relay_client = relay_client
+                    
+                    print(f"✅ 成功加入中繼房間")
+                    
+                    # 更新 UI
+                    self.room_info_label.config(text=f"● 房間: {room_code} (已連線)", fg=Colors.ACCENT_GREEN)
+                    self.create_btn.configure(state=tk.DISABLED)
+                    self.join_btn.configure(state=tk.DISABLED)
+                    self.leave_btn.configure(state=tk.NORMAL)
+                    messagebox.showinfo("成功", "已加入房間!", parent=self.root)
+                else:
+                    print(f"❌ 加入中繼房間失敗")
+                    messagebox.showerror(
+                        "加入失敗", 
+                        "無法加入房間\n\n可能原因：\n1. 房間代碼錯誤\n2. 伺服器連線失敗\n3. 房間不存在",
+                        parent=self.root
+                    )
+                    
+            except Exception as e:
+                print(f"❌ 加入中繼房間錯誤: {e}")
+                import traceback
+                traceback.print_exc()
+                messagebox.showerror(
+                    "錯誤", 
+                    f"加入房間時發生錯誤：\n{e}",
+                    parent=self.root
+                )
+        
+        self.keyboard_enabled = True
+    
+    def _leave_room(self):
+        """離開房間"""
+        if messagebox.askyesno("確認", "確定要退出房間嗎?", parent=self.root):
+            # 如果是中繼模式，發送離開通知
+            if hasattr(self.network, 'use_relay') and self.network.use_relay:
+                if hasattr(self.network, 'relay_client') and self.network.relay_client:
+                    self.network.relay_client.disconnect()
+            else:
+                # P2P 模式
+                self.network.leave_room()
+            
+            self.room_info_label.config(text="● 未連線", fg=Colors.TEXT_SECONDARY)
+            self.create_btn.configure(state=tk.NORMAL)
+            self.join_btn.configure(state=tk.NORMAL)
+            self.leave_btn.configure(state=tk.DISABLED)
+            self.members_list.delete(0, tk.END)
+    
+    def _on_members_update(self, members):
+        """成員更新回調"""
+        self.members_list.delete(0, tk.END)
+        if self.network.is_host:
+            self.members_list.insert(tk.END, f"👑 {self.player_name} (房主)")
+        for member in members:
+            self.members_list.insert(tk.END, f"👤 {member}")
+    
+    def _on_network_skill(self, skill_data):
+        """網路技能回調"""
+        if skill_data.get('type') == 'skill':
+            self.root.after(0, self._trigger_skill, skill_data['skill_id'], skill_data['player'])
     
     def _trigger_skill(self, skill_id, player_name=None):
         """觸發技能"""
@@ -1092,11 +1194,12 @@ class MainWindow:
             return
         
         player = player_name or self.player_name
+        if player != self.player_name and not self.skill_receive.get(skill_id, True):
+            return
         
         if skill_id in self.active_windows:
             is_permanent = self.skill_permanent.get(skill_id, False)
-            is_loop = self.skill_loop.get(skill_id, False)
-            if is_permanent or is_loop:
+            if is_permanent:
                 self.active_windows[skill_id].restart_countdown()
             else:
                 self.active_windows[skill_id].close()
@@ -1107,51 +1210,46 @@ class MainWindow:
         
         position = self._calculate_position(skill_id)
         is_permanent = self.skill_permanent.get(skill_id, False)
-        is_loop = self.skill_loop.get(skill_id, False)
         skill_image = self.skill_manager.skill_images.get(skill_id)
         
         skill_window = SkillWindow(
             skill, player, position, skill_image,
             lambda w: self._on_window_close(w, skill_id),
-            self.enable_sound, skill_id, 
-            is_permanent=is_permanent,
-            is_loop=is_loop,
-            window_alpha=self.window_alpha
+            self.enable_sound, skill_id, is_permanent
         )
         self.active_windows[skill_id] = skill_window
+        
+        if player == self.player_name and self.skill_send.get(skill_id, True):
+            self.network.broadcast_skill({
+                'type': 'skill',
+                'skill_id': skill_id,
+                'player': player,
+                'timestamp': time.time()
+            })
     
     def _calculate_position(self, skill_id):
-        index = self.window_order.index(skill_id)
-
-        MAX_PER_ROW = 10
-        ICON_SIZE = 64
-        H_GAP = 6
-        V_GAP = 6
-
-        col = index % MAX_PER_ROW
-        row = index // MAX_PER_ROW
-
-        x = self.skill_start_x - col * (ICON_SIZE + H_GAP)
-        y = self.skill_start_y - row * (ICON_SIZE + V_GAP)
-
+        """計算視窗位置"""
+        index = self.window_order.index(skill_id) if skill_id in self.window_order else len(self.window_order)
+        x = self.skill_start_x - (index * 110)
+        y = self.skill_start_y
         return (x, y)
-
+    
     def _reposition_windows(self):
+        """重新排列視窗"""
         for skill_id in self.window_order:
             if skill_id in self.active_windows:
-                x, y = self._calculate_position(skill_id)
+                index = self.window_order.index(skill_id)
+                x = self.skill_start_x - (index * 110)
+                y = self.skill_start_y
                 self.active_windows[skill_id].update_position(x, y)
-
     
     def _on_window_close(self, window, skill_id):
+        """視窗關閉回調"""
         if skill_id in self.active_windows:
             del self.active_windows[skill_id]
-    
         if skill_id in self.window_order:
             self.window_order.remove(skill_id)
-    
         self._reposition_windows()
-
     
     def _on_key_press(self, key):
         """按鍵處理"""
@@ -1178,6 +1276,8 @@ class MainWindow:
     
     def _save_config(self):
         """保存配置"""
+        self.config_manager.set_settings('skill_send', self.skill_send)
+        self.config_manager.set_settings('skill_receive', self.skill_receive)
         self.config_manager.set_settings('skill_permanent', self.skill_permanent)
         self.config_manager.save()
     

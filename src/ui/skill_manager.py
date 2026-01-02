@@ -4,7 +4,7 @@
 """
 
 from PIL import Image, ImageTk
-from src.utils.helpers import resource_path
+from src.ui.helpers import resource_path
 
 
 class SkillManager:
@@ -21,6 +21,7 @@ class SkillManager:
         self.skill_categories = {}
         self.skill_images = {}
         self.skill_images_small = {}
+        self.skill_image_paths = {}  # 新增：保存圖片路徑
         
         self._load_skills()
     
@@ -72,6 +73,7 @@ class SkillManager:
             icon_filename: 圖片檔名
         """
         icon_path = resource_path(f"images/{icon_filename}")
+        self.skill_image_paths[skill_id] = icon_path  # 保存路徑
         try:
             img = Image.open(icon_path)
             img_large = img.resize((50, 50), Image.Resampling.LANCZOS)

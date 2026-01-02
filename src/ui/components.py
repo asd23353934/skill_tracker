@@ -4,8 +4,8 @@ UI 組件模組
 """
 
 import tkinter as tk
-from src.utils.styles import Colors, Sizes
-from src.utils.helpers import darken_color
+from src.ui.styles import Colors, Sizes
+from src.ui.helpers import darken_color
 
 
 class RoundedButton(tk.Canvas):
