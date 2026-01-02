@@ -1,0 +1,83 @@
+# 請把這段代碼添加到你的 network_manager.py 文件末尾
+# 找到文件最後一行，在最後面添加這些方法
+
+    def create_room_relay(self, player_name):
+        """使用中繼伺服器創建房間（100% 免設定）
+        
+        Args:
+            player_name: 玩家名稱
+        
+        Returns:
+            成功返回房間代碼，失敗返回 None
+        """
+        try:
+            print("\n" + "="*60)
+            print("🌐 使用中繼伺服器模式（免設定）")
+            print("="*60)
+            
+            import random
+            import string
+            
+            self.room_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            self.is_host = True
+            self.use_relay = True
+            
+            print(f"\n🔑 房間代碼: {self.room_code}")
+            print(f"🔗 連線到中繼伺服器...")
+            
+            from src.core.relay_client_http import RelayClientHTTP as RelayClient
+            
+            self.relay_client = RelayClient(
+                self.room_code,
+                player_name,
+                self.skill_callback,
+                self._on_members_update
+            )
+            
+            if self.relay_client.connect():
+                print(f"\n✅ 中繼房間創建成功")
+                print(f"   房間代碼: {self.room_code}")
+                print(f"   模式: 中繼伺服器（免設定）")
+                print("="*60 + "\n")
+                return self.room_code
+            else:
+                print(f"\n❌ 中繼伺服器連線失敗")
+                return None
+        except Exception as e:
+            print(f"\n❌ 創建中繼房間失敗: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def join_room_relay(self, room_code, player_name):
+        """使用中繼伺服器加入房間
+        
+        Args:
+            room_code: 房間代碼
+            player_name: 玩家名稱
+        
+        Returns:
+            成功返回 True，失敗返回 False
+        """
+        try:
+            print(f"\n🔗 透過中繼伺服器加入: {room_code}")
+            
+            self.room_code = room_code
+            self.is_host = False
+            self.use_relay = True
+            
+            from src.core.relay_client_http import RelayClientHTTP as RelayClient
+            
+            self.relay_client = RelayClient(
+                room_code,
+                player_name,
+                self.skill_callback,
+                self._on_members_update
+            )
+            
+            return self.relay_client.connect()
+        except Exception as e:
+            print(f"❌ 加入中繼房間錯誤: {e}")
+            import traceback
+            traceback.print_exc()
+            return False

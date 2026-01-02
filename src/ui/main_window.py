@@ -7,12 +7,19 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 from pynput import keyboard
 import time
+import sys
+import importlib
 
 from src.ui.components import RoundedButton, SectionFrame, ScrollableFrame
 from src.ui.dialogs import ProfileManagerDialog, SettingsDialog, JoinRoomDialog
 from src.ui.skill_window import SkillWindow
 from src.core.config_manager import ConfigManager
+
+# 強制重新載入 NetworkManager（避免緩存問題）
+if 'src.core.network_manager' in sys.modules:
+    importlib.reload(sys.modules['src.core.network_manager'])
 from src.core.network_manager import NetworkManager
+
 from src.core.skill_manager import SkillManager
 from src.utils.styles import Colors, Fonts, Sizes
 from src.utils.helpers import resource_path
@@ -244,18 +251,18 @@ class MainWindow:
         ).pack(side=tk.LEFT, padx=3)
         
         RoundedButton(
-            quick_btns, "發", lambda: self._toggle_all('send'),
-            Colors.ACCENT_GREEN, width=40, height=25
+            quick_btns, "發送", lambda: self._toggle_all('send'),
+            Colors.ACCENT_GREEN, width=50, height=25
         ).pack(side=tk.LEFT, padx=1)
         
         RoundedButton(
-            quick_btns, "收", lambda: self._toggle_all('receive'),
-            Colors.ACCENT_BLUE, width=40, height=25
+            quick_btns, "接收", lambda: self._toggle_all('receive'),
+            Colors.ACCENT_BLUE, width=50, height=25
         ).pack(side=tk.LEFT, padx=1)
         
         RoundedButton(
-            quick_btns, "駐", lambda: self._toggle_all('permanent'),
-            Colors.ACCENT_YELLOW, width=40, height=25
+            quick_btns, "常駐", lambda: self._toggle_all('permanent'),
+            Colors.ACCENT_YELLOW, width=50, height=25
         ).pack(side=tk.LEFT, padx=1)
         
         # 設定按鈕
@@ -725,21 +732,31 @@ class MainWindow:
     # ==================== 快捷鍵操作 ====================
     
     def _clear_all_hotkeys(self):
-        """清空所有快捷鍵"""
-        if messagebox.askyesno("確認", "確定要清空所有技能的快捷鍵設定嗎?", parent=self.root):
+        """清空所有快捷鍵和秒數覆寫"""
+        if messagebox.askyesno("確認", "確定要清空所有技能的快捷鍵和自訂秒數嗎?\n（會恢復預設秒數）", parent=self.root):
             for skill_id, skill in self.skill_manager.get_all_skills().items():
-                # 只清空記憶體中的快捷鍵
+                # 清空快捷鍵
                 skill['hotkey'] = ''
                 
-                # 更新按鈕顯示
+                # 恢復原始秒數
+                original_cooldown = self._get_original_cooldown(skill_id)
+                if original_cooldown:
+                    skill['cooldown'] = original_cooldown
+                
+                # 更新快捷鍵按鈕顯示
                 if skill_id in self.hotkey_buttons:
                     btn = self.hotkey_buttons[skill_id]
                     btn.update_text('未設定')
                     btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)
+                
+                # 更新秒數按鈕顯示
+                if skill_id in self.cooldown_buttons:
+                    btn = self.cooldown_buttons[skill_id]
+                    btn.update_text(f'{original_cooldown}秒')
             
-            # 自動保存當前配置（會清空 hotkeys）
+            # 自動保存當前配置（會清空 hotkeys 和 cooldown_overrides）
             self._auto_save_current_profile()
-            messagebox.showinfo("完成", "已清空所有快捷鍵!", parent=self.root)
+            messagebox.showinfo("完成", "已清空所有快捷鍵並恢復預設秒數!", parent=self.root)
     
     def _start_hotkey_capture(self, skill_id):
         """開始捕捉快捷鍵"""
@@ -1020,69 +1037,149 @@ class MainWindow:
         self.keyboard_enabled = True
     
     def _create_room(self):
-        """創建房間"""
-        room_code = self.network.create_room()
-        if room_code:
-            self.room_info_label.config(text=f"● 房間: {room_code} (主機)", fg=Colors.ACCENT_GREEN)
-            self.create_btn.configure(state=tk.DISABLED)
-            self.join_btn.configure(state=tk.DISABLED)
-            self.leave_btn.configure(state=tk.NORMAL)
-            self._on_members_update([])
+        """創建房間（使用中繼伺服器）"""
+        print("\n" + "="*60)
+        print("🌟 使用中繼伺服器模式")
+        print("="*60)
+        
+        # 獲取玩家名稱
+        import random
+        import string
+        player_name = f"玩家{random.randint(1000, 9999)}"
+        
+        try:
+            from src.core.relay_client_http import RelayClientHTTP
             
-            # 檢查是否需要顯示手動設定指引
-            if not self.network.use_external_ip and self.network.host_ip:
-                # UPnP 失敗，顯示手動設定對話框
-                from src.ui.manual_setup_dialog import ManualSetupDialog
-                from src.core.ip_encoder import RoomCodeGenerator
+            # 生成房間代碼
+            room_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            
+            print(f"\n🔑 房間代碼: {room_code}")
+            print(f"🔗 連線到中繼伺服器...")
+            
+            # 創建中繼客戶端
+            relay_client = RelayClientHTTP(
+                room_code,
+                player_name,
+                self._on_network_skill,
+                self._on_members_update
+            )
+            
+            # 連線
+            if relay_client.connect():
+                # 更新 network 物件的屬性
+                self.network.room_code = room_code
+                self.network.is_host = True
+                self.network.use_relay = True
+                self.network.relay_client = relay_client
                 
-                generator = RoomCodeGenerator()
-                local_ip = generator.get_local_ip()
+                print(f"\n✅ 中繼房間創建成功")
+                print(f"   房間代碼: {room_code}")
+                print("="*60 + "\n")
                 
-                # 先顯示房間代碼
+                # 更新 UI
+                self.room_info_label.config(text=f"● 房間: {room_code} (房主)", fg=Colors.ACCENT_GREEN)
+                self.create_btn.configure(state=tk.DISABLED)
+                self.join_btn.configure(state=tk.DISABLED)
+                self.leave_btn.configure(state=tk.NORMAL)
+                self._on_members_update([])
+                
                 messagebox.showinfo(
                     "房間已創建", 
-                    f"房間代碼: {room_code}\n\n⚠️ UPnP 自動設定失敗\n需要手動設定端口轉發才能跨網路連線\n\n點擊「確定」查看設定指引",
+                    f"房間代碼: {room_code}\n\n✅ 中繼伺服器模式\n✅ 任何網路都可加入\n\n分享代碼給隊友！",
                     parent=self.root
                 )
-                
-                # 顯示手動設定指引
-                setup_dialog = ManualSetupDialog(self.root, self.network.host_ip, local_ip)
-                setup_dialog.show()
             else:
-                # UPnP 成功
-                messagebox.showinfo(
-                    "房間已創建", 
-                    f"房間代碼: {room_code}\n\n✅ 跨網路連線已啟用\n任何網路的玩家都可以加入！\n\n分享給隊友吧！",
+                print(f"\n❌ 中繼伺服器連線失敗")
+                messagebox.showerror(
+                    "創建失敗", 
+                    "中繼伺服器連線失敗\n\n可能原因：\n1. 伺服器未啟動\n2. 網路連線問題\n\n請稍後再試",
                     parent=self.root
                 )
-        else:
-            messagebox.showerror("錯誤", "創建房間失敗\n請檢查網路連線", parent=self.root)
+                
+        except Exception as e:
+            print(f"\n❌ 創建中繼房間失敗: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror(
+                "錯誤", 
+                f"創建房間時發生錯誤：\n{e}",
+                parent=self.root
+            )
     
     def _join_room(self):
-        """加入房間"""
+        """加入房間（使用中繼伺服器）"""
         self.keyboard_enabled = False
         
         dialog = JoinRoomDialog(self.root)
         result = dialog.show()
         
         if result:
-            # result 是字符串（房間代碼），不是字典
             room_code = result
-            if self.network.join_room(room_code, self.player_name):
-                self.room_info_label.config(text=f"● 房間: {room_code} (已連線)", fg=Colors.ACCENT_GREEN)
-                self.create_btn.configure(state=tk.DISABLED)
-                self.join_btn.configure(state=tk.DISABLED)
-                self.leave_btn.configure(state=tk.NORMAL)
-                messagebox.showinfo("成功", "已加入房間!", parent=self.root)
-            else:
-                messagebox.showerror("錯誤", "加入房間失敗\n請確認房間代碼正確或主機是否在線", parent=self.root)
+            
+            # 生成隨機玩家名稱
+            import random
+            player_name = f"玩家{random.randint(1000, 9999)}"
+            
+            print(f"\n🔗 使用中繼伺服器加入房間: {room_code}")
+            
+            try:
+                from src.core.relay_client_http import RelayClientHTTP
+                
+                # 創建中繼客戶端
+                relay_client = RelayClientHTTP(
+                    room_code,
+                    player_name,
+                    self._on_network_skill,
+                    self._on_members_update
+                )
+                
+                # 連線
+                if relay_client.connect():
+                    # 更新 network 物件的屬性
+                    self.network.room_code = room_code
+                    self.network.is_host = False
+                    self.network.use_relay = True
+                    self.network.relay_client = relay_client
+                    
+                    print(f"✅ 成功加入中繼房間")
+                    
+                    # 更新 UI
+                    self.room_info_label.config(text=f"● 房間: {room_code} (已連線)", fg=Colors.ACCENT_GREEN)
+                    self.create_btn.configure(state=tk.DISABLED)
+                    self.join_btn.configure(state=tk.DISABLED)
+                    self.leave_btn.configure(state=tk.NORMAL)
+                    messagebox.showinfo("成功", "已加入房間!", parent=self.root)
+                else:
+                    print(f"❌ 加入中繼房間失敗")
+                    messagebox.showerror(
+                        "加入失敗", 
+                        "無法加入房間\n\n可能原因：\n1. 房間代碼錯誤\n2. 伺服器連線失敗\n3. 房間不存在",
+                        parent=self.root
+                    )
+                    
+            except Exception as e:
+                print(f"❌ 加入中繼房間錯誤: {e}")
+                import traceback
+                traceback.print_exc()
+                messagebox.showerror(
+                    "錯誤", 
+                    f"加入房間時發生錯誤：\n{e}",
+                    parent=self.root
+                )
         
         self.keyboard_enabled = True
     
     def _leave_room(self):
         """離開房間"""
         if messagebox.askyesno("確認", "確定要退出房間嗎?", parent=self.root):
-            self.network.leave_room()
+            # 如果是中繼模式，發送離開通知
+            if hasattr(self.network, 'use_relay') and self.network.use_relay:
+                if hasattr(self.network, 'relay_client') and self.network.relay_client:
+                    self.network.relay_client.disconnect()
+            else:
+                # P2P 模式
+                self.network.leave_room()
+            
             self.room_info_label.config(text="● 未連線", fg=Colors.TEXT_SECONDARY)
             self.create_btn.configure(state=tk.NORMAL)
             self.join_btn.configure(state=tk.NORMAL)
@@ -1093,7 +1190,7 @@ class MainWindow:
         """成員更新回調"""
         self.members_list.delete(0, tk.END)
         if self.network.is_host:
-            self.members_list.insert(tk.END, f"👑 {self.player_name} (主機)")
+            self.members_list.insert(tk.END, f"👑 {self.player_name} (房主)")
         for member in members:
             self.members_list.insert(tk.END, f"👤 {member}")
     

@@ -1,0 +1,94 @@
+"""
+臨時補丁 - 直接在 main_window.py 中添加中繼伺服器方法
+如果 NetworkManager 的 create_room_relay 無法訪問，使用這個補丁
+"""
+
+# 把這段代碼添加到 main_window.py 的 MainWindow 類別裡面
+# 找到 _create_room 方法，在它前面添加：
+
+    def _create_room_relay_patched(self, player_name):
+        """臨時補丁：直接創建中繼房間"""
+        try:
+            import random
+            import string
+            from src.core.relay_client_http import RelayClientHTTP
+            
+            # 生成房間代碼
+            room_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            
+            print(f"\n🔑 房間代碼: {room_code}")
+            print(f"🔗 連線到中繼伺服器...")
+            
+            # 創建中繼客戶端
+            relay_client = RelayClientHTTP(
+                room_code,
+                player_name,
+                self._on_network_skill,
+                self._on_members_update
+            )
+            
+            # 連線
+            if relay_client.connect():
+                # 更新 network 物件的屬性
+                self.network.room_code = room_code
+                self.network.is_host = True
+                self.network.use_relay = True
+                self.network.relay_client = relay_client
+                
+                print(f"\n✅ 中繼房間創建成功")
+                print(f"   房間代碼: {room_code}")
+                return room_code
+            else:
+                print(f"\n❌ 中繼伺服器連線失敗")
+                return None
+                
+        except Exception as e:
+            print(f"\n❌ 創建中繼房間失敗: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def _join_room_relay_patched(self, room_code, player_name):
+        """臨時補丁：直接加入中繼房間"""
+        try:
+            from src.core.relay_client_http import RelayClientHTTP
+            
+            print(f"\n🔗 透過中繼伺服器加入: {room_code}")
+            
+            # 創建中繼客戶端
+            relay_client = RelayClientHTTP(
+                room_code,
+                player_name,
+                self._on_network_skill,
+                self._on_members_update
+            )
+            
+            # 連線
+            if relay_client.connect():
+                # 更新 network 物件的屬性
+                self.network.room_code = room_code
+                self.network.is_host = False
+                self.network.use_relay = True
+                self.network.relay_client = relay_client
+                
+                print(f"✅ 成功加入中繼房間")
+                return True
+            else:
+                print(f"❌ 加入中繼房間失敗")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 加入中繼房間錯誤: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+# 然後修改 _create_room 方法，把：
+#     room_code = self.network.create_room_relay(player_name)
+# 改成：
+#     room_code = self._create_room_relay_patched(player_name)
+
+# 修改 _join_room 方法，把：
+#     if self.network.join_room_relay(room_code, player_name):
+# 改成：
+#     if self._join_room_relay_patched(room_code, player_name):

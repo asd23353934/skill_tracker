@@ -93,7 +93,20 @@ class SkillWindow:
             container, text=f"{self.player}", 
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
             font=('Microsoft JhengHei', 6)
-        ).pack(pady=(0, 3))
+        ).pack(pady=(0, 1))
+        
+        # 重置按鈕
+        reset_btn = tk.Button(
+            container,
+            text="🔄 重置",
+            bg=Colors.BG_DARK,
+            fg=Colors.TEXT_SECONDARY,
+            font=('Microsoft JhengHei', 6),
+            relief=tk.FLAT,
+            cursor='hand2',
+            command=self.reset_countdown
+        )
+        reset_btn.pack(pady=(0, 3))
         
         # 設定位置
         self.window.geometry(
@@ -107,6 +120,13 @@ class SkillWindow:
             self.remaining = self.total
             self.running = True
             threading.Thread(target=self._countdown, daemon=True).start()
+    
+    def reset_countdown(self):
+        """重置倒數（重置到初始秒數）"""
+        self.remaining = self.total
+        self.running = True
+        threading.Thread(target=self._countdown, daemon=True).start()
+        self._update_display()
     
     def update_position(self, x, y):
         """更新視窗位置

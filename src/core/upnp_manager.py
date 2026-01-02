@@ -147,28 +147,56 @@ class UPnPManager:
                 pass
             
             # 添加端口映射
-            # 參數順序：external_port, protocol, internal_host, internal_port, description, remote_host
+            # miniupnpc 不同版本參數不同，嘗試多種格式
+            result = False
+            
+            # 格式 1: 6 個參數（最常見）
             try:
                 result = upnp.addportmapping(
-                    self.port,              # 外部端口
-                    'TCP',                  # 協定
-                    self.local_ip,          # 內網 IP
-                    self.port,              # 內部端口
-                    'SkillTracker',         # 描述
-                    ''                      # 遠程主機（空=任何）
+                    self.port,              # 外部端口 (int)
+                    'TCP',                  # 協定 (str)
+                    self.local_ip,          # 內網 IP (str)
+                    self.port,              # 內部端口 (int)
+                    'SkillTracker',         # 描述 (str)
+                    ''                      # 遠程主機 (str, 空=任何)
                 )
-            except TypeError:
-                # 某些版本的 miniupnpc 參數順序不同
-                print("   嘗試備用參數格式...")
-                result = upnp.addportmapping(
-                    self.port,              # 外部端口
-                    'TCP',                  # 協定
-                    self.local_ip,          # 內網 IP
-                    self.port,              # 內部端口
-                    'SkillTracker',         # 描述
-                    '',                     # 遠程主機
-                    0                       # 租約時間（0=永久）
-                )
+                if result:
+                    print("   ✓ 使用 6 參數格式成功")
+            except Exception as e:
+                print(f"   格式 1 失敗: {e}")
+            
+            # 格式 2: 7 個參數（含租約時間）
+            if not result:
+                try:
+                    result = upnp.addportmapping(
+                        self.port,          # 外部端口
+                        'TCP',              # 協定
+                        self.local_ip,      # 內網 IP
+                        self.port,          # 內部端口
+                        'SkillTracker',     # 描述
+                        '',                 # 遠程主機
+                        0                   # 租約時間（0=永久）
+                    )
+                    if result:
+                        print("   ✓ 使用 7 參數格式成功")
+                except Exception as e:
+                    print(f"   格式 2 失敗: {e}")
+            
+            # 格式 3: 字串端口號
+            if not result:
+                try:
+                    result = upnp.addportmapping(
+                        str(self.port),     # 外部端口 (字串)
+                        'TCP',
+                        self.local_ip,
+                        str(self.port),     # 內部端口 (字串)
+                        'SkillTracker',
+                        ''
+                    )
+                    if result:
+                        print("   ✓ 使用字串端口格式成功")
+                except Exception as e:
+                    print(f"   格式 3 失敗: {e}")
             
             if result:
                 print(f"✅ 端口映射成功！")

@@ -122,7 +122,7 @@ RELAY_SERVERS = [
             </html>
             """.format(
                 rooms=len(self.relay_rooms),
-                connections=sum(len(room.get('clients', {})) for room in self.relay_rooms.values()),
+                connections=sum(len(room.get('players', [])) for room in self.relay_rooms.values()),
                 host=self.server.server_address[0],
                 port=self.server.server_address[1]
             )
@@ -137,7 +137,7 @@ RELAY_SERVERS = [
             status = {
                 'status': 'ok',
                 'rooms': len(self.relay_rooms),
-                'connections': sum(len(room.get('clients', {})) for room in self.relay_rooms.values()),
+                'connections': sum(len(room.get('players', [])) for room in self.relay_rooms.values()),
                 'uptime': time.time()
             }
             
@@ -212,6 +212,48 @@ RELAY_SERVERS = [
                     with self.relay_lock:
                         if room_code in self.relay_rooms:
                             self.relay_rooms[room_code]['messages'].append(message)
+                            print(f"📨 房間 {room_code} 收到訊息: {message.get('type')}")
+                    
+                    response = {'status': 'ok'}
+                    
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(response).encode())
+                
+                elif msg_type == 'leave':
+                    # 離開房間
+                    room_code = data.get('room_code')
+                    player_name = data.get('player_name')
+                    
+                    with self.relay_lock:
+                        if room_code in self.relay_rooms:
+                            room = self.relay_rooms[room_code]
+                            players = room.get('players', [])
+                            
+                            # 檢查是否為房主（第一個玩家）
+                            is_host = players and players[0] == player_name
+                            
+                            if is_host:
+                                # 房主離開，解散房間
+                                # 發送解散通知給所有成員
+                                room['messages'].append({
+                                    'type': 'room_disbanded',
+                                    'message': '房主已離開，房間解散'
+                                })
+                                print(f"👑 房主 {player_name} 離開，房間 {room_code} 解散")
+                                # 刪除房間
+                                del self.relay_rooms[room_code]
+                            else:
+                                # 普通成員離開
+                                if player_name in players:
+                                    players.remove(player_name)
+                                print(f"👋 {player_name} 離開房間 {room_code}")
+                                
+                                # 如果房間空了，刪除
+                                if len(players) == 0:
+                                    del self.relay_rooms[room_code]
+                                    print(f"🗑️ 房間 {room_code} 已清空")
                     
                     response = {'status': 'ok'}
                     

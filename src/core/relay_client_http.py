@@ -171,9 +171,28 @@ class RelayClientHTTP:
             # 技能數據
             skill_data = msg.get('data', {})
             self.skill_callback(skill_data)
+        
+        elif msg_type == 'room_disbanded':
+            # 房間解散
+            print("⚠️ 房主已離開，房間已解散")
+            self.connected = False
+            # 這裡可以通知 UI 房間已解散
     
     def disconnect(self):
         """斷線"""
+        if self.connected and self.server_url:
+            try:
+                # 發送離開通知
+                leave_data = {
+                    'type': 'leave',
+                    'room_code': self.room_code,
+                    'player_name': self.player_name
+                }
+                requests.post(f"{self.server_url}/relay", json=leave_data, timeout=2)
+                print(f"👋 已離開房間 {self.room_code}")
+            except Exception as e:
+                print(f"⚠️ 發送離開通知失敗: {e}")
+        
         self.connected = False
         # 等待輪詢線程結束
         if self.poll_thread:
