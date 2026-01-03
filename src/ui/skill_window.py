@@ -45,6 +45,10 @@ class SkillWindow:
 
         self.after_id = None
         self.running = False
+        
+        # 🔧 使用時間戳計時（更精確）
+        self.start_time = None
+        self.end_time = None
 
         self._create_window(position)
 
@@ -202,11 +206,17 @@ class SkillWindow:
     # Countdown Logic
     # --------------------------------------------------
     def start_countdown(self):
+        import time
         self.stop_countdown()
         self.running = True
-        self.alert_triggered = False  # 🆕 重置提示標記
+        self.alert_triggered = False
+        
+        # 🔧 記錄開始和結束時間戳
+        self.start_time = time.time()
+        self.end_time = self.start_time + self.total
+        
         self._update_display()
-        self.after_id = self.window.after(1000, self._tick)
+        self.after_id = self.window.after(100, self._tick)  # 🔧 100ms 更新一次（更流暢）
 
     def stop_countdown(self):
         self.running = False
@@ -216,7 +226,7 @@ class SkillWindow:
 
     def reset_countdown(self):
         self.remaining = self.total
-        self.alert_triggered = False  # 🆕 重置提示標記
+        self.alert_triggered = False
         self._update_display()
         self.start_countdown()
 
@@ -224,27 +234,36 @@ class SkillWindow:
         self.reset_countdown()
 
     def _tick(self):
+        import time
         if not self.running:
             return
 
-        if self.remaining > 0:
-            self.remaining -= 1
+        # 🔧 根據時間戳計算剩餘秒數（精確）
+        current_time = time.time()
+        elapsed = current_time - self.start_time
+        new_remaining = max(0, int(self.total - elapsed))
+        
+        # 🔧 只在秒數改變時才更新顯示（減少 UI 更新頻率）
+        if new_remaining != self.remaining:
+            self.remaining = new_remaining
             self._update_display()
             
-            # 🆕 檢查是否需要觸發提前提示
+            # 檢查是否需要觸發提前提示
             if (self.alert_enabled and 
                 not self.alert_triggered and 
                 self.alert_before_seconds > 0 and 
-                self.remaining == self.alert_before_seconds):
+                self.remaining <= self.alert_before_seconds):
                 self._trigger_alert()
-
-            if self.remaining > 0:
-                self.after_id = self.window.after(1000, self._tick)
-            else:
-                self._on_finish()
+        
+        if self.remaining > 0:
+            # 🔧 繼續倒數（100ms 間隔檢查）
+            self.after_id = self.window.after(100, self._tick)
+        else:
+            # 倒數結束
+            self._on_finish()
 
     def _on_finish(self):
-        # 🆕 如果設為 0 秒提示，在結束時才觸發
+        # 如果設為 0 秒提示，在結束時才觸發
         if self.alert_enabled and not self.alert_triggered and self.alert_before_seconds == 0:
             self._trigger_alert()
         
@@ -252,14 +271,38 @@ class SkillWindow:
             self._play_sound()
 
         if self.is_loop:
-            self.remaining = self.total
-            self.alert_triggered = False  # 🆕 重置提示標記（循環時）
-            self._update_display()
-            self.after_id = self.window.after(1000, self._tick)
+            # 🔧 停止當前倒數
+            self.running = False
+            if self.after_id:
+                self.window.after_cancel(self.after_id)
+                self.after_id = None
+            
+            # 🔧 隨機延遲 50-500ms 再重新開始（分散負載）
+            import random
+            delay = random.randint(50, 500)
+            self.window.after(delay, self._loop_restart)
         elif not self.is_permanent:
             self.after_id = self.window.after(2000, self.close)
         else:
             self._update_display()
+    
+    def _loop_restart(self):
+        """循環重新開始（延遲執行避免卡頓）"""
+        import time
+        # 🔧 重置狀態
+        self.remaining = self.total
+        self.alert_triggered = False
+        
+        # 🔧 重新設定時間戳
+        self.start_time = time.time()
+        self.end_time = self.start_time + self.total
+        
+        # 🔧 先更新顯示（顯示完整秒數）
+        self._update_display()
+        
+        # 🔧 然後才開始倒數
+        self.running = True
+        self.after_id = self.window.after(100, self._tick)
 
     # 🆕 觸發提前提示
     def _trigger_alert(self):

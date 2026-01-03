@@ -239,8 +239,8 @@
   ],
   "settings": {
     "player_name": "玩家1",
-    "skill_start_x": 702,
-    "skill_start_y": 264,
+    "skill_start_x": 531,
+    "skill_start_y": 271,
     "enable_sound": true,
     "skill_send": {},
     "skill_receive": {},
