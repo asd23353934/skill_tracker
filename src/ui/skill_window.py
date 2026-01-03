@@ -14,7 +14,9 @@ class SkillWindow:
     def __init__(
         self, skill, player, position, skill_image, on_close,
         enable_sound, skill_id, is_permanent, is_loop=False,
-        start_at_zero=False, window_alpha=None
+        start_at_zero=False, window_alpha=None,
+        alert_enabled=False, alert_before_seconds=0, on_alert=None,  # 🆕 提前提示參數
+        on_drag_start=None, on_drag_motion=None, on_drag_end=None  # 🔧 拖曳回調參數
     ):
         self.skill = skill
         self.player = player
@@ -23,9 +25,20 @@ class SkillWindow:
         self.skill_id = skill_id
         self.is_permanent = is_permanent
         self.is_loop = is_loop
-        self.skill_image = skill_image  # 儲存傳入的圖片
+        self.skill_image = skill_image
 
         self.window_alpha = window_alpha if window_alpha is not None else 0.95
+
+        # 🆕 提前提示設定
+        self.alert_enabled = alert_enabled
+        self.alert_before_seconds = alert_before_seconds
+        self.on_alert = on_alert  # 回調函數
+        self.alert_triggered = False  # 是否已觸發提示
+        
+        # 🔧 拖曳回調函數
+        self.on_drag_start = on_drag_start
+        self.on_drag_motion = on_drag_motion
+        self.on_drag_end = on_drag_end
 
         self.total = skill["cooldown"]
         self.remaining = 0 if start_at_zero else self.total
@@ -63,16 +76,11 @@ class SkillWindow:
         )
         self.canvas.pack()
 
-        # ---------- 背景圖片（使用傳入的 skill_image）----------
+        # 背景圖片
         if self.skill_image:
-            # 如果傳入的是 PhotoImage，直接使用
-            # 如果需要調整大小，可以在外部處理好再傳入
             try:
-                # 嘗試將 PhotoImage 轉換為 PIL Image 以便處理
-                # 這裡假設外部已經處理好圖片大小
                 self.bg_image = self.skill_image
             except:
-                # 如果轉換失敗，創建默認圖片
                 skill_img_pil = Image.new("RGB", (window_size, window_size), "black")
                 mask = Image.new("L", (window_size, window_size), 255)
                 output = Image.new("RGBA", (window_size, window_size))
@@ -80,7 +88,6 @@ class SkillWindow:
                 output.putalpha(mask)
                 self.bg_image = ImageTk.PhotoImage(output)
         else:
-            # 如果沒有圖片，創建默認黑色背景
             skill_img_pil = Image.new("RGB", (window_size, window_size), "black")
             mask = Image.new("L", (window_size, window_size), 255)
             output = Image.new("RGBA", (window_size, window_size))
@@ -94,7 +101,7 @@ class SkillWindow:
             image=self.bg_image
         )
 
-        # ---------- 倒數文字（黑色） ----------
+        # 倒數文字
         self.timer_text = self.canvas.create_text(
             window_size // 2,
             window_size // 2,
@@ -104,7 +111,7 @@ class SkillWindow:
             anchor="center"
         )
 
-        # ---------- 關閉 X 紅色邊框 ----------
+        # 關閉按鈕
         border_size = 16
         padding = 2
 
@@ -138,13 +145,66 @@ class SkillWindow:
             )
 
         self.window.geometry(f"+{position[0]}+{position[1]}")
+        
+        # 🔧 綁定拖曳事件到 canvas（排除關閉按鈕區域）
+        self._bind_drag_events()
 
     # --------------------------------------------------
-    # Countdown Logic (NO THREADING)
+    # 🔧 拖曳事件
+    # --------------------------------------------------
+    def _bind_drag_events(self):
+        """綁定拖曳事件"""
+        # 綁定到整個視窗
+        self.window.bind('<Button-1>', self._on_window_drag_start)
+        self.window.bind('<B1-Motion>', self._on_window_drag_motion)
+        self.window.bind('<ButtonRelease-1>', self._on_window_drag_end)
+        
+        # 綁定到 canvas（排除關閉按鈕）
+        self.canvas.bind('<Button-1>', self._on_canvas_click)
+        self.canvas.bind('<B1-Motion>', self._on_window_drag_motion)
+        self.canvas.bind('<ButtonRelease-1>', self._on_window_drag_end)
+        
+        # 🔧 設定游標樣式
+        self.canvas.bind('<Enter>', lambda e: self.canvas.config(cursor='hand2'))
+        self.canvas.bind('<Leave>', lambda e: self.canvas.config(cursor=''))
+        
+        # 關閉按鈕區域要保持原來的游標
+        for item in (self.close_border, self.close_btn):
+            self.canvas.tag_bind(item, '<Enter>', 
+                lambda e: self.canvas.config(cursor='hand2'))
+    
+    def _on_canvas_click(self, event):
+        """Canvas 點擊事件（判斷是否點在關閉按鈕上）"""
+        # 檢查是否點在關閉按鈕上
+        items = self.canvas.find_overlapping(event.x, event.y, event.x, event.y)
+        if self.close_border in items or self.close_btn in items:
+            return  # 點在關閉按鈕上，不處理拖曳
+        
+        # 觸發拖曳開始
+        self._on_window_drag_start(event)
+    
+    def _on_window_drag_start(self, event):
+        """拖曳開始"""
+        if self.on_drag_start:
+            self.on_drag_start(event)
+    
+    def _on_window_drag_motion(self, event):
+        """拖曳中"""
+        if self.on_drag_motion:
+            self.on_drag_motion(event)
+    
+    def _on_window_drag_end(self, event):
+        """拖曳結束"""
+        if self.on_drag_end:
+            self.on_drag_end(event)
+
+    # --------------------------------------------------
+    # Countdown Logic
     # --------------------------------------------------
     def start_countdown(self):
         self.stop_countdown()
         self.running = True
+        self.alert_triggered = False  # 🆕 重置提示標記
         self._update_display()
         self.after_id = self.window.after(1000, self._tick)
 
@@ -156,6 +216,7 @@ class SkillWindow:
 
     def reset_countdown(self):
         self.remaining = self.total
+        self.alert_triggered = False  # 🆕 重置提示標記
         self._update_display()
         self.start_countdown()
 
@@ -169,6 +230,13 @@ class SkillWindow:
         if self.remaining > 0:
             self.remaining -= 1
             self._update_display()
+            
+            # 🆕 檢查是否需要觸發提前提示
+            if (self.alert_enabled and 
+                not self.alert_triggered and 
+                self.alert_before_seconds > 0 and 
+                self.remaining == self.alert_before_seconds):
+                self._trigger_alert()
 
             if self.remaining > 0:
                 self.after_id = self.window.after(1000, self._tick)
@@ -176,17 +244,39 @@ class SkillWindow:
                 self._on_finish()
 
     def _on_finish(self):
+        # 🆕 如果設為 0 秒提示，在結束時才觸發
+        if self.alert_enabled and not self.alert_triggered and self.alert_before_seconds == 0:
+            self._trigger_alert()
+        
         if self.enable_sound:
             self._play_sound()
 
         if self.is_loop:
             self.remaining = self.total
+            self.alert_triggered = False  # 🆕 重置提示標記（循環時）
             self._update_display()
             self.after_id = self.window.after(1000, self._tick)
         elif not self.is_permanent:
             self.after_id = self.window.after(2000, self.close)
         else:
             self._update_display()
+
+    # 🆕 觸發提前提示
+    def _trigger_alert(self):
+        """觸發提前提示音和視窗"""
+        self.alert_triggered = True
+        
+        # 播放提示音
+        if self.enable_sound:
+            try:
+                # 使用不同音調區別提前提示和結束提示
+                winsound.Beep(1000, 200)  # 較高音調，較短時間
+            except:
+                pass
+        
+        # 顯示提示視窗
+        if self.on_alert:
+            self.on_alert(self.skill['name'])
 
     # --------------------------------------------------
     # Utils

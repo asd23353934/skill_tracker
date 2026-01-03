@@ -21,12 +21,12 @@ class BaseDialog:
             width: 寬度
             height: 高度
         """
-        self.parent = parent  # 保存父視窗引用
+        self.parent = parent
         self.dialog = tk.Toplevel(parent)
         self.dialog.title(title)
-        self.dialog.attributes('-topmost', True)  # 保持最上層
+        self.dialog.attributes('-topmost', True)
         self.dialog.transient(parent)
-        self.dialog.overrideredirect(True)  # 移除邊框以便自訂
+        self.dialog.overrideredirect(True)
         self.dialog.configure(bg=Colors.BG_DARK)
         
         # 計算置中位置
@@ -254,29 +254,26 @@ class ProfileManagerDialog(BaseDialog):
             return None
         
         display_text = self.profile_listbox.get(selection[0])
-        # 移除星號標記
         return display_text.replace('★ ', '').strip()
     
     def _create_new_profile(self):
         """新增配置"""
-        # 使用統一的輸入對話框方法
         name = self._show_input_dialog("新增配置", "輸入新配置名稱:")
         
         if name and name.strip():
             name = name.strip()
             
-            # 檢查是否已存在
             if name in self.config_manager.list_profiles():
                 messagebox.showerror("錯誤", f"配置 '{name}' 已存在!", parent=self.parent)
                 return
             
-            # 創建初始配置
             all_skills = self.main_window.skill_manager.get_all_skills().keys()
             
             initial_settings = {
                 'hotkeys': {},
                 'permanent': {skill_id: False for skill_id in all_skills},
                 'loop': {skill_id: False for skill_id in all_skills},
+                'alert_enabled': {skill_id: False for skill_id in all_skills},  # 🆕
                 'cooldown_overrides': {}
             }
             
@@ -293,7 +290,6 @@ class ProfileManagerDialog(BaseDialog):
             messagebox.showwarning("提示", "請先選擇要複製的配置!", parent=self.parent)
             return
         
-        # 使用統一的輸入對話框方法
         new_name = self._show_input_dialog(
             "複製配置",
             f"輸入新配置名稱:\n(將複製自 '{source_name}')"
@@ -302,15 +298,12 @@ class ProfileManagerDialog(BaseDialog):
         if new_name and new_name.strip():
             new_name = new_name.strip()
             
-            # 檢查是否已存在
             if new_name in self.config_manager.list_profiles():
                 messagebox.showerror("錯誤", f"配置 '{new_name}' 已存在!", parent=self.parent)
                 return
             
-            # 載入源配置
             source_data = self.config_manager.load_profile(source_name)
             if source_data:
-                # 保存為新配置
                 if self.config_manager.save_profile(new_name, source_data):
                     self._refresh_list()
                     print(f"✅ 已複製配置 '{source_name}' → '{new_name}'")
@@ -326,7 +319,6 @@ class ProfileManagerDialog(BaseDialog):
             messagebox.showwarning("提示", "請先選擇要重命名的配置!", parent=self.parent)
             return
         
-        # 使用統一的輸入對話框方法
         new_name = self._show_input_dialog(
             "重命名配置",
             f"輸入新名稱:\n(當前: '{old_name}')",
@@ -336,19 +328,15 @@ class ProfileManagerDialog(BaseDialog):
         if new_name and new_name.strip() and new_name.strip() != old_name:
             new_name = new_name.strip()
             
-            # 檢查是否已存在
             if new_name in self.config_manager.list_profiles():
                 messagebox.showerror("錯誤", f"配置 '{new_name}' 已存在!", parent=self.parent)
                 return
             
-            # 重命名
             if self.config_manager.rename_profile(old_name, new_name):
-                # 如果重命名的是當前配置，更新當前配置名稱
                 if old_name == self.current_profile:
                     self.current_profile = new_name
                     self.config_manager.set_current_profile(new_name)
                     self.current_label.config(text=new_name)
-                    # 更新主視窗的標籤
                     if hasattr(self.main_window, 'current_profile_label'):
                         self.main_window.current_profile_label.config(text=new_name)
                         self.main_window.current_profile_name = new_name
@@ -369,15 +357,12 @@ class ProfileManagerDialog(BaseDialog):
             messagebox.showinfo("提示", "已經是當前配置了!", parent=self.parent)
             return
         
-        # 載入配置數據
         profile_data = self.config_manager.load_profile(profile_name)
         if profile_data:
-            # 設定為當前配置
             self.config_manager.set_current_profile(profile_name)
             self.current_profile = profile_name
             self.current_label.config(text=profile_name)
             
-            # 返回配置數據給主視窗
             self.result = profile_data
             self.close()
             
@@ -392,12 +377,10 @@ class ProfileManagerDialog(BaseDialog):
             messagebox.showwarning("提示", "請先選擇要刪除的配置!", parent=self.parent)
             return
         
-        # 不能刪除當前配置
         if profile_name == self.current_profile:
             messagebox.showerror("錯誤", "無法刪除當前正在使用的配置!", parent=self.parent)
             return
         
-        # 確認刪除
         if messagebox.askyesno("確認刪除", f"確定要刪除配置 '{profile_name}' 嗎？", parent=self.parent):
             if self.config_manager.delete_profile(profile_name):
                 self._refresh_list()
@@ -416,7 +399,7 @@ class SettingsDialog(BaseDialog):
             parent: 父視窗
             current_settings: 當前設定字典
         """
-        super().__init__(parent, "設定", 450, 450)
+        super().__init__(parent, "設定", 450, 600)  # 🆕 增加高度以容納新設定
         self.current_settings = current_settings
         
         self._create_ui()
@@ -469,8 +452,50 @@ class SettingsDialog(BaseDialog):
         self.y_entry.grid(row=0, column=3, padx=8)
         
         # 分隔線
-        separator = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
-        separator.pack(fill=tk.X, padx=20, pady=15)
+        separator1 = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
+        separator1.pack(fill=tk.X, padx=20, pady=15)
+        
+        # 🆕 提前提示音設定
+        alert_label = tk.Label(
+            self.content, text="🔔 提前提示音設定", 
+            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_ORANGE,
+            font=Fonts.BODY_LARGE
+        )
+        alert_label.pack(anchor='w', padx=20, pady=(5, 5))
+        
+        alert_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
+        alert_frame.pack(pady=10, padx=20, fill='x')
+        
+        tk.Label(
+            alert_frame, text="提前", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_PRIMARY,
+            font=Fonts.BODY_LARGE
+        ).grid(row=0, column=0, padx=8)
+        
+        self.alert_before_entry = tk.Entry(
+            alert_frame, font=('Arial', 11), width=8,
+            bg=Colors.BG_DARK, fg=Colors.TEXT_PRIMARY, relief=tk.FLAT
+        )
+        self.alert_before_entry.insert(0, str(self.current_settings.get('alert_before_seconds', 0)))
+        self.alert_before_entry.grid(row=0, column=1, padx=8)
+        
+        tk.Label(
+            alert_frame, text="秒提示", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_PRIMARY,
+            font=Fonts.BODY_LARGE
+        ).grid(row=0, column=2, padx=8)
+        
+        # 說明文字
+        tk.Label(
+            self.content, 
+            text="💡 設為 0 表示結束時才提示", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
+            font=Fonts.BODY_SMALL
+        ).pack(anchor='w', padx=40, pady=(0, 10))
+        
+        # 分隔線
+        separator2 = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
+        separator2.pack(fill=tk.X, padx=20, pady=15)
         
         # 音效設定
         sound_label = tk.Label(
@@ -501,6 +526,12 @@ class SettingsDialog(BaseDialog):
             font=Fonts.BODY_SMALL
         ).pack(pady=(10, 5))
         
+        tk.Label(
+            self.content, text="💡 提示視窗可在畫面上拖曳調整位置", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
+            font=Fonts.BODY_SMALL
+        ).pack(pady=(0, 5))
+        
         # 儲存按鈕
         btn_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
         btn_frame.pack(pady=15)
@@ -516,22 +547,29 @@ class SettingsDialog(BaseDialog):
             # 驗證輸入
             x_val = int(self.x_entry.get())
             y_val = int(self.y_entry.get())
+            alert_before = int(self.alert_before_entry.get())  # 🆕
             
-            # 簡單的範圍檢查
+            # 範圍檢查
             if x_val < 0 or y_val < 0:
                 messagebox.showerror("錯誤", "座標值不能為負數！", parent=self.parent)
+                return
+            
+            # 🆕 檢查提前秒數
+            if alert_before < 0:
+                messagebox.showerror("錯誤", "提前秒數不能為負數！", parent=self.parent)
                 return
             
             self.result = {
                 'x': x_val,
                 'y': y_val,
-                'sound': self.sound_var.get()
+                'sound': self.sound_var.get(),
+                'alert_before_seconds': alert_before  # 🆕
             }
             
-            print(f"✅ 設定已保存：位置({x_val}, {y_val}), 音效={self.sound_var.get()}")
+            print(f"✅ 設定已保存：位置({x_val}, {y_val}), 音效={self.sound_var.get()}, 提前提示={alert_before}秒")
             self.close()
             
         except ValueError:
-            messagebox.showerror("錯誤", "座標值必須是整數！", parent=self.parent)
+            messagebox.showerror("錯誤", "請輸入有效的數字！", parent=self.parent)
         except Exception as e:
             messagebox.showerror("錯誤", f"設定格式錯誤：{e}", parent=self.parent)

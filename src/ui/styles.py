@@ -17,6 +17,7 @@ class Colors:
     ACCENT_GREEN = '#10b981'
     ACCENT_YELLOW = '#fbbf24'
     ACCENT_RED = '#ef4444'
+    ACCENT_ORANGE = '#fb923c' 
     
     # 文字色
     TEXT_PRIMARY = '#f1f5f9'

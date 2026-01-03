@@ -55,6 +55,24 @@
       "subcategory": "盜賊"
     },
     {
+      "id": "holyFire",
+      "name": "神聖之火",
+      "icon": "holyFire.png",
+      "cooldown": 300,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "劍士"
+    },
+    {
+      "id": "powerCrash",
+      "name": "力量消除",
+      "icon": "powerCrash.png",
+      "cooldown": 300,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "劍士"
+    },
+    {
       "id": "rage",
       "name": "激勵",
       "icon": "rage.png",
@@ -221,8 +239,8 @@
   ],
   "settings": {
     "player_name": "玩家1",
-    "skill_start_x": 1500,
-    "skill_start_y": 880,
+    "skill_start_x": 702,
+    "skill_start_y": 264,
     "enable_sound": true,
     "skill_send": {},
     "skill_receive": {},
@@ -290,8 +308,13 @@
       "resurrection-時間歸零": false,
       "resurrection-黑暗星存活": false,
       "20130907185517a4d-困難拉圖斯": false,
-      "000001_1753953383": false
+      "000001_1753953383": false,
+      "holyFire": false,
+      "powerCrash": false
     },
-    "current_profile": "預設配置"
+    "current_profile": "預設配置",
+    "alert_before_seconds": 5,
+    "hint_position_x": 738,
+    "hint_position_y": 521
   }
 }

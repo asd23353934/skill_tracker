@@ -6,6 +6,8 @@
     "curse": "",
     "booster": "",
     "luckyCharm": "",
+    "holyFire": "",
+    "powerCrash": "",
     "rage": "",
     "magicCrash": "",
     "holySymbol": "",
@@ -89,7 +91,9 @@
     "resurrection-時間歸零": false,
     "resurrection-黑暗星存活": false,
     "20130907185517a4d-困難拉圖斯": false,
-    "000001_1753953383": false
+    "000001_1753953383": false,
+    "holyFire": false,
+    "powerCrash": false
   },
   "loop": {
     "common_maple_warrior": false,
@@ -155,7 +159,37 @@
     "resurrection-時間歸零": false,
     "resurrection-黑暗星存活": false,
     "20130907185517a4d-困難拉圖斯": false,
-    "000001_1753953383": false
+    "000001_1753953383": false,
+    "holyFire": false,
+    "powerCrash": false
+  },
+  "alert_enabled": {
+    "mapleWarrior": true,
+    "sharpEyes": true,
+    "puppet": true,
+    "curse": true,
+    "booster": true,
+    "luckyCharm": true,
+    "holyFire": true,
+    "powerCrash": true,
+    "rage": true,
+    "magicCrash": true,
+    "holySymbol": true,
+    "resurrection": true,
+    "smokescreen": true,
+    "finalAttackS": true,
+    "targeting": true,
+    "preciseCannon": true,
+    "mindControl": true,
+    "20130907185517a4d-普通拉圖斯": true,
+    "damage_reflect": true,
+    "Snipaste_2026-01-03_00-47-05": true,
+    "resurrection-時間歸零": true,
+    "resurrection-黑暗星存活": true,
+    "20130907185517a4d-困難拉圖斯": true,
+    "000001_1753953383": true,
+    "Snipaste_2026-01-03_00-29-33": true,
+    "Snipaste_2026-01-03_00-30-56": true
   },
   "cooldown_overrides": {}
 }

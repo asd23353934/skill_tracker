@@ -20,8 +20,8 @@ def clean_config_json():
         # 恢復 settings 到初始狀態
         config['settings'] = {
             "player_name": "玩家1",
-            "skill_start_x": 1500,
-            "skill_start_y": 880,
+            "skill_start_x": 400,
+            "skill_start_y": 400,
             "enable_sound": True,
             "skill_send": {},
             "skill_receive": {},

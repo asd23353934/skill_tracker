@@ -78,17 +78,27 @@ class MainWindow:
         self.active_windows = {}
         self.window_order = []
         
+        # 🆕 獲取螢幕尺寸並計算中央位置
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        default_x = screen_width // 2
+        default_y = screen_height // 2
+        
         # 設定
         self.player_name = settings.get('player_name', '玩家1')
-        self.skill_start_x = settings.get('skill_start_x', 1700)
-        self.skill_start_y = settings.get('skill_start_y', 850)
+        self.skill_start_x = settings.get('skill_start_x', default_x)  # 🆕 預設中央
+        self.skill_start_y = settings.get('skill_start_y', default_y)  # 🆕 預設中央
         self.enable_sound = settings.get('enable_sound', True)
         self.window_alpha = 0.95  # 固定透明度
+        
+        # 🆕 提前提示音設定
+        self.alert_before_seconds = settings.get('alert_before_seconds', 0)
         
         # 技能設定 - 從配置檔案載入
         if profile_data:
             self.skill_permanent = profile_data.get('permanent', {})
-            self.skill_loop = profile_data.get('loop', {})  # 新增循環設定
+            self.skill_loop = profile_data.get('loop', {})
+            self.skill_alert_enabled = profile_data.get('alert_enabled', {})
             
             # 載入快捷鍵到技能管理器
             hotkeys = profile_data.get('hotkeys', {})
@@ -106,11 +116,13 @@ class MainWindow:
         else:
             self.skill_permanent = {}
             self.skill_loop = {}
+            self.skill_alert_enabled = {}
         
         # 初始化所有技能的預設值
         for skill_id in self.skill_manager.get_all_skills():
             self.skill_permanent.setdefault(skill_id, False)
             self.skill_loop.setdefault(skill_id, False)
+            self.skill_alert_enabled.setdefault(skill_id, False)
         
         # UI 控制
         self.keyboard_enabled = True
@@ -120,8 +132,18 @@ class MainWindow:
         # UI 元件字典
         self.permanent_vars = {}
         self.loop_vars = {}
+        self.alert_enabled_vars = {}
         self.hotkey_buttons = {}
-        self.cooldown_buttons = {}  # 秒數按鈕字典
+        self.cooldown_buttons = {}
+        
+        # 🔧 技能視窗常數
+        self.ICON_SIZE = 64
+        self.H_GAP = 6
+        self.V_GAP = 6
+        self.MAX_PER_ROW = 10
+        
+        # 🔧 技能組拖曳數據
+        self.group_drag_data = {'x': 0, 'y': 0, 'dragging': False, 'start_x': 0, 'start_y': 0}
     
     # ==================== UI 創建 ====================
     
@@ -151,30 +173,29 @@ class MainWindow:
     
     def _create_header(self):
         """創建頂部標題列"""
-        # 使用圓角框架
         from src.ui.components import RoundedFrame
         
         header_frame = RoundedFrame(
             self.root, radius=12, bg=Colors.BG_MEDIUM,
             border_color=Colors.ACCENT_YELLOW, border_width=3,
-            fixed_height=True  # 只有 header 需要固定高度
+            fixed_height=True
         )
         header_frame.pack(fill=tk.X, side=tk.TOP, padx=10, pady=(10, 5))
         header_frame.configure(height=70)
         
         header = header_frame.get_content()
         
-        # 左側標題 - 恢復原始大小
+        # 左側標題
         tk.Label(
             header, text="🎮 技能追蹤器", 
             bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_YELLOW,
-            font=Fonts.TITLE_LARGE  # 恢復原始字體
+            font=Fonts.TITLE_LARGE
         ).pack(side=tk.LEFT, padx=20, pady=15)
         
         tk.Label(
             header, text="Artale 楓之谷", 
             bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
-            font=Fonts.BODY_MEDIUM  # 恢復原始字體
+            font=Fonts.BODY_MEDIUM
         ).pack(side=tk.LEFT, pady=15)
         
         # 當前配置顯示
@@ -206,7 +227,6 @@ class MainWindow:
             right_buttons, "⬆️ 有新版本", self._show_update_dialog,
             Colors.ACCENT_GREEN, width=100, height=30
         )
-        # 初始不顯示
         
         # 清空按鍵按鈕
         RoundedButton(
@@ -240,6 +260,12 @@ class MainWindow:
             Colors.ACCENT_GREEN, width=50, height=25
         ).pack(side=tk.LEFT, padx=1)
         
+        # 🔧 提前提示全選按鈕
+        RoundedButton(
+            quick_btns, "提前提示", lambda: self._toggle_all('alert'),
+            Colors.ACCENT_ORANGE, width=65, height=25
+        ).pack(side=tk.LEFT, padx=1)
+        
         # 設定按鈕
         RoundedButton(
             right_buttons, "⚙️ 設定", self._show_settings,
@@ -256,71 +282,48 @@ class MainWindow:
     
     def _create_player_skills_column(self, parent):
         """創建玩家技能欄"""
-        # 標題
         self._create_column_title(parent, "⚔️ 玩家技能")
         
-        # 滾動區域
         self.player_scroll_frame = ScrollableFrame(parent)
         self.player_scroll_frame.pack(fill=tk.BOTH, expand=True)
         
         content = self.player_scroll_frame.get_content()
         
-        # 顯示玩家技能
         if 'player' in self.skill_manager.skill_categories:
             for subcategory, skill_ids in sorted(self.skill_manager.get_categories('player').items()):
                 group = self._create_skill_group(content, subcategory, skill_ids)
-                # 綁定新創建的組件到滾輪
                 if group:
                     self.player_scroll_frame.bind_widget_to_scroll(group)
     
     def _create_boss_skills_column(self, parent):
         """創建 BOSS 技能欄"""
-        # 標題
         self._create_column_title(parent, "👹 BOSS 技能")
         
-        # 滾動區域
         self.boss_scroll_frame = ScrollableFrame(parent)
         self.boss_scroll_frame.pack(fill=tk.BOTH, expand=True)
         
         content = self.boss_scroll_frame.get_content()
         
-        # 顯示 BOSS 技能
         if 'boss' in self.skill_manager.skill_categories:
             for subcategory, skill_ids in sorted(self.skill_manager.get_categories('boss').items()):
                 group = self._create_skill_group(content, subcategory, skill_ids)
-                # 綁定新創建的組件到滾輪
-                if group:
-                    self.boss_scroll_frame.bind_widget_to_scroll(group)
-                # 綁定新創建的組件到滾輪
                 if group:
                     self.boss_scroll_frame.bind_widget_to_scroll(group)
     
     def _create_items_column(self, parent):
         """創建道具欄"""
-        # 標題
         self._create_column_title(parent, "🎁 道具")
         
-        # 滾動區域
         self.items_scroll_frame = ScrollableFrame(parent)
         self.items_scroll_frame.pack(fill=tk.BOTH, expand=True)
         
         content = self.items_scroll_frame.get_content()
         
-        # 顯示道具
         if 'item' in self.skill_manager.skill_categories:
             for subcategory, item_ids in sorted(self.skill_manager.get_categories('item').items()):
                 group = self._create_skill_group(content, subcategory, item_ids)
-                # 綁定新創建的組件到滾輪
                 if group:
                     self.items_scroll_frame.bind_widget_to_scroll(group)
-        
-        # 提示
-        from src.ui.components import RoundedFrame
-        
-        tip_wrapper = RoundedFrame(
-            content, radius=8, bg=Colors.BG_MEDIUM,
-            border_color=Colors.ACCENT_GREEN, border_width=2
-        )
     
     def _create_column_title(self, parent, text):
         """創建欄位標題"""
@@ -331,7 +334,6 @@ class MainWindow:
             border_color=Colors.ACCENT_BLUE, border_width=2
         )
         title_frame_wrapper.pack(fill=tk.X, pady=(0, 5))
-        # 移除固定高度，讓它自動調整
         
         title_frame = title_frame_wrapper.get_content()
         
@@ -412,7 +414,7 @@ class MainWindow:
         bottom_info = tk.Frame(info_frame, bg=Colors.BG_DARK)
         bottom_info.pack(anchor='w', pady=2)
         
-        # 秒數按鈕 - 可點擊編輯
+        # 秒數按鈕
         original_cooldown = self._get_original_cooldown(skill_id)
         is_modified = original_cooldown and skill['cooldown'] != original_cooldown
         
@@ -435,7 +437,6 @@ class MainWindow:
         )
         reset_cooldown_btn.pack(side=tk.LEFT, padx=(0, 5))
         
-        # 記錄秒數按鈕（用於更新顯示）
         if not hasattr(self, 'cooldown_buttons'):
             self.cooldown_buttons = {}
         self.cooldown_buttons[skill_id] = cooldown_btn
@@ -470,7 +471,7 @@ class MainWindow:
         self._create_skill_checkboxes(options_frame, skill_id)
     
     def _create_skill_checkboxes(self, parent, skill_id):
-        """創建技能選項（常駐和循環，互斥）"""
+        """創建技能選項"""
         # 常駐 checkbox
         permanent_var = tk.BooleanVar(value=self.skill_permanent.get(skill_id, False))
         self.permanent_vars[skill_id] = permanent_var
@@ -500,6 +501,76 @@ class MainWindow:
             activebackground=Colors.BG_DARK
         )
         loop_cb.pack(side=tk.LEFT, padx=2)
+        
+        # 提前提示 checkbox
+        alert_var = tk.BooleanVar(value=self.skill_alert_enabled.get(skill_id, False))
+        self.alert_enabled_vars[skill_id] = alert_var
+        
+        alert_cb = tk.Checkbutton(
+            parent, text='提前提示', variable=alert_var,
+            command=lambda sid=skill_id, v=alert_var:
+                self._update_alert_setting(sid, v),
+            bg=Colors.BG_DARK, fg=Colors.ACCENT_ORANGE,
+            font=Fonts.BODY_SMALL,
+            selectcolor=Colors.BG_MEDIUM,
+            activebackground=Colors.BG_DARK
+        )
+        alert_cb.pack(side=tk.LEFT, padx=2)
+    
+    # 🔧 ==================== 技能組拖曳 ====================
+    
+    def _on_skill_drag_start(self, event):
+        """開始拖曳技能（整組）"""
+        # 🔧 使用螢幕絕對座標
+        widget = event.widget
+        if hasattr(widget, 'winfo_toplevel'):
+            toplevel = widget.winfo_toplevel()
+        else:
+            toplevel = widget
+        
+        # 記錄滑鼠的螢幕絕對座標
+        self.group_drag_data['screen_x'] = toplevel.winfo_pointerx()
+        self.group_drag_data['screen_y'] = toplevel.winfo_pointery()
+        self.group_drag_data['dragging'] = True
+        self.group_drag_data['start_x'] = self.skill_start_x
+        self.group_drag_data['start_y'] = self.skill_start_y
+    
+    def _on_skill_drag_motion(self, event):
+        """拖曳技能中（整組移動）"""
+        if not self.group_drag_data['dragging']:
+            return
+        
+        # 🔧 使用螢幕絕對座標計算位移
+        widget = event.widget
+        if hasattr(widget, 'winfo_toplevel'):
+            toplevel = widget.winfo_toplevel()
+        else:
+            toplevel = widget
+        
+        current_screen_x = toplevel.winfo_pointerx()
+        current_screen_y = toplevel.winfo_pointery()
+        
+        delta_x = current_screen_x - self.group_drag_data['screen_x']
+        delta_y = current_screen_y - self.group_drag_data['screen_y']
+        
+        # 更新技能起始座標
+        self.skill_start_x = self.group_drag_data['start_x'] + delta_x
+        self.skill_start_y = self.group_drag_data['start_y'] + delta_y
+        
+        # 即時更新所有技能位置
+        self._reposition_windows()
+    
+    def _on_skill_drag_end(self, event):
+        """結束拖曳技能"""
+        if self.group_drag_data['dragging']:
+            self.group_drag_data['dragging'] = False
+            
+            # 保存新位置
+            self.config_manager.set_settings('skill_start_x', self.skill_start_x)
+            self.config_manager.set_settings('skill_start_y', self.skill_start_y)
+            self.config_manager.save()
+            
+            print(f"💾 技能位置已保存: ({self.skill_start_x}, {self.skill_start_y})")
     
     # ==================== 配置管理 ====================
     
@@ -517,26 +588,21 @@ class MainWindow:
             self.root,
             self.config_manager,
             self._get_current_settings(),
-            self  # 傳遞主視窗實例
+            self
         )
         
         result = dialog.show()
         
         if result:
-            # 套用配置
             self._apply_profile(result)
         
         self.keyboard_enabled = True
     
     def _get_current_settings(self):
         """獲取當前設定"""
-        # 獲取秒數覆寫（只保存修改過的）
         cooldown_overrides = {}
         for skill_id, skill in self.skill_manager.get_all_skills().items():
-            # 獲取原始秒數
             original_cooldown = self._get_original_cooldown(skill_id)
-            
-            # 如果當前秒數與原始秒數不同，記錄覆寫
             current_cooldown = skill.get('cooldown')
             if original_cooldown and current_cooldown != original_cooldown:
                 cooldown_overrides[skill_id] = current_cooldown
@@ -548,24 +614,16 @@ class MainWindow:
             },
             'permanent': self.skill_permanent.copy(),
             'loop': self.skill_loop.copy(),
+            'alert_enabled': self.skill_alert_enabled.copy(),
             'cooldown_overrides': cooldown_overrides
         }
     
     def _get_original_cooldown(self, skill_id):
-        """獲取技能的原始秒數
-        
-        Args:
-            skill_id: 技能ID
-            
-        Returns:
-            int: 原始秒數，如果找不到返回 None
-        """
-        # 從 initial_skills 中查找
+        """獲取技能的原始秒數"""
         for skill_data in self.config_manager.initial_skills:
             if skill_data['id'] == skill_id:
                 return skill_data.get('cooldown')
         
-        # 從 initial_items 中查找
         for item_data in self.config_manager.initial_items:
             if item_data['id'] == skill_id:
                 return item_data.get('cooldown')
@@ -574,55 +632,49 @@ class MainWindow:
     
     def _apply_profile(self, profile_data):
         """套用配置"""
-        # 更新當前配置名稱
         self.current_profile_name = self.config_manager.get_current_profile()
         
-        # 先恢復所有技能的原始秒數和清空快捷鍵
         for skill_id, skill in self.skill_manager.get_all_skills().items():
-            # 恢復原始秒數
             original_cooldown = self._get_original_cooldown(skill_id)
             if original_cooldown:
                 skill['cooldown'] = original_cooldown
             skill['hotkey'] = ''
         
-        # 更新快捷鍵（只更新記憶體）
         hotkeys = profile_data.get('hotkeys', {})
         for skill_id, hotkey in hotkeys.items():
             skill = self.skill_manager.get_skill(skill_id)
             if skill:
                 skill['hotkey'] = hotkey
         
-        # 載入秒數覆寫
         cooldown_overrides = profile_data.get('cooldown_overrides', {})
         for skill_id, cooldown in cooldown_overrides.items():
             skill = self.skill_manager.get_skill(skill_id)
             if skill:
                 skill['cooldown'] = cooldown
         
-        # 更新設定
         self.skill_permanent = profile_data.get('permanent', {}).copy()
+        self.skill_loop = profile_data.get('loop', {}).copy()
+        self.skill_alert_enabled = profile_data.get('alert_enabled', {}).copy()
         
-        # 確保所有技能都有預設值
         for skill_id in self.skill_manager.get_all_skills():
             self.skill_permanent.setdefault(skill_id, False)
+            self.skill_loop.setdefault(skill_id, False)
+            self.skill_alert_enabled.setdefault(skill_id, False)
         
         self._save_config()
-        
-        # 重新載入 UI
         self._reload_main_ui()
     
     def _reload_main_ui(self):
         """重新載入主 UI"""
-        # 銷毀主視窗內容並重建
         for widget in self.root.winfo_children():
             widget.destroy()
         
-        # 重新初始化變數
         self.permanent_vars = {}
+        self.loop_vars = {}
+        self.alert_enabled_vars = {}
         self.hotkey_buttons = {}
-        self.cooldown_buttons = {}  # 重置秒數按鈕
+        self.cooldown_buttons = {}
         
-        # 重建 UI
         self._create_ui()
         self._initialize_permanent_skills()
     
@@ -632,27 +684,22 @@ class MainWindow:
         """清空所有快捷鍵和秒數覆寫"""
         if messagebox.askyesno("確認", "確定要清空所有技能的快捷鍵和自訂秒數嗎?\n（會恢復預設秒數）", parent=self.root):
             for skill_id, skill in self.skill_manager.get_all_skills().items():
-                # 清空快捷鍵
                 skill['hotkey'] = ''
                 
-                # 恢復原始秒數
                 original_cooldown = self._get_original_cooldown(skill_id)
                 if original_cooldown:
                     skill['cooldown'] = original_cooldown
                 
-                # 更新快捷鍵按鈕顯示
                 if skill_id in self.hotkey_buttons:
                     btn = self.hotkey_buttons[skill_id]
                     btn.update_text('未設定')
                     btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)
                 
-                # 更新秒數按鈕顯示（重置為預設顏色）
                 if skill_id in self.cooldown_buttons:
                     btn = self.cooldown_buttons[skill_id]
                     btn.update_text(f'{original_cooldown}秒')
-                    btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_PRIMARY)  # 重置顏色
+                    btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_PRIMARY)
             
-            # 自動保存當前配置（會清空 hotkeys 和 cooldown_overrides）
             self._auto_save_current_profile()
             messagebox.showinfo("完成", "已清空所有快捷鍵並恢復預設秒數!", parent=self.root)
     
@@ -666,7 +713,6 @@ class MainWindow:
         self.waiting_skill_name = skill['name']
         self.keyboard_enabled = False
         
-        # 顯示提示
         self.hotkey_hint_label.config(
             text=f"⌨️ 請按下 '{self.waiting_skill_name}' 的快捷鍵...",
             fg=Colors.ACCENT_YELLOW
@@ -681,36 +727,29 @@ class MainWindow:
             key_name = key.name if hasattr(key, 'name') else str(key.char)
             key_str = key_name.upper()
             
-            # 檢查並清除其他技能的相同按鍵（只修改記憶體）
             for sid, skill in self.skill_manager.get_all_skills().items():
                 if skill.get('hotkey') == key_str and sid != self.waiting_for_hotkey:
                     skill['hotkey'] = ''
-                    # 更新按鈕顯示
                     if sid in self.hotkey_buttons:
                         btn = self.hotkey_buttons[sid]
                         btn.update_text('未設定')
                         btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)
             
-            # 設定新快捷鍵（只修改記憶體）
             skill = self.skill_manager.get_skill(self.waiting_for_hotkey)
             skill['hotkey'] = key_str
             
-            # 更新按鈕顯示
             if self.waiting_for_hotkey in self.hotkey_buttons:
                 btn = self.hotkey_buttons[self.waiting_for_hotkey]
                 btn.update_text(key_str)
-                btn.update_color(Colors.ACCENT_YELLOW, '#000000')  # 黃底黑字
+                btn.update_color(Colors.ACCENT_YELLOW, '#000000')
             
-            # 自動保存當前配置
             self._auto_save_current_profile()
             
-            # 顯示成功訊息
             self.hotkey_hint_label.config(
                 text=f"✓ '{self.waiting_skill_name}' 設定為 {key_str}",
                 fg=Colors.ACCENT_GREEN
             )
             
-            # 2秒後清除提示
             self.root.after(2000, self._clear_hotkey_hint)
             
             self.waiting_for_hotkey = None
@@ -736,12 +775,19 @@ class MainWindow:
     def _toggle_all(self, setting_type):
         """切換所有技能的設定"""
         if setting_type == 'permanent':
-            # 檢查是否所有技能都已勾選
             all_checked = all(self.skill_permanent.get(sid, False) 
                              for sid in self.skill_manager.get_all_skills().keys())
             new_value = not all_checked
             
-            # 更新所有技能
+            # 🔧 如果要全選常駐，先取消所有循環
+            if new_value:
+                for skill_id in self.skill_manager.get_all_skills().keys():
+                    if self.skill_loop.get(skill_id, False):
+                        self._update_loop_skill(skill_id, False)
+                        self.skill_loop[skill_id] = False
+                        if skill_id in self.loop_vars:
+                            self.loop_vars[skill_id].set(False)
+            
             for skill_id in self.skill_manager.get_all_skills().keys():
                 self._update_permanent_skill(skill_id, new_value)
                 self.skill_permanent[skill_id] = new_value
@@ -749,32 +795,36 @@ class MainWindow:
                     self.permanent_vars[skill_id].set(new_value)
         
         elif setting_type == 'loop':
-            # 檢查是否所有技能都已勾選
             all_checked = all(self.skill_loop.get(sid, False) 
                              for sid in self.skill_manager.get_all_skills().keys())
             new_value = not all_checked
             
-            # 更新所有技能
+            # 🔧 如果要全選循環，先取消所有常駐
+            if new_value:
+                for skill_id in self.skill_manager.get_all_skills().keys():
+                    if self.skill_permanent.get(skill_id, False):
+                        self._update_permanent_skill(skill_id, False)
+                        self.skill_permanent[skill_id] = False
+                        if skill_id in self.permanent_vars:
+                            self.permanent_vars[skill_id].set(False)
+            
             for skill_id in self.skill_manager.get_all_skills().keys():
                 self._update_loop_skill(skill_id, new_value)
                 self.skill_loop[skill_id] = new_value
                 if skill_id in self.loop_vars:
                     self.loop_vars[skill_id].set(new_value)
         
-        self._save_config()
-    
-    def _update_skill_setting(self, skill_id, setting_type, var):
-        """更新技能設定（常駐和循環）"""
-        new_value = var.get()
-        if setting_type == 'permanent':
-            self._update_permanent_skill(skill_id, new_value)
-            self.skill_permanent[skill_id] = new_value
-        elif setting_type == 'loop':
-            self._update_loop_skill(skill_id, new_value)
-            self.skill_loop[skill_id] = new_value
-        self._save_config()
+        elif setting_type == 'alert':
+            all_checked = all(self.skill_alert_enabled.get(sid, False) 
+                             for sid in self.skill_manager.get_all_skills().keys())
+            new_value = not all_checked
+            
+            for skill_id in self.skill_manager.get_all_skills().keys():
+                self.skill_alert_enabled[skill_id] = new_value
+                if skill_id in self.alert_enabled_vars:
+                    self.alert_enabled_vars[skill_id].set(new_value)
         
-        # 自動保存當前配置
+        self._save_config()
         self._auto_save_current_profile()
     
     def _update_skill_setting_exclusive(self, skill_id, setting_type, var):
@@ -782,7 +832,6 @@ class MainWindow:
     
         if new_value:
             if setting_type == 'permanent':
-                # 取消循環
                 if self.skill_loop.get(skill_id, False):
                     self.skill_loop[skill_id] = False
                     if skill_id in self.loop_vars:
@@ -796,7 +845,6 @@ class MainWindow:
                     self._create_permanent_window(skill_id)
     
             elif setting_type == 'loop':
-                # 取消常駐
                 if self.skill_permanent.get(skill_id, False):
                     self.skill_permanent[skill_id] = False
                     if skill_id in self.permanent_vars:
@@ -810,7 +858,6 @@ class MainWindow:
                     self._create_loop_window(skill_id)
     
         else:
-            # 取消勾選 → 關閉視窗
             if skill_id in self.active_windows:
                 self.active_windows[skill_id].close()
     
@@ -818,10 +865,23 @@ class MainWindow:
                 self.skill_permanent[skill_id] = False
             elif setting_type == 'loop':
                 self.skill_loop[skill_id] = False
-    
+        
+        # 🆕 更新預覽框大小
+        
         self._save_config()
         self._auto_save_current_profile()
-
+    
+    def _update_alert_setting(self, skill_id, var):
+        """更新提前提示設定"""
+        new_value = var.get()
+        self.skill_alert_enabled[skill_id] = new_value
+        
+        if skill_id in self.active_windows:
+            self.active_windows[skill_id].alert_enabled = new_value
+            self.active_windows[skill_id].alert_before_seconds = self.alert_before_seconds
+        
+        self._save_config()
+        self._auto_save_current_profile()
     
     def _update_permanent_skill(self, skill_id, is_permanent):
         """更新駐留技能"""
@@ -852,6 +912,8 @@ class MainWindow:
         for skill_id, is_loop in self.skill_loop.items():
             if is_loop and skill_id not in self.active_windows:
                 self._create_loop_window(skill_id)
+        
+        # 🆕 初始化後更新預覽框大小
     
     def _create_permanent_window(self, skill_id):
         """創建駐留視窗"""
@@ -864,13 +926,19 @@ class MainWindow:
         
         position = self._calculate_position(skill_id)
         skill_image = self.skill_manager.skill_images.get(skill_id)
+        alert_enabled = self.skill_alert_enabled.get(skill_id, False)
         
         skill_window = SkillWindow(
             skill, self.player_name, position, skill_image,
             lambda w: self._on_window_close(w, skill_id),
             self.enable_sound, skill_id, is_permanent=True, is_loop=False,
             start_at_zero=True,
-            window_alpha=self.window_alpha
+            window_alpha=self.window_alpha,
+            alert_enabled=alert_enabled,
+            alert_before_seconds=self.alert_before_seconds,
+            on_drag_start=self._on_skill_drag_start,
+            on_drag_motion=self._on_skill_drag_motion,
+            on_drag_end=self._on_skill_drag_end
         )
         self.active_windows[skill_id] = skill_window
     
@@ -885,13 +953,19 @@ class MainWindow:
         
         position = self._calculate_position(skill_id)
         skill_image = self.skill_manager.skill_images.get(skill_id)
+        alert_enabled = self.skill_alert_enabled.get(skill_id, False)
         
         skill_window = SkillWindow(
             skill, self.player_name, position, skill_image,
             lambda w: self._on_window_close(w, skill_id),
             self.enable_sound, skill_id, is_permanent=False, is_loop=True,
-            start_at_zero=False,  # 循環從滿秒數開始
-            window_alpha=self.window_alpha
+            start_at_zero=False,
+            window_alpha=self.window_alpha,
+            alert_enabled=alert_enabled,
+            alert_before_seconds=self.alert_before_seconds,
+            on_drag_start=self._on_skill_drag_start,
+            on_drag_motion=self._on_skill_drag_motion,
+            on_drag_end=self._on_skill_drag_end
         )
         self.active_windows[skill_id] = skill_window
     
@@ -906,7 +980,6 @@ class MainWindow:
             update_info = updater.check_for_updates()
             
             if update_info.get('available'):
-                # 顯示更新按鈕
                 self.update_button.pack(side=tk.LEFT, padx=3)
                 self.update_info = update_info
                 print(f"🎉 發現新版本: {update_info['latest']} (當前: {update_info['current']})")
@@ -931,7 +1004,6 @@ class MainWindow:
 是否前往下載頁面？"""
         
         if messagebox.askyesno("更新可用", message, parent=self.root):
-            # 打開下載頁面
             download_url = self.update_info.get('download_url')
             if download_url:
                 webbrowser.open(download_url)
@@ -944,13 +1016,10 @@ class MainWindow:
         if not skill:
             return
         
-        # 暫時禁用鍵盤輸入
         self.keyboard_enabled = False
         
-        # 獲取原始秒數
         original_cooldown = self._get_original_cooldown(skill_id)
         
-        # 顯示輸入對話框
         new_cooldown = simpledialog.askinteger(
             "修改冷卻時間",
             f"請輸入 {skill['name']} 的新冷卻時間（秒）:\n(原始值: {original_cooldown}秒)",
@@ -960,27 +1029,21 @@ class MainWindow:
             parent=self.root
         )
         
-        # 恢復鍵盤輸入
         self.keyboard_enabled = True
         
-        # 如果用戶輸入了新值
         if new_cooldown is not None and new_cooldown != skill['cooldown']:
-            # 只更新技能管理器中的數據（記憶體）
             skill['cooldown'] = new_cooldown
             
-            # 更新按鈕顯示和顏色
             if skill_id in self.cooldown_buttons:
                 btn = self.cooldown_buttons[skill_id]
                 btn.update_text(f"{new_cooldown}秒")
                 
-                # 判斷是否被修改（與原始值比較）
                 is_modified = original_cooldown and new_cooldown != original_cooldown
                 if is_modified:
-                    btn.update_color(Colors.ACCENT_BLUE, '#FFFFFF')  # 藍底白字
+                    btn.update_color(Colors.ACCENT_BLUE, '#FFFFFF')
                 else:
-                    btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)  # 灰底灰字
+                    btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)
             
-            # 自動保存當前配置（會包含 cooldown_overrides）
             self._auto_save_current_profile()
             
             status = "修改" if original_cooldown != new_cooldown else "恢復預設"
@@ -992,26 +1055,21 @@ class MainWindow:
         if not skill:
             return
         
-        # 獲取原始秒數
         original_cooldown = self._get_original_cooldown(skill_id)
         if not original_cooldown:
             return
         
-        # 如果已經是預設值，不做任何事
         if skill['cooldown'] == original_cooldown:
             print(f"ℹ️ {skill['name']} 已經是預設秒數")
             return
         
-        # 恢復原始秒數
         skill['cooldown'] = original_cooldown
         
-        # 更新按鈕顯示和顏色
         if skill_id in self.cooldown_buttons:
             btn = self.cooldown_buttons[skill_id]
             btn.update_text(f"{original_cooldown}秒")
-            btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_PRIMARY)  # 恢復預設顏色
+            btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_PRIMARY)
         
-        # 自動保存當前配置
         self._auto_save_current_profile()
         
         print(f"✅ 已將 {skill['name']} 的冷卻時間重置為預設值 {original_cooldown}秒")
@@ -1022,39 +1080,20 @@ class MainWindow:
         if not skill:
             return
         
-        # 如果沒有設定快捷鍵，不做任何事
         if not skill.get('hotkey'):
             print(f"ℹ️ {skill['name']} 沒有設定快捷鍵")
             return
         
-        # 清空快捷鍵
         skill['hotkey'] = ''
         
-        # 更新按鈕顯示和顏色
         if skill_id in self.hotkey_buttons:
             btn = self.hotkey_buttons[skill_id]
             btn.update_text('未設定')
-            btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)  # 恢復預設顏色
+            btn.update_color(Colors.BG_MEDIUM, Colors.TEXT_SECONDARY)
         
-        # 自動保存當前配置
         self._auto_save_current_profile()
         
         print(f"✅ 已清空 {skill['name']} 的快捷鍵")
-    
-    def _change_player_name(self):
-        """修改玩家名稱"""
-        self.keyboard_enabled = False
-        new_name = simpledialog.askstring(
-            "修改名稱", "輸入新的玩家名稱:",
-            initialvalue=self.player_name, parent=self.root
-        )
-        self.keyboard_enabled = True
-        
-        if new_name:
-            self.player_name = new_name
-            self.player_label.config(text=f"👤 玩家: {self.player_name}")
-            self.config_manager.set_settings('player_name', self.player_name)
-            self.config_manager.save()
     
     def _show_settings(self):
         """顯示設定對話框"""
@@ -1063,38 +1102,40 @@ class MainWindow:
         dialog = SettingsDialog(self.root, {
             'x': self.skill_start_x,
             'y': self.skill_start_y,
-            'sound': self.enable_sound
+            'sound': self.enable_sound,
+            'alert_before_seconds': self.alert_before_seconds
         })
         
         result = dialog.show()
         
         if result:
-            # 更新設定
             old_x = self.skill_start_x
             old_y = self.skill_start_y
+            old_alert_seconds = self.alert_before_seconds
             
             self.skill_start_x = result['x']
             self.skill_start_y = result['y']
             self.enable_sound = result['sound']
+            self.alert_before_seconds = result['alert_before_seconds']
             
-            # 保存到 config.json
             self.config_manager.set_settings('skill_start_x', self.skill_start_x)
             self.config_manager.set_settings('skill_start_y', self.skill_start_y)
             self.config_manager.set_settings('enable_sound', self.enable_sound)
+            self.config_manager.set_settings('alert_before_seconds', self.alert_before_seconds)
             self.config_manager.save()
             
-            # 立即套用：更新現有視窗的音效設定
             for window in self.active_windows.values():
                 window.enable_sound = self.enable_sound
+                window.alert_before_seconds = self.alert_before_seconds
             
-            # 如果位置改變，重新定位所有視窗
             if old_x != self.skill_start_x or old_y != self.skill_start_y:
                 self._reposition_windows()
-                print(f"✅ 位置已更新：({old_x}, {old_y}) → ({self.skill_start_x}, {self.skill_start_y})    ")
+                print(f"✅ 位置已更新：({old_x}, {old_y}) → ({self.skill_start_x}, {self.skill_start_y})")
             
-            print(f"✅ 設定已套用：位置({self.skill_start_x}, {self.skill_start_y}), 音效={self.    enable_sound}")
+            if old_alert_seconds != self.alert_before_seconds:
+                print(f"✅ 提前提示秒數已更新：{old_alert_seconds} → {self.alert_before_seconds}秒")
             
-            # 顯示成功訊息
+            print(f"✅ 設定已套用")
             messagebox.showinfo("設定已套用", "設定已成功保存並套用！", parent=self.root)
         
         self.keyboard_enabled = True
@@ -1123,6 +1164,7 @@ class MainWindow:
         is_permanent = self.skill_permanent.get(skill_id, False)
         is_loop = self.skill_loop.get(skill_id, False)
         skill_image = self.skill_manager.skill_images.get(skill_id)
+        alert_enabled = self.skill_alert_enabled.get(skill_id, False)
         
         skill_window = SkillWindow(
             skill, player, position, skill_image,
@@ -1130,34 +1172,37 @@ class MainWindow:
             self.enable_sound, skill_id, 
             is_permanent=is_permanent,
             is_loop=is_loop,
-            window_alpha=self.window_alpha
+            window_alpha=self.window_alpha,
+            alert_enabled=alert_enabled,
+            alert_before_seconds=self.alert_before_seconds,
+            on_drag_start=self._on_skill_drag_start,
+            on_drag_motion=self._on_skill_drag_motion,
+            on_drag_end=self._on_skill_drag_end
         )
         self.active_windows[skill_id] = skill_window
     
     def _calculate_position(self, skill_id):
+        """計算技能視窗位置（從右往左、從上往下）"""
         index = self.window_order.index(skill_id)
 
-        MAX_PER_ROW = 10
-        ICON_SIZE = 64
-        H_GAP = 6
-        V_GAP = 6
+        col = index % self.MAX_PER_ROW
+        row = index // self.MAX_PER_ROW
 
-        col = index % MAX_PER_ROW
-        row = index // MAX_PER_ROW
-
-        x = self.skill_start_x - col * (ICON_SIZE + H_GAP)
-        y = self.skill_start_y - row * (ICON_SIZE + V_GAP)
+        # 從 skill_start_x, skill_start_y 開始，向左和向下排列
+        x = self.skill_start_x - col * (self.ICON_SIZE + self.H_GAP)
+        y = self.skill_start_y - row * (self.ICON_SIZE + self.V_GAP)
 
         return (x, y)
 
     def _reposition_windows(self):
+        """重新定位所有技能視窗"""
         for skill_id in self.window_order:
             if skill_id in self.active_windows:
                 x, y = self._calculate_position(skill_id)
                 self.active_windows[skill_id].update_position(x, y)
-
     
     def _on_window_close(self, window, skill_id):
+        """技能視窗關閉回調"""
         if skill_id in self.active_windows:
             del self.active_windows[skill_id]
     
@@ -1165,7 +1210,8 @@ class MainWindow:
             self.window_order.remove(skill_id)
     
         self._reposition_windows()
-
+        
+        # 🆕 更新預覽框大小
     
     def _on_key_press(self, key):
         """按鍵處理"""
