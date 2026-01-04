@@ -235,15 +235,20 @@ class SkillWindow:
 
     def _tick(self):
         import time
+        import math
         if not self.running:
             return
 
         # 🔧 根據時間戳計算剩餘秒數（精確）
         current_time = time.time()
         elapsed = current_time - self.start_time
-        new_remaining = max(0, int(self.total - elapsed))
         
-        # 🔧 只在秒數改變時才更新顯示（減少 UI 更新頻率）
+        # 🔧 向上取整：確保剩餘時間不會提前減少
+        # 例如：total=150, elapsed=0.1 → remaining = ceil(149.9) = 150 ✅
+        # 例如：total=150, elapsed=1.1 → remaining = ceil(148.9) = 149 ✅
+        new_remaining = max(0, math.ceil(self.total - elapsed))
+        
+        # 🔧 只在秒數改變時才更新顯示
         if new_remaining != self.remaining:
             self.remaining = new_remaining
             self._update_display()
@@ -289,20 +294,22 @@ class SkillWindow:
     def _loop_restart(self):
         """循環重新開始（延遲執行避免卡頓）"""
         import time
-        # 🔧 重置狀態
-        self.remaining = self.total
-        self.alert_triggered = False
         
-        # 🔧 重新設定時間戳
+        # 🔧 重要：開始時間要設為「現在」，而不是過去
+        # 這樣第一次 _tick() 時 elapsed 接近 0，remaining 才會是完整秒數
         self.start_time = time.time()
         self.end_time = self.start_time + self.total
+        
+        # 🔧 設定剩餘秒數為完整值
+        self.remaining = self.total
+        self.alert_triggered = False
         
         # 🔧 先更新顯示（顯示完整秒數）
         self._update_display()
         
-        # 🔧 然後才開始倒數
+        # 🔧 然後才開始倒數（立即開始，不要延遲）
         self.running = True
-        self.after_id = self.window.after(100, self._tick)
+        self._tick()  # 🔧 直接調用而不是 after，這樣時間戳更精確
 
     # 🆕 觸發提前提示
     def _trigger_alert(self):
