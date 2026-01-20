@@ -90,6 +90,7 @@ class MainWindow:
         self.skill_start_y = settings.get('skill_start_y', default_y)  # 🆕 預設中央
         self.enable_sound = settings.get('enable_sound', True)
         self.window_alpha = 0.95  # 固定透明度
+        self.window_size = settings.get('window_size', 64)  # 🆕 視窗大小設定
         
         # 🆕 提前提示音設定
         self.alert_before_seconds = settings.get('alert_before_seconds', 0)
@@ -136,8 +137,7 @@ class MainWindow:
         self.hotkey_buttons = {}
         self.cooldown_buttons = {}
         
-        # 🔧 技能視窗常數
-        self.ICON_SIZE = 64
+        # 🔧 技能視窗常數（使用動態大小）
         self.H_GAP = 6
         self.V_GAP = 6
         self.MAX_PER_ROW = 10
@@ -1103,7 +1103,8 @@ class MainWindow:
             'x': self.skill_start_x,
             'y': self.skill_start_y,
             'sound': self.enable_sound,
-            'alert_before_seconds': self.alert_before_seconds
+            'alert_before_seconds': self.alert_before_seconds,
+            'window_size': self.window_size  # 🆕 傳遞視窗大小
         })
         
         result = dialog.show()
@@ -1112,16 +1113,19 @@ class MainWindow:
             old_x = self.skill_start_x
             old_y = self.skill_start_y
             old_alert_seconds = self.alert_before_seconds
+            old_window_size = self.window_size  # 🆕
             
             self.skill_start_x = result['x']
             self.skill_start_y = result['y']
             self.enable_sound = result['sound']
             self.alert_before_seconds = result['alert_before_seconds']
+            self.window_size = result['window_size']  # 🆕
             
             self.config_manager.set_settings('skill_start_x', self.skill_start_x)
             self.config_manager.set_settings('skill_start_y', self.skill_start_y)
             self.config_manager.set_settings('enable_sound', self.enable_sound)
             self.config_manager.set_settings('alert_before_seconds', self.alert_before_seconds)
+            self.config_manager.set_settings('window_size', self.window_size)  # 🆕
             self.config_manager.save()
             
             for window in self.active_windows.values():
@@ -1135,8 +1139,12 @@ class MainWindow:
             if old_alert_seconds != self.alert_before_seconds:
                 print(f"✅ 提前提示秒數已更新：{old_alert_seconds} → {self.alert_before_seconds}秒")
             
+            if old_window_size != self.window_size:  # 🆕
+                print(f"✅ 視窗大小已更新：{old_window_size}px → {self.window_size}px")
+                print("⚠️ 視窗大小變更將在下次觸發技能時生效")
+            
             print(f"✅ 設定已套用")
-            messagebox.showinfo("設定已套用", "設定已成功保存並套用！", parent=self.root)
+            messagebox.showinfo("設定已套用", "設定已成功保存並套用！\n視窗大小將在下次觸發技能時生效。", parent=self.root)
         
         self.keyboard_enabled = True
     
@@ -1164,6 +1172,7 @@ class MainWindow:
         is_permanent = self.skill_permanent.get(skill_id, False)
         is_loop = self.skill_loop.get(skill_id, False)
         skill_image = self.skill_manager.skill_images.get(skill_id)
+        skill_image_path = self.skill_manager.skill_image_paths.get(skill_id)  # 🆕 獲取圖片路徑
         alert_enabled = self.skill_alert_enabled.get(skill_id, False)
         
         skill_window = SkillWindow(
@@ -1177,7 +1186,9 @@ class MainWindow:
             alert_before_seconds=self.alert_before_seconds,
             on_drag_start=self._on_skill_drag_start,
             on_drag_motion=self._on_skill_drag_motion,
-            on_drag_end=self._on_skill_drag_end
+            on_drag_end=self._on_skill_drag_end,
+            window_size=self.window_size,  # 🆕 傳遞視窗大小
+            skill_image_path=skill_image_path  # 🆕 傳遞圖片路徑
         )
         self.active_windows[skill_id] = skill_window
     
@@ -1188,9 +1199,10 @@ class MainWindow:
         col = index % self.MAX_PER_ROW
         row = index // self.MAX_PER_ROW
 
+        # 🆕 使用動態視窗大小計算位置
         # 從 skill_start_x, skill_start_y 開始，向左和向下排列
-        x = self.skill_start_x - col * (self.ICON_SIZE + self.H_GAP)
-        y = self.skill_start_y - row * (self.ICON_SIZE + self.V_GAP)
+        x = self.skill_start_x - col * (self.window_size + self.H_GAP)
+        y = self.skill_start_y - row * (self.window_size + self.V_GAP)
 
         return (x, y)
 

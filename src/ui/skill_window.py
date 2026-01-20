@@ -16,7 +16,9 @@ class SkillWindow:
         enable_sound, skill_id, is_permanent, is_loop=False,
         start_at_zero=False, window_alpha=None,
         alert_enabled=False, alert_before_seconds=0, on_alert=None,  # 🆕 提前提示參數
-        on_drag_start=None, on_drag_motion=None, on_drag_end=None  # 🔧 拖曳回調參數
+        on_drag_start=None, on_drag_motion=None, on_drag_end=None,  # 🔧 拖曳回調參數
+        window_size=64,  # 🆕 視窗大小參數
+        skill_image_path=None  # 🆕 圖片路徑參數
     ):
         self.skill = skill
         self.player = player
@@ -26,8 +28,10 @@ class SkillWindow:
         self.is_permanent = is_permanent
         self.is_loop = is_loop
         self.skill_image = skill_image
+        self._skill_image_path = skill_image_path  # 🆕 保存圖片路徑
 
         self.window_alpha = window_alpha if window_alpha is not None else 0.95
+        self.window_size = window_size  # 🆕 保存視窗大小
 
         # 🆕 提前提示設定
         self.alert_enabled = alert_enabled
@@ -63,74 +67,109 @@ class SkillWindow:
     def _create_window(self, position):
         from PIL import Image, ImageTk
 
-        window_size = 64
+        window_size = self.window_size  # 🆕 使用實例變數
 
         self.window = tk.Toplevel()
         self.window.attributes("-topmost", True)
         self.window.attributes("-alpha", self.window_alpha)
         self.window.overrideredirect(True)
-        self.window.configure(bg="black")
+        
+        # 🆕 Windows 透明背景設定
+        # 使用特定顏色作為透明色鍵
+        transparent_color = '#010101'  # 幾乎黑色但不完全黑
+        self.window.configure(bg=transparent_color)
+        try:
+            # Windows 系統使用 -transparentcolor
+            self.window.attributes('-transparentcolor', transparent_color)
+        except:
+            # 其他系統可能不支持
+            pass
 
+        # 🆕 計算視窗總高度（圖片 + 文字區域）
+        text_height = int(window_size * 0.4)  # 文字區域高度
+        total_height = text_height + window_size
+        
         self.canvas = tk.Canvas(
             self.window,
             width=window_size,
-            height=window_size,
-            bg="black",
+            height=total_height,
+            bg=transparent_color,
             highlightthickness=0
         )
         self.canvas.pack()
 
-        # 背景圖片
-        if self.skill_image:
+        # 🆕 載入並縮放技能圖片
+        if self._skill_image_path:
             try:
-                self.bg_image = self.skill_image
+                from PIL import Image, ImageTk
+                img = Image.open(self._skill_image_path)
+                img = img.resize((window_size, window_size), Image.Resampling.LANCZOS)
+                self.bg_image = ImageTk.PhotoImage(img)
             except:
-                skill_img_pil = Image.new("RGB", (window_size, window_size), "black")
-                mask = Image.new("L", (window_size, window_size), 255)
-                output = Image.new("RGBA", (window_size, window_size))
-                output.paste(skill_img_pil, (0, 0))
-                output.putalpha(mask)
-                self.bg_image = ImageTk.PhotoImage(output)
+                # 失敗則使用預設圖片
+                img = Image.new("RGBA", (window_size, window_size), (128, 128, 128, 255))
+                self.bg_image = ImageTk.PhotoImage(img)
+        elif self.skill_image:
+            # 使用已有的圖片（但可能尺寸不對）
+            self.bg_image = self.skill_image
         else:
-            skill_img_pil = Image.new("RGB", (window_size, window_size), "black")
-            mask = Image.new("L", (window_size, window_size), 255)
-            output = Image.new("RGBA", (window_size, window_size))
-            output.paste(skill_img_pil, (0, 0))
-            output.putalpha(mask)
-            self.bg_image = ImageTk.PhotoImage(output)
+            # 創建空白圖片
+            img = Image.new("RGBA", (window_size, window_size), (128, 128, 128, 255))
+            self.bg_image = ImageTk.PhotoImage(img)
 
+        # 🆕 圖片放在下方
         self.canvas.create_image(
             window_size // 2,
-            window_size // 2,
+            text_height + window_size // 2,
             image=self.bg_image
         )
 
-        # 倒數文字
+        # 🆕 倒數文字在上方（完全在圖片外）
+        # 計算字體大小
+        font_size = max(18, int(window_size * 0.4))
+        text_y = text_height // 2  # 文字在文字區域中央
+        
+        # 🆕 創建黑色描邊效果
+        offset = 2
+        for dx, dy in [(-offset, -offset), (-offset, 0), (-offset, offset),
+                       (0, -offset), (0, offset),
+                       (offset, -offset), (offset, 0), (offset, offset)]:
+            self.canvas.create_text(
+                window_size // 2 + dx,
+                text_y + dy,
+                text=str(self.remaining),
+                fill="black",
+                font=("Arial", font_size, "bold"),
+                anchor="center",
+                tags="timer_outline"
+            )
+        
+        # 🆕 白色主文字
         self.timer_text = self.canvas.create_text(
             window_size // 2,
-            window_size // 2,
+            text_y,
             text=str(self.remaining),
-            fill="black",
-            font=("Arial", 24, "bold"),
+            fill="white",
+            font=("Arial", font_size, "bold"),
             anchor="center"
         )
 
-        # 關閉按鈕
+        # 關閉按鈕（放在圖片區域的右上角）
         border_size = 16
         padding = 2
 
         self.close_border = self.canvas.create_rectangle(
             window_size - border_size - padding,
-            padding,
+            text_height + padding,
             window_size - padding,
-            border_size + padding,
+            text_height + border_size + padding,
             outline="#FF0000",
             width=2
         )
 
         self.close_btn = self.canvas.create_text(
             window_size - border_size // 2 - padding,
-            border_size // 2 + padding,
+            text_height + border_size // 2 + padding,
             text="✕",
             fill="#FF0000",
             font=("Arial", 12, "bold"),
@@ -332,18 +371,14 @@ class SkillWindow:
     # Utils
     # --------------------------------------------------
     def _update_display(self):
-        if self.remaining > 0:
-            self.canvas.itemconfig(
-                self.timer_text,
-                text=str(self.remaining),
-                fill="black"
-            )
-        else:
-            self.canvas.itemconfig(
-                self.timer_text,
-                text="0",
-                fill="black"
-            )
+        text = "0" if self.remaining <= 0 else str(self.remaining)
+        
+        # 🆕 更新所有描邊文字
+        for item in self.canvas.find_withtag("timer_outline"):
+            self.canvas.itemconfig(item, text=text)
+        
+        # 🆕 更新主文字（白色）
+        self.canvas.itemconfig(self.timer_text, text=text, fill="white")
 
     def _play_sound(self):
         try:

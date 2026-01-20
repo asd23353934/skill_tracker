@@ -18,6 +18,8 @@
     "preciseCannon": "",
     "mindControl": "",
     "20130907185517a4d-普通拉圖斯": "",
+    "殘暴炎魔-黑水一": "",
+    "殘暴炎魔-黑水二": "",
     "damage_reflect": "",
     "Snipaste_2026-01-03_00-47-05": "",
     "resurrection-時間歸零": "",
@@ -93,7 +95,9 @@
     "20130907185517a4d-困難拉圖斯": false,
     "000001_1753953383": false,
     "holyFire": false,
-    "powerCrash": false
+    "powerCrash": false,
+    "殘暴炎魔-黑水一": false,
+    "殘暴炎魔-黑水二": false
   },
   "loop": {
     "common_maple_warrior": false,
@@ -161,7 +165,9 @@
     "20130907185517a4d-困難拉圖斯": false,
     "000001_1753953383": false,
     "holyFire": false,
-    "powerCrash": false
+    "powerCrash": false,
+    "殘暴炎魔-黑水一": false,
+    "殘暴炎魔-黑水二": false
   },
   "alert_enabled": {
     "mapleWarrior": true,
@@ -189,7 +195,9 @@
     "20130907185517a4d-困難拉圖斯": true,
     "000001_1753953383": true,
     "Snipaste_2026-01-03_00-29-33": true,
-    "Snipaste_2026-01-03_00-30-56": true
+    "Snipaste_2026-01-03_00-30-56": true,
+    "殘暴炎魔-黑水一": true,
+    "殘暴炎魔-黑水二": true
   },
   "cooldown_overrides": {}
 }

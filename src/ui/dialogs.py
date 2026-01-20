@@ -399,7 +399,7 @@ class SettingsDialog(BaseDialog):
             parent: 父視窗
             current_settings: 當前設定字典
         """
-        super().__init__(parent, "設定", 450, 600)  # 🆕 增加高度以容納新設定
+        super().__init__(parent, "設定", 450, 700)  # 🆕 增加高度以容納視窗大小設定
         self.current_settings = current_settings
         
         self._create_ui()
@@ -455,6 +455,69 @@ class SettingsDialog(BaseDialog):
         separator1 = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
         separator1.pack(fill=tk.X, padx=20, pady=15)
         
+        # 🆕 視窗大小設定（改用下拉選單）
+        size_label = tk.Label(
+            self.content, text="📐 技能視窗大小", 
+            bg=Colors.BG_MEDIUM, fg=Colors.ACCENT_BLUE,
+            font=Fonts.BODY_LARGE
+        )
+        size_label.pack(anchor='w', padx=20, pady=(5, 5))
+        
+        size_frame = tk.Frame(self.content, bg=Colors.BG_MEDIUM)
+        size_frame.pack(pady=10, padx=20, fill='x')
+        
+        tk.Label(
+            size_frame, text="大小:", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_PRIMARY,
+            font=Fonts.BODY_LARGE
+        ).grid(row=0, column=0, padx=8)
+        
+        # 🆕 下拉選單選項
+        size_options = [
+            ("極小 (48px)", 48),
+            ("小 (64px) - 預設", 64),
+            ("中 (80px)", 80),
+            ("大 (96px)", 96),
+            ("極大 (128px)", 128)
+        ]
+        
+        current_size = self.current_settings.get('window_size', 64)
+        
+        # 找到當前選項的索引
+        current_index = 1  # 預設為 64px
+        for i, (label, size) in enumerate(size_options):
+            if size == current_size:
+                current_index = i
+                break
+        
+        from tkinter import ttk
+        self.size_var = tk.StringVar(value=size_options[current_index][0])
+        
+        size_combobox = ttk.Combobox(
+            size_frame,
+            textvariable=self.size_var,
+            values=[label for label, _ in size_options],
+            state='readonly',
+            width=20,
+            font=('Arial', 10)
+        )
+        size_combobox.grid(row=0, column=1, padx=8)
+        
+        # 保存選項對應關係
+        self.size_options_map = {label: size for label, size in size_options}
+        
+        # 說明文字
+        tk.Label(
+            self.content, 
+            text="💡 推薦使用「小」或「中」大小", 
+            bg=Colors.BG_MEDIUM, fg=Colors.TEXT_SECONDARY,
+            font=Fonts.BODY_SMALL
+        ).pack(anchor='w', padx=40, pady=(0, 10))
+        
+        # 分隔線
+        separator2 = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
+        separator2.pack(fill=tk.X, padx=20, pady=15)
+        
         # 🆕 提前提示音設定
         alert_label = tk.Label(
             self.content, text="🔔 提前提示音設定", 
@@ -494,8 +557,8 @@ class SettingsDialog(BaseDialog):
         ).pack(anchor='w', padx=40, pady=(0, 10))
         
         # 分隔線
-        separator2 = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
-        separator2.pack(fill=tk.X, padx=20, pady=15)
+        separator3 = tk.Frame(self.content, bg=Colors.TEXT_SECONDARY, height=1)
+        separator3.pack(fill=tk.X, padx=20, pady=15)
         
         # 音效設定
         sound_label = tk.Label(
@@ -547,7 +610,11 @@ class SettingsDialog(BaseDialog):
             # 驗證輸入
             x_val = int(self.x_entry.get())
             y_val = int(self.y_entry.get())
-            alert_before = int(self.alert_before_entry.get())  # 🆕
+            alert_before = int(self.alert_before_entry.get())
+            
+            # 🆕 從下拉選單獲取視窗大小
+            selected_label = self.size_var.get()
+            window_size = self.size_options_map.get(selected_label, 64)
             
             # 範圍檢查
             if x_val < 0 or y_val < 0:
@@ -563,10 +630,11 @@ class SettingsDialog(BaseDialog):
                 'x': x_val,
                 'y': y_val,
                 'sound': self.sound_var.get(),
-                'alert_before_seconds': alert_before  # 🆕
+                'alert_before_seconds': alert_before,
+                'window_size': window_size  # 🆕
             }
             
-            print(f"✅ 設定已保存：位置({x_val}, {y_val}), 音效={self.sound_var.get()}, 提前提示={alert_before}秒")
+            print(f"✅ 設定已保存：位置({x_val}, {y_val}), 音效={self.sound_var.get()}, 提前提示={alert_before}秒, 視窗大小={window_size}px")
             self.close()
             
         except ValueError:

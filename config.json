@@ -163,6 +163,24 @@
       "subcategory": "普通拉圖斯"
     },
     {
+      "id": "殘暴炎魔-黑水一",
+      "name": "黑水一",
+      "icon": "000001_1753953383.webp",
+      "cooldown": 40,
+      "hotkey": "",
+      "category": "boss",
+      "subcategory": "殘暴炎魔"
+    },
+    {
+      "id": "殘暴炎魔-黑水二",
+      "name": "黑水二",
+      "icon": "000001_1753953383.webp",
+      "cooldown": 50,
+      "hotkey": "",
+      "category": "boss",
+      "subcategory": "殘暴炎魔"
+    },
+    {
       "id": "damage_reflect",
       "name": "時間魔方",
       "icon": "damage_reflect.png",
@@ -239,8 +257,8 @@
   ],
   "settings": {
     "player_name": "玩家1",
-    "skill_start_x": 657,
-    "skill_start_y": 292,
+    "skill_start_x": 520,
+    "skill_start_y": 208,
     "enable_sound": true,
     "skill_send": {},
     "skill_receive": {},
@@ -310,11 +328,14 @@
       "20130907185517a4d-困難拉圖斯": false,
       "000001_1753953383": false,
       "holyFire": false,
-      "powerCrash": false
+      "powerCrash": false,
+      "殘暴炎魔-黑水一": false,
+      "殘暴炎魔-黑水二": false
     },
     "current_profile": "預設配置",
-    "alert_before_seconds": 5,
+    "alert_before_seconds": 10,
     "hint_position_x": 738,
-    "hint_position_y": 521
+    "hint_position_y": 521,
+    "window_size": 128
   }
 }
