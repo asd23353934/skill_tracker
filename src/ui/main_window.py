@@ -926,6 +926,7 @@ class MainWindow:
         
         position = self._calculate_position(skill_id)
         skill_image = self.skill_manager.skill_images.get(skill_id)
+        skill_image_path = self.skill_manager.skill_image_paths.get(skill_id)  # 🆕 獲取圖片路徑
         alert_enabled = self.skill_alert_enabled.get(skill_id, False)
         
         skill_window = SkillWindow(
@@ -938,7 +939,9 @@ class MainWindow:
             alert_before_seconds=self.alert_before_seconds,
             on_drag_start=self._on_skill_drag_start,
             on_drag_motion=self._on_skill_drag_motion,
-            on_drag_end=self._on_skill_drag_end
+            on_drag_end=self._on_skill_drag_end,
+            window_size=self.window_size,  # 🆕 傳遞視窗大小
+            skill_image_path=skill_image_path  # 🆕 傳遞圖片路徑
         )
         self.active_windows[skill_id] = skill_window
     
@@ -953,6 +956,7 @@ class MainWindow:
         
         position = self._calculate_position(skill_id)
         skill_image = self.skill_manager.skill_images.get(skill_id)
+        skill_image_path = self.skill_manager.skill_image_paths.get(skill_id)  # 🆕 獲取圖片路徑
         alert_enabled = self.skill_alert_enabled.get(skill_id, False)
         
         skill_window = SkillWindow(
@@ -965,7 +969,9 @@ class MainWindow:
             alert_before_seconds=self.alert_before_seconds,
             on_drag_start=self._on_skill_drag_start,
             on_drag_motion=self._on_skill_drag_motion,
-            on_drag_end=self._on_skill_drag_end
+            on_drag_end=self._on_skill_drag_end,
+            window_size=self.window_size,  # 🆕 傳遞視窗大小
+            skill_image_path=skill_image_path  # 🆕 傳遞圖片路徑
         )
         self.active_windows[skill_id] = skill_window
     

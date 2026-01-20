@@ -98,22 +98,24 @@ class SkillWindow:
         )
         self.canvas.pack()
 
-        # 🆕 載入並縮放技能圖片
+        # 🆕 載入並縮放技能圖片（優先使用路徑重新載入）
         if self._skill_image_path:
             try:
                 from PIL import Image, ImageTk
                 img = Image.open(self._skill_image_path)
                 img = img.resize((window_size, window_size), Image.Resampling.LANCZOS)
                 self.bg_image = ImageTk.PhotoImage(img)
-            except:
-                # 失敗則使用預設圖片
+                print(f"✅ 已載入並縮放技能圖片: {self.skill_id}, 大小: {window_size}x{window_size}")
+            except Exception as e:
+                print(f"⚠️ 無法載入圖片 {self._skill_image_path}: {e}")
+                # 失敗則創建預設圖片
+                from PIL import Image, ImageTk
                 img = Image.new("RGBA", (window_size, window_size), (128, 128, 128, 255))
                 self.bg_image = ImageTk.PhotoImage(img)
-        elif self.skill_image:
-            # 使用已有的圖片（但可能尺寸不對）
-            self.bg_image = self.skill_image
         else:
-            # 創建空白圖片
+            # 沒有圖片路徑，創建預設圖片
+            from PIL import Image, ImageTk
+            print(f"⚠️ 技能 {self.skill_id} 沒有圖片路徑，使用預設圖片")
             img = Image.new("RGBA", (window_size, window_size), (128, 128, 128, 255))
             self.bg_image = ImageTk.PhotoImage(img)
 
