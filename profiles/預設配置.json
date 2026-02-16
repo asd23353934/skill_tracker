@@ -12,6 +12,7 @@
     "magicCrash": "",
     "holySymbol": "",
     "resurrection": "",
+    "mysticDoor": "",
     "smokescreen": "",
     "finalAttackS": "",
     "targeting": "",
@@ -97,7 +98,8 @@
     "holyFire": false,
     "powerCrash": false,
     "殘暴炎魔-黑水一": false,
-    "殘暴炎魔-黑水二": false
+    "殘暴炎魔-黑水二": false,
+    "mysticDoor": false
   },
   "loop": {
     "common_maple_warrior": false,
@@ -167,7 +169,8 @@
     "holyFire": false,
     "powerCrash": false,
     "殘暴炎魔-黑水一": false,
-    "殘暴炎魔-黑水二": false
+    "殘暴炎魔-黑水二": false,
+    "mysticDoor": false
   },
   "alert_enabled": {
     "mapleWarrior": true,
@@ -197,7 +200,11 @@
     "Snipaste_2026-01-03_00-29-33": true,
     "Snipaste_2026-01-03_00-30-56": true,
     "殘暴炎魔-黑水一": true,
-    "殘暴炎魔-黑水二": true
+    "殘暴炎魔-黑水二": true,
+    "mysticDoor": true
   },
-  "cooldown_overrides": {}
+  "cooldown_overrides": {},
+  "alert_seconds_overrides": {},
+  "sound_overrides": {},
+  "alert_sound_overrides": {}
 }

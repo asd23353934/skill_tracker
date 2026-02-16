@@ -12,6 +12,8 @@ a = Analysis(
         ('icon.ico', '.'),
         ('profiles', 'profiles'),  # 包含 profiles 資料夾
         ('version.py', '.'),       # 包含版本文件
+        ('sounds', 'sounds'),      # 包含音效資料夾
+        ('update_launcher.bat', '.'),  # 包含更新腳本
     ],
     hiddenimports=[
         'pynput.keyboard._win32',

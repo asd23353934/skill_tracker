@@ -4,15 +4,16 @@
 """
 
 from PIL import Image, ImageTk
+import customtkinter as ctk
 from src.ui.helpers import resource_path
 
 
 class SkillManager:
     """技能管理器"""
-    
+
     def __init__(self, config_manager):
         """初始化技能管理器
-        
+
         Args:
             config_manager: 配置管理器實例
         """
@@ -21,8 +22,13 @@ class SkillManager:
         self.skill_categories = {}
         self.skill_images = {}
         self.skill_images_small = {}
-        self.skill_image_paths = {}  # 新增：保存圖片路徑
-        
+        self.skill_image_paths = {}
+        # CTkImage 用於主 UI（HiDPI 支援）
+        self.ctk_images = {}
+        self.ctk_images_small = {}
+        self.ctk_images_medium = {}  # 64x64 倒數視窗用
+        self.ctk_images_card = {}    # 36x36 卡片列表用
+
         self._load_skills()
     
     def _load_skills(self):
@@ -66,23 +72,40 @@ class SkillManager:
             self._load_skill_image(item_id, item_data['icon'])
     
     def _load_skill_image(self, skill_id, icon_filename):
-        """載入技能圖片
-        
-        Args:
-            skill_id: 技能 ID
-            icon_filename: 圖片檔名
-        """
+        """載入技能圖片"""
         icon_path = resource_path(f"images/{icon_filename}")
-        self.skill_image_paths[skill_id] = icon_path  # 保存路徑
+        self.skill_image_paths[skill_id] = icon_path
         try:
             img = Image.open(icon_path)
             img_large = img.resize((50, 50), Image.Resampling.LANCZOS)
             img_small = img.resize((28, 28), Image.Resampling.LANCZOS)
+            img_medium = img.resize((64, 64), Image.Resampling.LANCZOS)
+            img_card = img.resize((36, 36), Image.Resampling.LANCZOS)
+
+            # 原生 tkinter PhotoImage（用於 SkillWindow 浮動視窗）
             self.skill_images[skill_id] = ImageTk.PhotoImage(img_large)
             self.skill_images_small[skill_id] = ImageTk.PhotoImage(img_small)
-        except:
+
+            # CTkImage 用於主 UI（HiDPI 支援）
+            self.ctk_images[skill_id] = ctk.CTkImage(
+                light_image=img_large, dark_image=img_large, size=(50, 50)
+            )
+            self.ctk_images_small[skill_id] = ctk.CTkImage(
+                light_image=img_small, dark_image=img_small, size=(28, 28)
+            )
+            self.ctk_images_medium[skill_id] = ctk.CTkImage(
+                light_image=img_medium, dark_image=img_medium, size=(64, 64)
+            )
+            self.ctk_images_card[skill_id] = ctk.CTkImage(
+                light_image=img_card, dark_image=img_card, size=(36, 36)
+            )
+        except Exception:
             self.skill_images[skill_id] = None
             self.skill_images_small[skill_id] = None
+            self.ctk_images[skill_id] = None
+            self.ctk_images_small[skill_id] = None
+            self.ctk_images_medium[skill_id] = None
+            self.ctk_images_card[skill_id] = None
     
     def get_skill(self, skill_id):
         """獲取技能資料

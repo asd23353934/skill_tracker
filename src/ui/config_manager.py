@@ -36,15 +36,18 @@ class ConfigManager:
             os.makedirs(self.profiles_dir)
     
     def save(self):
-        """儲存配置文件（只保存 settings，不保存 skills 和 items）"""
+        """儲存配置文件（保存 settings 和 monsters，skills/items 使用原始值）"""
         try:
-            # 創建要保存的配置（不包含 skills 和 items 的當前狀態）
             save_config = {
                 'skills': self.initial_skills,  # 使用原始值
                 'items': self.initial_items,    # 使用原始值
-                'settings': self.config.get('settings', {})
+                'settings': self.config.get('settings', {}),
             }
-            
+
+            # 保存怪物資料（含快捷鍵等可變動欄位）
+            if 'monsters' in self.config:
+                save_config['monsters'] = self.config['monsters']
+
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(save_config, f, ensure_ascii=False, indent=2)
             return True

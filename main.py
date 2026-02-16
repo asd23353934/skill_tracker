@@ -9,12 +9,12 @@ import os
 # 添加專案根目錄到路徑
 sys.path.insert(0, os.path.dirname(__file__))
 
-from src.ui.main_window import MainWindow
+from src.ui.app import App
 
 
 def main():
     """主程式"""
-    app = MainWindow()
+    app = App()
     app.run()
 
 

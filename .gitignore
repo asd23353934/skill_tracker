@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# PyInstaller
+build/
+dist/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# OS
+nul
+Thumbs.db
+Desktop.ini
+
+# Misc artifacts
+=5.2.0
