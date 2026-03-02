@@ -17,6 +17,12 @@ class ConfigManager:
         # 分離出 skills 和 items（只讀，不會被保存）
         self.initial_skills = self.config.get('skills', [])
         self.initial_items = self.config.get('items', [])
+
+        # 記錄怪物原始重生時間（供重置用）
+        self.initial_monsters = {
+            m["id"]: m.get("respawn_time", 0)
+            for m in self.config.get("monsters", [])
+        }
         
         self.profiles_dir = os.path.join(os.path.dirname(config_path), 'profiles')
         self._ensure_profiles_dir()
@@ -55,6 +61,10 @@ class ConfigManager:
             print(f"保存配置失敗: {e}")
             return False
     
+    def get_original_respawn_time(self, monster_id):
+        """取得怪物原始重生時間"""
+        return self.initial_monsters.get(monster_id)
+
     def get(self, key, default=None):
         """獲取配置值"""
         return self.config.get(key, default)
@@ -96,15 +106,15 @@ class ConfigManager:
             with open(profile_path, 'w', encoding='utf-8') as f:
                 json.dump(skill_settings, f, ensure_ascii=False, indent=2)
             return True
-        except:
+        except Exception:
             return False
-    
+
     def load_profile(self, profile_name):
         """載入配置檔案
-        
+
         Args:
             profile_name: 配置名稱
-        
+
         Returns:
             成功返回設定字典，失敗返回 None
         """
@@ -112,15 +122,15 @@ class ConfigManager:
         try:
             with open(profile_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return None
-    
+
     def delete_profile(self, profile_name):
         """刪除配置檔案
-        
+
         Args:
             profile_name: 配置名稱
-        
+
         Returns:
             成功返回 True，失敗返回 False
         """
@@ -128,16 +138,16 @@ class ConfigManager:
         try:
             os.remove(profile_path)
             return True
-        except:
+        except Exception:
             return False
-    
+
     def rename_profile(self, old_name, new_name):
         """重命名配置檔案
-        
+
         Args:
             old_name: 舊名稱
             new_name: 新名稱
-        
+
         Returns:
             成功返回 True，失敗返回 False
         """
@@ -146,7 +156,7 @@ class ConfigManager:
         try:
             os.rename(old_path, new_path)
             return True
-        except:
+        except Exception:
             return False
     
     def get_current_profile(self):

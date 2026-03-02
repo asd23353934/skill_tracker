@@ -35,6 +35,8 @@ class SkillWindow:
         sound_filename="",
         alert_sound_filename="",
         count_up=False,
+        title=None,
+        idle_start=False,
     ):
         self.skill = skill
         self.player = player
@@ -46,6 +48,8 @@ class SkillWindow:
         self.skill_image = skill_image
         self._skill_image_path = skill_image_path
         self.count_up = count_up
+        self.title = title
+        self.idle_start = idle_start
 
         self.window_alpha = window_alpha if window_alpha is not None else 0.95
         self.window_size = window_size
@@ -89,9 +93,9 @@ class SkillWindow:
         self._create_window(position)
 
         if count_up:
-            # 正數模式：顯示 0，等待 start_countdown
-            self._update_display()
-            self.start_countdown()
+            # 正數模式：idle_start=True 時停留 idle，等待按鍵觸發
+            if not idle_start:
+                self.start_countdown()
         elif not start_at_zero:
             self.start_countdown()
         else:
@@ -121,9 +125,23 @@ class SkillWindow:
         except Exception:
             pass
 
-        # 計算視窗總高度（圖片 + 文字區域）
-        text_height = int(window_size * 0.4)
-        total_height = text_height + window_size + border_w * 2
+        # 計算各區塊高度與計時文字位置
+        # 兩種模式都是：秒數文字在上，圖示在下
+        # count_up（怪物）用 0.5 係數讓文字有足夠空間，避免頂端被裁切
+        if self.count_up:
+            text_height = int(window_size * 0.5)            # 比技能略高，留足頂部空間
+            title_height = 0
+            img_y0 = text_height                            # 秒數在上，圖示在下
+            img_y1 = text_height + window_size + border_w * 2
+            text_y = text_height // 2
+        else:
+            title_height = max(18, int(window_size * 0.28)) if self.title else 0
+            text_height = int(window_size * 0.4)
+            img_y0 = text_height + title_height             # 文字在圖示上方
+            img_y1 = text_height + title_height + window_size + border_w * 2
+            text_y = text_height // 2
+
+        total_height = text_height + title_height + window_size + border_w * 2
 
         canvas_width = window_size + border_w * 2
 
@@ -136,11 +154,36 @@ class SkillWindow:
         )
         self.canvas.pack()
 
+        # ===== 標題文字（技能模式，緊貼卡片上方置中；count_up 不顯示）=====
+        if self.title and not self.count_up:
+            title_font_size = max(9, int(window_size * 0.17))
+            title_x = canvas_width // 2
+            title_y = text_height + title_height // 2
+            for dx, dy in [(-1, -1), (-1, 0), (-1, 1),
+                           (0, -1), (0, 1),
+                           (1, -1), (1, 0), (1, 1)]:
+                self.canvas.create_text(
+                    title_x + dx,
+                    title_y + dy,
+                    text=self.title,
+                    fill=self.GOLD_OUTLINE,
+                    font=("Arial", title_font_size, "bold"),
+                    anchor="center",
+                    tags="title_outline"
+                )
+            self.canvas.create_text(
+                title_x,
+                title_y,
+                text=self.title,
+                fill=self.GOLD_TEXT,
+                font=("Arial", title_font_size, "bold"),
+                anchor="center",
+                tags="title_text"
+            )
+
         # ===== 金色邊框 (圖片區域) =====
         img_x0 = 0
-        img_y0 = text_height
         img_x1 = canvas_width
-        img_y1 = total_height
 
         # 外層金色邊框
         self._border_outer = self.canvas.create_rectangle(
@@ -178,16 +221,16 @@ class SkillWindow:
         # 圖片放在邊框內
         self._image_item = self.canvas.create_image(
             canvas_width // 2,
-            text_height + border_w + window_size // 2,
+            img_y0 + border_w + window_size // 2,
             image=self.bg_image
         )
 
-        # ===== 倒數文字（金色 + 暗金描邊）=====
+        # ===== 計時文字（技能倒數 / 怪物正數 均顯示）=====
+        # count_up 初始為 "0"，countdown 初始為剩餘秒數
         font_size = max(18, int(window_size * 0.4))
-        text_y = text_height // 2
         text_x = canvas_width // 2
+        initial_text = "0" if self.count_up else str(self.remaining)
 
-        # 暗金色描邊效果
         offset = 2
         for dx, dy in [(-offset, -offset), (-offset, 0), (-offset, offset),
                        (0, -offset), (0, offset),
@@ -195,18 +238,17 @@ class SkillWindow:
             self.canvas.create_text(
                 text_x + dx,
                 text_y + dy,
-                text=str(self.remaining),
+                text=initial_text,
                 fill=self.GOLD_OUTLINE,
                 font=("Arial", font_size, "bold"),
                 anchor="center",
                 tags="timer_outline"
             )
 
-        # 亮金色主文字
         self.timer_text = self.canvas.create_text(
             text_x,
             text_y,
-            text=str(self.remaining),
+            text=initial_text,
             fill=self.GOLD_TEXT,
             font=("Arial", font_size, "bold"),
             anchor="center"
@@ -216,9 +258,9 @@ class SkillWindow:
         close_size = 16
         padding = 2
         close_x0 = canvas_width - close_size - padding - border_w
-        close_y0 = text_height + padding + border_w
+        close_y0 = img_y0 + padding + border_w
         close_x1 = canvas_width - padding - border_w
-        close_y1 = text_height + close_size + padding + border_w
+        close_y1 = img_y0 + close_size + padding + border_w
 
         self.close_border = self.canvas.create_rectangle(
             close_x0, close_y0, close_x1, close_y1,
@@ -510,15 +552,21 @@ class SkillWindow:
             import random
             delay = random.randint(50, 500)
             self.window.after(delay, self._loop_restart)
-        elif self.count_up:
-            # 怪物重生模式：時間到後停留在畫面上，不自動關閉
+        elif self.is_permanent and self.count_up:
+            # 常駐怪物：時間到後重置為 idle（遮罩清空，秒數歸零，等待下次按鍵）
             self.running = False
-            self._update_display_text(str(self.total))
+            self.remaining = 0
+            self._last_overlay_degree = -1
+            self._update_overlay(0)
+            self._update_display_text("0")
+        elif self.count_up:
+            # 非常駐怪物：時間到後停留在畫面上（遮罩全滿），不自動關閉
+            self.running = False
         elif not self.is_permanent:
             self.after_id = self.window.after(2000, self.close)
         else:
             self._update_display()
-            # 常駐模式結束時重置遮罩
+            # 常駐技能結束時重置遮罩
             self._last_overlay_degree = -1
             self._update_overlay(0)
 
@@ -527,7 +575,8 @@ class SkillWindow:
         self.start_time = time.time()
         self.end_time = self.start_time + self.total
 
-        self.remaining = self.total
+        # count_up：elapsed 從 0 開始；countdown：remaining 從 total 開始
+        self.remaining = 0 if self.count_up else self.total
         self.alert_triggered = False
         self._last_overlay_degree = -1
 
@@ -563,7 +612,9 @@ class SkillWindow:
         self._update_display_text(text)
 
     def _update_display_text(self, text):
-        """更新所有顯示文字"""
+        """更新所有顯示文字（count_up 模式無文字元件，直接略過）"""
+        if self.timer_text is None:
+            return
         for item in self.canvas.find_withtag("timer_outline"):
             self.canvas.itemconfig(item, text=text)
         self.canvas.itemconfig(self.timer_text, text=text, fill=self.GOLD_TEXT)

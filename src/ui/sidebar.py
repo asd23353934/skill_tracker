@@ -43,6 +43,17 @@ class Sidebar(ctk.CTkFrame):
 
     def _build_ui(self):
         """建構側邊欄 UI"""
+        import tkinter as tk
+
+        # 右側垂直分隔線（貫穿全高，與右側主內容區分隔）
+        right_border = ctk.CTkFrame(
+            self,
+            width=1,
+            fg_color=AppTheme.GOLD_MUTED,
+            corner_radius=0,
+        )
+        right_border.place(relx=1.0, x=-1, y=0, relheight=1.0)
+
         # 頂部間距
         ctk.CTkFrame(self, fg_color="transparent", height=16).pack(fill="x")
 

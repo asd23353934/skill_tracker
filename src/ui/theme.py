@@ -38,9 +38,12 @@ class AppTheme:
     ACCENT_BLUE = "#3b82f6"
     ACCENT_PURPLE = "#8b5cf6"
     ACCENT_GREEN = "#10b981"
+    ACCENT_GREEN_HOVER = "#0d9668"   # 綠色 hover
     ACCENT_YELLOW = "#fbbf24"
+    ACCENT_YELLOW_HOVER = "#e5a800"  # 黃色 hover
     ACCENT_RED = "#ef4444"
     ACCENT_ORANGE = "#fb923c"
+    ACCENT_ORANGE_HOVER = "#e07a2a"  # 橘色 hover
 
     # ===== 文字色 =====
     TEXT_PRIMARY = "#f1f5f9"     # 主要文字

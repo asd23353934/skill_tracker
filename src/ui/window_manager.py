@@ -3,7 +3,10 @@
 處理技能視窗的生命週期、定位、群組拖曳
 """
 
+import os
+
 from src.ui.skill_window import SkillWindow
+from src.ui.helpers import resource_path
 
 
 class WindowManager:
@@ -78,42 +81,51 @@ class WindowManager:
 
     def trigger_monster(self, monster_id):
         """觸發怪物重生計時（正數模式：從 0 數到目標秒數）"""
+        if monster_id in self.active_windows:
+            # 已有視窗：重新開始計時
+            self.active_windows[monster_id].restart_countdown()
+            return
+
         monster = self.app.get_monster(monster_id)
         if not monster:
             return
 
-        # 若已有視窗，重新開始
-        if monster_id in self.active_windows:
-            self.active_windows[monster_id].restart_countdown()
+        is_permanent = monster.get("permanent", False)
+        self._create_monster_window(monster_id, is_permanent=is_permanent)
+
+    def create_permanent_monster_window(self, monster_id):
+        """建立常駐怪物視窗（idle 狀態，等待按鍵觸發計時）"""
+        self._create_monster_window(monster_id, is_permanent=True, idle_start=True)
+
+    def _create_monster_window(self, monster_id, *, is_permanent: bool, idle_start: bool = False):
+        """建立怪物視窗的共用邏輯（供 trigger_monster / create_permanent_monster_window 呼叫）
+
+        Args:
+            monster_id: 怪物 ID
+            is_permanent: 是否常駐（視窗結束後自動重置為 idle）
+            idle_start: 是否以 idle 狀態啟動（常駐視窗啟動時使用）
+        """
+        monster = self.app.get_monster(monster_id)
+        if not monster:
             return
 
         if monster_id not in self.window_order:
             self.window_order.append(monster_id)
 
         position = self._calculate_position(monster_id)
-
-        # 取得怪物圖片路徑
-        icon_file = monster.get("icon", "")
-        img_path = None
-        if icon_file:
-            from src.ui.helpers import resource_path
-            import os
-            candidate = resource_path(f"images/{icon_file}")
-            if os.path.exists(candidate):
-                img_path = candidate
+        img_path = self._resolve_monster_image_path(monster)
 
         alert_before = monster.get("alert_before", 10)
-
-        # 怪物提示聲音：若卡牌有設定則用卡牌的，否則用全域
         monster_alert_sound = monster.get("alert_sound", "")
         effective_alert_sound = monster_alert_sound or self.app.global_alert_sound
-        effective_sound = self.app.global_sound
+        is_loop = monster.get("loop", True)
 
         skill_window = SkillWindow(
             monster, self.app.player_name, position, None,
             lambda w: self._on_window_close(w, monster_id),
             self.app.enable_sound, monster_id,
-            is_permanent=False, is_loop=False,
+            is_permanent=is_permanent,
+            is_loop=is_loop,
             window_alpha=self.app.window_alpha,
             alert_enabled=(alert_before > 0),
             alert_before_seconds=alert_before,
@@ -123,14 +135,30 @@ class WindowManager:
             window_size=self.app.window_size,
             skill_image_path=img_path,
             sound_manager=self.app.sound_manager,
-            sound_filename=effective_sound,
+            sound_filename=self.app.global_sound,
             alert_sound_filename=effective_alert_sound,
             count_up=True,
+            idle_start=idle_start,
         )
         self.active_windows[monster_id] = skill_window
 
+    def _resolve_monster_image_path(self, monster: dict) -> str | None:
+        """解析怪物圖片的完整路徑，若檔案不存在則回傳 None
+
+        Args:
+            monster: 怪物資料字典
+
+        Returns:
+            存在的圖片路徑，或 None
+        """
+        icon_file = monster.get("icon", "")
+        if not icon_file:
+            return None
+        candidate = resource_path(f"images/{icon_file}")
+        return candidate if os.path.exists(candidate) else None
+
     def create_permanent_window(self, skill_id):
-        """創建常駐視窗"""
+        """建立技能常駐視窗"""
         skill = self.app.skill_manager.get_skill(skill_id)
         if not skill:
             return
@@ -164,10 +192,14 @@ class WindowManager:
         self.active_windows[skill_id] = skill_window
 
     def initialize_persistent_skills(self):
-        """初始化常駐技能（循環技能不初始化，等待按鍵觸發）"""
+        """初始化常駐技能與常駐怪物（循環技能不初始化，等待按鍵觸發）"""
         for skill_id, is_permanent in self.app.skill_permanent.items():
             if is_permanent and skill_id not in self.active_windows:
                 self.create_permanent_window(skill_id)
+
+        for monster in self.app.get_all_monsters():
+            if monster.get("permanent", False) and monster["id"] not in self.active_windows:
+                self.create_permanent_monster_window(monster["id"])
 
     def _calculate_position(self, skill_id):
         """計算技能視窗位置（從右往左、從上往下）"""

@@ -118,6 +118,42 @@
       "subcategory": "法師"
     },
     {
+      "id": "炎靈地獄",
+      "name": "炎靈地獄",
+      "icon": "640323892_790011227492117_4845428350782837335_n.png",
+      "cooldown": 15,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "法師"
+    },
+    {
+      "id": "寒冰地獄",
+      "name": "寒冰地獄",
+      "icon": "640910595_936145672152849_3024465995160426444_n.png",
+      "cooldown": 15,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "法師"
+    },
+    {
+      "id": "精神強化",
+      "name": "精神強化",
+      "icon": "638528928_1316099816995258_8677447868291309463_n.png",
+      "cooldown": 300,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "法師"
+    },
+    {
+      "id": "魔力無限",
+      "name": "魔力無限",
+      "icon": "638533623_3812309965739430_8944061941698520710_n.png",
+      "cooldown": 420,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "法師"
+    },
+    {
       "id": "smokescreen",
       "name": "煙幕彈",
       "icon": "smokescreen.png",
@@ -140,6 +176,24 @@
       "name": "指定攻擊",
       "icon": "targeting.png",
       "cooldown": 20,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "海盜"
+    },
+    {
+      "id": "章魚砲台",
+      "name": "章魚砲台",
+      "icon": "638786490_865750903134554_3154465832580138251_n.png",
+      "cooldown": 10,
+      "hotkey": "",
+      "category": "player",
+      "subcategory": "海盜"
+    },
+    {
+      "id": "海盜船",
+      "name": "海盜船",
+      "icon": "639728039_4179977095552643_2070940007389121938_n.png",
+      "cooldown": 300,
       "hotkey": "",
       "category": "player",
       "subcategory": "海盜"
@@ -209,8 +263,8 @@
     },
     {
       "id": "resurrection-時間歸零",
-      "name": "時間歸零",
-      "icon": "resurrection.png",
+      "name": "時間",
+      "icon": "638451031_939967522117347_4546616364947888515_n.png",
       "cooldown": 10,
       "hotkey": "",
       "category": "boss",
@@ -218,8 +272,8 @@
     },
     {
       "id": "resurrection-黑暗星存活",
-      "name": "黑暗星存活",
-      "icon": "resurrection.png",
+      "name": "黑暗星",
+      "icon": "642628248_1579256506702336_7756160188758334446_n.png",
       "cooldown": 16,
       "hotkey": "",
       "category": "boss",
@@ -340,7 +394,13 @@
       "powerCrash": false,
       "殘暴炎魔-黑水一": false,
       "殘暴炎魔-黑水二": false,
-      "mysticDoor": false
+      "mysticDoor": false,
+      "炎靈地獄": false,
+      "寒冰地獄": false,
+      "精神強化": false,
+      "魔力無限": false,
+      "章魚砲台": false,
+      "海盜船": false
     },
     "current_profile": "預設配置",
     "alert_before_seconds": 10,
@@ -354,11 +414,12 @@
     {
       "id": "fish_house",
       "name": "魚屋",
-      "icon": "mysticDoor.png",
+      "icon": "刺鰭魚之屋.png",
       "respawn_time": 30,
-      "hotkey": "1",
+      "hotkey": "",
       "alert_before": 10,
-      "alert_sound": ""
+      "alert_sound": "",
+      "loop": true
     }
   ]
 }

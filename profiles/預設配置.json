@@ -1,6 +1,6 @@
 {
   "hotkeys": {
-    "mapleWarrior": "",
+    "mapleWarrior": "1",
     "sharpEyes": "",
     "puppet": "",
     "curse": "",
@@ -13,9 +13,15 @@
     "holySymbol": "",
     "resurrection": "",
     "mysticDoor": "",
+    "炎靈地獄": "",
+    "寒冰地獄": "",
+    "精神強化": "",
+    "魔力無限": "",
     "smokescreen": "",
     "finalAttackS": "",
     "targeting": "",
+    "章魚砲台": "",
+    "海盜船": "",
     "preciseCannon": "",
     "mindControl": "",
     "20130907185517a4d-普通拉圖斯": "",
@@ -99,7 +105,13 @@
     "powerCrash": false,
     "殘暴炎魔-黑水一": false,
     "殘暴炎魔-黑水二": false,
-    "mysticDoor": false
+    "mysticDoor": false,
+    "炎靈地獄": false,
+    "寒冰地獄": false,
+    "精神強化": false,
+    "魔力無限": false,
+    "章魚砲台": false,
+    "海盜船": false
   },
   "loop": {
     "common_maple_warrior": false,
@@ -170,7 +182,13 @@
     "powerCrash": false,
     "殘暴炎魔-黑水一": false,
     "殘暴炎魔-黑水二": false,
-    "mysticDoor": false
+    "mysticDoor": false,
+    "炎靈地獄": false,
+    "寒冰地獄": false,
+    "精神強化": false,
+    "魔力無限": false,
+    "章魚砲台": false,
+    "海盜船": false
   },
   "alert_enabled": {
     "mapleWarrior": true,
@@ -201,7 +219,13 @@
     "Snipaste_2026-01-03_00-30-56": true,
     "殘暴炎魔-黑水一": true,
     "殘暴炎魔-黑水二": true,
-    "mysticDoor": true
+    "mysticDoor": true,
+    "炎靈地獄": true,
+    "寒冰地獄": true,
+    "精神強化": true,
+    "魔力無限": true,
+    "章魚砲台": true,
+    "海盜船": true
   },
   "cooldown_overrides": {},
   "alert_seconds_overrides": {},

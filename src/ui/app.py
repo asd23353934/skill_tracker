@@ -155,6 +155,13 @@ class App(ctk.CTk):
             self.skill_loop.setdefault(skill_id, False)
             self.skill_alert_enabled.setdefault(skill_id, False)
 
+        # 怪物 ID → 怪物字典的快取索引（O(1) 查詢）
+        # 怪物清單來自 config，不會在執行時增刪；屬性變更為 in-place，索引始終有效
+        self._monster_index: dict = {
+            m["id"]: m
+            for m in self.config_manager.config.get("monsters", [])
+        }
+
         # UI 元件字典
         self.permanent_vars = {}
         self.loop_vars = {}
@@ -162,6 +169,7 @@ class App(ctk.CTk):
         self.hotkey_buttons = {}
         self.cooldown_buttons = {}
         self.alert_seconds_buttons = {}
+        self.monster_respawn_buttons = {}
 
     def _build_ui(self):
         """建構主要 UI（側邊欄 + 頁面容器）"""
@@ -206,11 +214,8 @@ class App(ctk.CTk):
     # ==================== 怪物 API ====================
 
     def get_monster(self, monster_id):
-        """根據 ID 取得怪物資料"""
-        for m in self.config_manager.config.get("monsters", []):
-            if m["id"] == monster_id:
-                return m
-        return None
+        """根據 ID 取得怪物資料（O(1) 索引查詢）"""
+        return self._monster_index.get(monster_id)
 
     def get_monster_by_hotkey(self, key_name):
         """根據按鍵名稱取得怪物 ID"""
@@ -227,6 +232,92 @@ class App(ctk.CTk):
     def save_monsters(self):
         """儲存怪物資料到 config.json"""
         self.config_manager.save()
+
+    def edit_respawn_time(self, monster_id):
+        """編輯怪物重生時間"""
+        monster = self.get_monster(monster_id)
+        if not monster:
+            return
+
+        self.hotkey_manager.enabled = False
+        original = self.config_manager.get_original_respawn_time(monster_id)
+        current = monster.get("respawn_time", 0)
+
+        new_val = simpledialog.askinteger(
+            "修改重生時間",
+            f"請輸入 '{monster['name']}' 的重生時間（秒）:\n(原始值: {original}秒)",
+            initialvalue=current,
+            minvalue=1,
+            maxvalue=9999,
+            parent=self,
+        )
+
+        self.hotkey_manager.enabled = True
+
+        if new_val is not None and new_val != current:
+            monster["respawn_time"] = new_val
+            self.save_monsters()
+
+            btn = self.monster_respawn_buttons.get(monster_id)
+            if btn:
+                is_modified = original and new_val != original
+                btn.configure(
+                    text=f"{new_val}秒",
+                    fg_color=AppTheme.ACCENT_BLUE if is_modified else AppTheme.BG_TERTIARY,
+                    hover_color=AppTheme.ACCENT_BLUE if is_modified else AppTheme.BG_SECONDARY,
+                )
+
+    def reset_respawn_time(self, monster_id):
+        """重置怪物重生時間為原始值"""
+        monster = self.get_monster(monster_id)
+        if not monster:
+            return
+
+        original = self.config_manager.get_original_respawn_time(monster_id)
+        if not original or monster.get("respawn_time") == original:
+            return
+
+        monster["respawn_time"] = original
+        self.save_monsters()
+
+        btn = self.monster_respawn_buttons.get(monster_id)
+        if btn:
+            btn.configure(
+                text=f"{original}秒",
+                fg_color=AppTheme.BG_TERTIARY,
+                hover_color=AppTheme.BG_SECONDARY,
+            )
+
+    def update_monster_loop(self, monster_id, loop_value):
+        """更新怪物循環設定"""
+        monster = self.get_monster(monster_id)
+        if not monster:
+            return
+
+        monster["loop"] = loop_value
+        self.save_monsters()
+
+        # 同步更新已開啟的視窗
+        if monster_id in self.window_manager.active_windows:
+            self.window_manager.active_windows[monster_id].is_loop = loop_value
+
+    def update_monster_permanent(self, monster_id, permanent_value):
+        """更新怪物常駐設定"""
+        monster = self.get_monster(monster_id)
+        if not monster:
+            return
+
+        monster["permanent"] = permanent_value
+        self.save_monsters()
+
+        if permanent_value:
+            # 開啟常駐：若視窗不存在，建立 idle 狀態視窗
+            if monster_id not in self.window_manager.active_windows:
+                self.window_manager.create_permanent_monster_window(monster_id)
+        else:
+            # 關閉常駐：關閉現有視窗（若有）
+            if monster_id in self.window_manager.active_windows:
+                self.window_manager.active_windows[monster_id].close()
 
     # ==================== 公開 API (供子元件呼叫) ====================
 
@@ -286,7 +377,7 @@ class App(ctk.CTk):
             btn.configure(
                 text=key_str if has_hotkey else "未設定",
                 fg_color=AppTheme.ACCENT_YELLOW if has_hotkey else AppTheme.BG_TERTIARY,
-                hover_color="#e5a800" if has_hotkey else AppTheme.BG_SECONDARY,
+                hover_color=AppTheme.ACCENT_YELLOW_HOVER if has_hotkey else AppTheme.BG_SECONDARY,
                 text_color="#000000" if has_hotkey else AppTheme.TEXT_SECONDARY,
             )
 
@@ -710,6 +801,7 @@ class App(ctk.CTk):
         self.hotkey_buttons = {}
         self.cooldown_buttons = {}
         self.alert_seconds_buttons = {}
+        self.monster_respawn_buttons = {}
 
         self._build_ui()
         self.window_manager.initialize_persistent_skills()
