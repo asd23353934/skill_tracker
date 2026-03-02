@@ -78,7 +78,7 @@ class Updater:
                 self.update_available = True
                 self.latest_version = latest_tag
 
-                # 獲取下載連結（優先 .exe，其次 .zip / .tar.gz）
+                # 獲取下載連結（優先 .exe，其次 .7z / .zip / .tar.gz）
                 assets = release_data.get('assets', [])
                 exe_url = None
                 archive_url = None
@@ -88,10 +88,15 @@ class Updater:
                     url = asset['browser_download_url']
                     if name.endswith('.exe'):
                         exe_url = url
-                    elif name.endswith('.zip') or name.endswith('.tar.gz'):
+                    elif name.endswith(('.7z', '.zip', '.tar.gz')):
                         archive_url = url
 
-                self.download_url = exe_url or archive_url
+                # 備用：若 assets 未列出，依已知命名規則組合 URL
+                fallback_url = (
+                    f"https://github.com/asd23353934/skill_tracker"
+                    f"/releases/download/{latest_tag}/default.7z"
+                )
+                self.download_url = exe_url or archive_url or fallback_url
 
                 return {
                     'available': True,
@@ -166,7 +171,7 @@ class Updater:
         if self.download_url:
             filename = os.path.basename(self.download_url)
         else:
-            filename = "skill_tracker_update.exe"
+            filename = "skill_tracker_update.7z"
         return os.path.join(temp_dir, filename)
 
     def get_launcher_path(self):
