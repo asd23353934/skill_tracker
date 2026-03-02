@@ -122,12 +122,25 @@ class UpdateDialog(BaseDialog):
     def _start_download(self):
         """開始下載更新"""
         url = self.update_info.get("download_url")
+
+        # 備用：download_url 未帶回時，依版本號組合已知下載路徑
+        if not url:
+            latest = self.update_info.get("latest", "")
+            if latest:
+                url = (
+                    f"https://github.com/asd23353934/skill_tracker"
+                    f"/releases/download/{latest}/default.7z"
+                )
+
         if not url:
             self.status_label.configure(
                 text="找不到下載連結，請手動下載",
                 text_color=AppTheme.ACCENT_RED,
             )
             return
+
+        # 確保 update_info 裡的 download_url 也一併補齊，供 _download_thread 使用
+        self.update_info["download_url"] = url
 
         self._downloading = True
         self._cancelled = False

@@ -826,16 +826,27 @@ class App(ctk.CTk):
         self.config_manager.save()
 
     def _check_for_updates(self):
-        """檢查更新（非阻塞）"""
-        from src.ui.updater import Updater
+        """在背景執行緒檢查更新，避免網路請求阻塞主執行緒"""
+        import threading
 
+        def _worker():
+            try:
+                from src.ui.updater import Updater
+                updater = Updater()
+                update_info = updater.check_for_updates()
+                if update_info.get("available"):
+                    # 回到主執行緒更新 UI（tkinter 不是執行緒安全的）
+                    self.after(0, lambda: self._on_update_found(update_info))
+            except Exception:
+                pass
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_update_found(self, update_info):
+        """有新版本時在主執行緒顯示更新按鈕"""
+        self.update_info = update_info
         try:
-            updater = Updater()
-            update_info = updater.check_for_updates()
-
-            if update_info.get("available"):
-                self.update_info = update_info
-                self.header.show_update_button()
+            self.header.show_update_button()
         except Exception:
             pass
 
