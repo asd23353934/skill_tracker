@@ -5,3 +5,4 @@
 
 from src.ui.pages.skill_page import SkillPage
 from src.ui.pages.monster_page import MonsterPage
+from src.ui.pages.overlay_page import OverlayPage

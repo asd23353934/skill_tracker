@@ -275,9 +275,14 @@ class UpdateDialog(BaseDialog):
                 return
 
             # 啟動替換腳本: update_launcher.bat <downloaded_file> <app_dir> <app_exe>
+            # 隱藏 cmd 視窗，不讓使用者看到黑色終端機
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = 0  # SW_HIDE
             subprocess.Popen(
                 [launcher, downloaded_file, app_dir, app_exe],
-                creationflags=subprocess.CREATE_NEW_CONSOLE,
+                startupinfo=si,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
             )
 
             # 關閉應用

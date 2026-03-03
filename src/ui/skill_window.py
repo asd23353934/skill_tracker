@@ -421,7 +421,7 @@ class SkillWindow:
         self.running = True
         self.alert_triggered = False
 
-        self.start_time = time.time()
+        self.start_time = time.perf_counter()
         self.end_time = self.start_time + self.total
 
         self._update_display()
@@ -452,7 +452,7 @@ class SkillWindow:
         if not self.running:
             return
 
-        current_time = time.time()
+        current_time = time.perf_counter()
         elapsed = current_time - self.start_time
 
         if self.count_up:
@@ -572,7 +572,7 @@ class SkillWindow:
 
     def _loop_restart(self):
         """循環重新開始"""
-        self.start_time = time.time()
+        self.start_time = time.perf_counter()
         self.end_time = self.start_time + self.total
 
         # count_up：elapsed 從 0 開始；countdown：remaining 從 total 開始

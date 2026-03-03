@@ -13,8 +13,9 @@ class Sidebar(ctk.CTkFrame):
 
     # 頁面定義：(page_name, icon, label)
     PAGES = [
-        ("skill", "🍁", "技能倒數"),
+        ("skill",   "🍁", "技能倒數"),
         ("monster", "👾", "怪物重生"),
+        ("overlay", "🖼️", "覆蓋圖片"),
     ]
 
     def __init__(self, parent, app, on_page_change):

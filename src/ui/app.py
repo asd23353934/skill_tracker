@@ -12,7 +12,7 @@ from src.ui.skill_manager import SkillManager
 from src.ui.hotkey_manager import HotkeyManager
 from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
-from src.ui.pages import SkillPage, MonsterPage
+from src.ui.pages import SkillPage, MonsterPage, OverlayPage
 from src.ui.helpers import resource_path
 from src.ui.toast import ToastManager
 
@@ -66,6 +66,9 @@ class App(ctk.CTk):
         # 初始化子管理器
         self.hotkey_manager = HotkeyManager(self)
         self.window_manager = WindowManager(self)
+
+        from src.ui.overlay_manager import OverlayManager
+        self.overlay_manager = OverlayManager(self)
 
         # 建構 UI
         self._build_ui()
@@ -202,6 +205,10 @@ class App(ctk.CTk):
         self.monster_page = MonsterPage(self.page_container, self)
         self.monster_page.grid(row=0, column=0, sticky="nsew")
         self.pages["monster"] = self.monster_page
+
+        self.overlay_page = OverlayPage(self.page_container, self)
+        self.overlay_page.grid(row=0, column=0, sticky="nsew")
+        self.pages["overlay"] = self.overlay_page
 
         # 預設顯示技能頁
         self._switch_page("skill")
