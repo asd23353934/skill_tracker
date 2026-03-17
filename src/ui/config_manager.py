@@ -54,6 +54,10 @@ class ConfigManager:
             if 'monsters' in self.config:
                 save_config['monsters'] = self.config['monsters']
 
+            # 保存覆蓋圖片資料（位置、尺寸、透明度等）
+            if 'overlays' in self.config:
+                save_config['overlays'] = self.config['overlays']
+
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(save_config, f, ensure_ascii=False, indent=2)
             return True

@@ -112,10 +112,25 @@ def check_images_dir():
         print("  ❌ 沒有找到任何圖示文件")
         return False
 
+def check_overlays_dir():
+    """檢查 overlays 資料夾（需存在，PyInstaller 才能打包）"""
+    print("\n🔍 檢查 overlays/ 資料夾...")
+
+    if not os.path.exists('overlays'):
+        os.makedirs('overlays')
+        print("  ✅ overlays/ 不存在，已自動建立空資料夾")
+        return True
+
+    files = [f for f in os.listdir('overlays')
+             if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'))]
+    print(f"  ✅ overlays/ 存在，包含 {len(files)} 個圖片")
+    return True
+
+
 def check_icon_file():
     """檢查圖示文件"""
     print("\n🔍 檢查 icon.ico...")
-    
+
     if os.path.exists('icon.ico'):
         size = os.path.getsize('icon.ico')
         print(f"  ✅ 圖示文件存在 ({size} bytes)")
@@ -135,6 +150,7 @@ def main():
         'config.json': check_config_json(),
         'profiles/': check_profiles_dir(),
         'images/': check_images_dir(),
+        'overlays/': check_overlays_dir(),
         'icon.ico': check_icon_file(),
     }
     

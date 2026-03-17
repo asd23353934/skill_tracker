@@ -31,7 +31,7 @@
     "Snipaste_2026-01-03_00-47-05": "",
     "resurrection-時間歸零": "",
     "resurrection-黑暗星存活": "",
-    "20130907185517a4d-困難拉圖斯": "",
+    "消技-困難拉圖斯": "",
     "000001_1753953383": "",
     "Snipaste_2026-01-03_00-29-33": "",
     "Snipaste_2026-01-03_00-30-56": ""
@@ -111,7 +111,8 @@
     "精神強化": false,
     "魔力無限": false,
     "章魚砲台": false,
-    "海盜船": false
+    "海盜船": false,
+    "消技-困難拉圖斯": false
   },
   "loop": {
     "common_maple_warrior": false,
@@ -188,7 +189,8 @@
     "精神強化": false,
     "魔力無限": false,
     "章魚砲台": false,
-    "海盜船": false
+    "海盜船": false,
+    "消技-困難拉圖斯": false
   },
   "alert_enabled": {
     "mapleWarrior": true,
@@ -208,24 +210,25 @@
     "targeting": true,
     "preciseCannon": true,
     "mindControl": true,
-    "20130907185517a4d-普通拉圖斯": true,
-    "damage_reflect": true,
-    "Snipaste_2026-01-03_00-47-05": true,
-    "resurrection-時間歸零": true,
-    "resurrection-黑暗星存活": true,
+    "20130907185517a4d-普通拉圖斯": false,
+    "damage_reflect": false,
+    "Snipaste_2026-01-03_00-47-05": false,
+    "resurrection-時間歸零": false,
+    "resurrection-黑暗星存活": false,
     "20130907185517a4d-困難拉圖斯": true,
-    "000001_1753953383": true,
+    "000001_1753953383": false,
     "Snipaste_2026-01-03_00-29-33": true,
     "Snipaste_2026-01-03_00-30-56": true,
-    "殘暴炎魔-黑水一": true,
-    "殘暴炎魔-黑水二": true,
+    "殘暴炎魔-黑水一": false,
+    "殘暴炎魔-黑水二": false,
     "mysticDoor": true,
     "炎靈地獄": true,
     "寒冰地獄": true,
     "精神強化": true,
     "魔力無限": true,
     "章魚砲台": true,
-    "海盜船": true
+    "海盜船": true,
+    "消技-困難拉圖斯": false
   },
   "cooldown_overrides": {},
   "alert_seconds_overrides": {},

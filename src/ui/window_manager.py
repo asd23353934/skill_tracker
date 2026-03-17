@@ -1,12 +1,21 @@
 """
 技能視窗管理模組
 處理技能視窗的生命週期、定位、群組拖曳
+Phase 4 將完整重寫為 PySide6 SkillWindow
 """
 
 import os
 
-from src.ui.skill_window import SkillWindow
 from src.ui.helpers import resource_path
+
+
+def _get_skill_window_cls():
+    """延遲匯入 SkillWindow（Phase 4 前使用 tkinter 版本，失敗傳回 None）"""
+    try:
+        from src.ui.skill_window import SkillWindow as _SW
+        return _SW
+    except Exception:
+        return None
 
 
 class WindowManager:
@@ -55,29 +64,37 @@ class WindowManager:
         position = self._calculate_position(skill_id)
         is_permanent = self.app.skill_permanent.get(skill_id, False)
         is_loop = self.app.skill_loop.get(skill_id, False)
-        skill_image = self.app.skill_manager.skill_images.get(skill_id)
+        # Phase 4: qpixmaps 取代舊的 skill_images
+        skill_image      = getattr(self.app.skill_manager, "skill_images", {}).get(skill_id)
         skill_image_path = self.app.skill_manager.skill_image_paths.get(skill_id)
-        alert_enabled = self.app.skill_alert_enabled.get(skill_id, False)
+        alert_enabled    = self.app.skill_alert_enabled.get(skill_id, False)
 
-        skill_window = SkillWindow(
-            skill, player, position, skill_image,
-            lambda w: self._on_window_close(w, skill_id),
-            self.app.enable_sound, skill_id,
-            is_permanent=is_permanent,
-            is_loop=is_loop,
-            window_alpha=self.app.window_alpha,
-            alert_enabled=alert_enabled,
-            alert_before_seconds=self.app.get_alert_seconds(skill_id),
-            on_drag_start=self.on_drag_start,
-            on_drag_motion=self.on_drag_motion,
-            on_drag_end=self.on_drag_end,
-            window_size=self.app.window_size,
-            skill_image_path=skill_image_path,
-            sound_manager=self.app.sound_manager,
-            sound_filename=self.app.get_sound_for_skill(skill_id),
-            alert_sound_filename=self.app.get_alert_sound_for_skill(skill_id),
-        )
-        self.active_windows[skill_id] = skill_window
+        SkillWindow = _get_skill_window_cls()
+        if SkillWindow is None:
+            return
+
+        try:
+            skill_window = SkillWindow(
+                skill, player, position, skill_image,
+                lambda w: self._on_window_close(w, skill_id),
+                self.app.enable_sound, skill_id,
+                is_permanent=is_permanent,
+                is_loop=is_loop,
+                window_alpha=self.app.window_alpha,
+                alert_enabled=alert_enabled,
+                alert_before_seconds=self.app.get_alert_seconds(skill_id),
+                on_drag_start=self.on_drag_start,
+                on_drag_motion=self.on_drag_motion,
+                on_drag_end=self.on_drag_end,
+                window_size=self.app.window_size,
+                skill_image_path=skill_image_path,
+                sound_manager=self.app.sound_manager,
+                sound_filename=self.app.get_sound_for_skill(skill_id),
+                alert_sound_filename=self.app.get_alert_sound_for_skill(skill_id),
+            )
+            self.active_windows[skill_id] = skill_window
+        except Exception:
+            pass
 
     def trigger_monster(self, monster_id):
         """觸發怪物重生計時（正數模式：從 0 數到目標秒數）"""
@@ -116,31 +133,40 @@ class WindowManager:
         img_path = self._resolve_monster_image_path(monster)
 
         alert_before = monster.get("alert_before", 10)
-        monster_alert_sound = monster.get("alert_sound", "")
+        monster_alert_sound   = monster.get("alert_sound", "")
         effective_alert_sound = monster_alert_sound or self.app.global_alert_sound
+        monster_end_sound     = monster.get("sound", "")
+        effective_end_sound   = monster_end_sound or self.app.global_sound
         is_loop = monster.get("loop", True)
 
-        skill_window = SkillWindow(
-            monster, self.app.player_name, position, None,
-            lambda w: self._on_window_close(w, monster_id),
-            self.app.enable_sound, monster_id,
-            is_permanent=is_permanent,
-            is_loop=is_loop,
-            window_alpha=self.app.window_alpha,
-            alert_enabled=(alert_before > 0),
-            alert_before_seconds=alert_before,
-            on_drag_start=self.on_drag_start,
-            on_drag_motion=self.on_drag_motion,
-            on_drag_end=self.on_drag_end,
-            window_size=self.app.window_size,
-            skill_image_path=img_path,
-            sound_manager=self.app.sound_manager,
-            sound_filename=self.app.global_sound,
-            alert_sound_filename=effective_alert_sound,
-            count_up=True,
-            idle_start=idle_start,
-        )
-        self.active_windows[monster_id] = skill_window
+        SkillWindow = _get_skill_window_cls()
+        if SkillWindow is None:
+            return
+
+        try:
+            skill_window = SkillWindow(
+                monster, self.app.player_name, position, None,
+                lambda w: self._on_window_close(w, monster_id),
+                self.app.enable_sound, monster_id,
+                is_permanent=is_permanent,
+                is_loop=is_loop,
+                window_alpha=self.app.window_alpha,
+                alert_enabled=(alert_before > 0),
+                alert_before_seconds=alert_before,
+                on_drag_start=self.on_drag_start,
+                on_drag_motion=self.on_drag_motion,
+                on_drag_end=self.on_drag_end,
+                window_size=self.app.window_size,
+                skill_image_path=img_path,
+                sound_manager=self.app.sound_manager,
+                sound_filename=effective_end_sound,
+                alert_sound_filename=effective_alert_sound,
+                count_up=True,
+                idle_start=idle_start,
+            )
+            self.active_windows[monster_id] = skill_window
+        except Exception:
+            pass
 
     def _resolve_monster_image_path(self, monster: dict) -> str | None:
         """解析怪物圖片的完整路徑，若檔案不存在則回傳 None
@@ -167,29 +193,37 @@ class WindowManager:
             self.window_order.append(skill_id)
 
         position = self._calculate_position(skill_id)
-        skill_image = self.app.skill_manager.skill_images.get(skill_id)
+        # Phase 4: qpixmaps 取代舊的 skill_images
+        skill_image      = getattr(self.app.skill_manager, "skill_images", {}).get(skill_id)
         skill_image_path = self.app.skill_manager.skill_image_paths.get(skill_id)
-        alert_enabled = self.app.skill_alert_enabled.get(skill_id, False)
+        alert_enabled    = self.app.skill_alert_enabled.get(skill_id, False)
 
-        skill_window = SkillWindow(
-            skill, self.app.player_name, position, skill_image,
-            lambda w: self._on_window_close(w, skill_id),
-            self.app.enable_sound, skill_id,
-            is_permanent=True, is_loop=False,
-            start_at_zero=True,
-            window_alpha=self.app.window_alpha,
-            alert_enabled=alert_enabled,
-            alert_before_seconds=self.app.get_alert_seconds(skill_id),
-            on_drag_start=self.on_drag_start,
-            on_drag_motion=self.on_drag_motion,
-            on_drag_end=self.on_drag_end,
-            window_size=self.app.window_size,
-            skill_image_path=skill_image_path,
-            sound_manager=self.app.sound_manager,
-            sound_filename=self.app.get_sound_for_skill(skill_id),
-            alert_sound_filename=self.app.get_alert_sound_for_skill(skill_id),
-        )
-        self.active_windows[skill_id] = skill_window
+        SkillWindow = _get_skill_window_cls()
+        if SkillWindow is None:
+            return
+
+        try:
+            skill_window = SkillWindow(
+                skill, self.app.player_name, position, skill_image,
+                lambda w: self._on_window_close(w, skill_id),
+                self.app.enable_sound, skill_id,
+                is_permanent=True, is_loop=False,
+                start_at_zero=True,
+                window_alpha=self.app.window_alpha,
+                alert_enabled=alert_enabled,
+                alert_before_seconds=self.app.get_alert_seconds(skill_id),
+                on_drag_start=self.on_drag_start,
+                on_drag_motion=self.on_drag_motion,
+                on_drag_end=self.on_drag_end,
+                window_size=self.app.window_size,
+                skill_image_path=skill_image_path,
+                sound_manager=self.app.sound_manager,
+                sound_filename=self.app.get_sound_for_skill(skill_id),
+                alert_sound_filename=self.app.get_alert_sound_for_skill(skill_id),
+            )
+            self.active_windows[skill_id] = skill_window
+        except Exception:
+            pass
 
     def initialize_persistent_skills(self):
         """初始化常駐技能與常駐怪物（循環技能不初始化，等待按鍵觸發）"""
@@ -228,38 +262,44 @@ class WindowManager:
 
     # ==================== 群組拖曳 ====================
 
-    def on_drag_start(self, event):
-        """開始拖曳技能（整組）"""
-        widget = event.widget
-        toplevel = widget.winfo_toplevel() if hasattr(widget, "winfo_toplevel") else widget
+    def on_drag_start(self, global_x: int, global_y: int):
+        """開始拖曳技能（整組）
 
-        self.drag_data["screen_x"] = toplevel.winfo_pointerx()
-        self.drag_data["screen_y"] = toplevel.winfo_pointery()
+        Args:
+            global_x: 滑鼠螢幕 X 座標（由 SkillWindow.mousePressEvent 提供）
+            global_y: 滑鼠螢幕 Y 座標
+        """
+        self.drag_data["screen_x"] = global_x
+        self.drag_data["screen_y"] = global_y
         self.drag_data["dragging"] = True
         self.drag_data["start_x"] = self.app.skill_start_x
         self.drag_data["start_y"] = self.app.skill_start_y
 
-    def on_drag_motion(self, event):
-        """拖曳技能中（整組移動）"""
+    def on_drag_motion(self, global_x: int, global_y: int):
+        """拖曳技能中（整組移動）
+
+        Args:
+            global_x: 滑鼠螢幕 X 座標
+            global_y: 滑鼠螢幕 Y 座標
+        """
         if not self.drag_data["dragging"]:
             return
 
-        widget = event.widget
-        toplevel = widget.winfo_toplevel() if hasattr(widget, "winfo_toplevel") else widget
-
-        current_screen_x = toplevel.winfo_pointerx()
-        current_screen_y = toplevel.winfo_pointery()
-
-        delta_x = current_screen_x - self.drag_data["screen_x"]
-        delta_y = current_screen_y - self.drag_data["screen_y"]
+        delta_x = global_x - self.drag_data["screen_x"]
+        delta_y = global_y - self.drag_data["screen_y"]
 
         self.app.skill_start_x = self.drag_data["start_x"] + delta_x
         self.app.skill_start_y = self.drag_data["start_y"] + delta_y
 
         self.reposition_all()
 
-    def on_drag_end(self, event):
-        """結束拖曳技能"""
+    def on_drag_end(self, global_x: int, global_y: int):
+        """結束拖曳技能
+
+        Args:
+            global_x: 滑鼠螢幕 X 座標
+            global_y: 滑鼠螢幕 Y 座標
+        """
         if self.drag_data["dragging"]:
             self.drag_data["dragging"] = False
 

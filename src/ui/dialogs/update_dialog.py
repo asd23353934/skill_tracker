@@ -1,5 +1,5 @@
 """
-更新下載對話框
+更新下載對話框 — PySide6 版本
 顯示下載進度條，完成後啟動替換腳本並關閉應用
 RPG 金色邊框風格
 """
@@ -8,7 +8,12 @@ import os
 import sys
 import subprocess
 import threading
-import customtkinter as ctk
+
+from PySide6.QtWidgets import (
+    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar,
+    QWidget, QApplication,
+)
+from PySide6.QtCore import Qt, QTimer, Signal
 from src.ui.dialogs.base_dialog import BaseDialog
 from src.ui.theme import AppTheme
 
@@ -16,148 +21,153 @@ from src.ui.theme import AppTheme
 class UpdateDialog(BaseDialog):
     """更新下載對話框"""
 
+    # Qt signals — 供背景執行緒安全回到主執行緒更新 UI
+    _progress_signal = Signal(float, str)
+    _complete_signal = Signal(str)
+    _failed_signal   = Signal()
+
     def __init__(self, parent, update_info):
         super().__init__(parent, "版本更新", 440, 280)
         self.update_info = update_info
-        self.parent_app = parent
+        self.parent_app  = parent
         self._downloading = False
-        self._cancelled = False
+        self._cancelled   = False
+
+        # 連接 signals → slots
+        self._progress_signal.connect(self._update_progress)
+        self._complete_signal.connect(self._on_download_complete)
+        self._failed_signal.connect(self._on_download_failed)
+
         self._build_ui()
 
     def _build_ui(self):
         """建構 UI"""
-        container = self.inner
+        layout = QVBoxLayout(self.inner)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(8)
 
         # 標題
-        ctk.CTkLabel(
-            container,
-            text="🔄 發現新版本",
-            font=AppTheme.FONT_TITLE_MD,
-            text_color=AppTheme.TEXT_GOLD,
-        ).pack(pady=(16, 8))
+        title_lbl = QLabel("🔄 發現新版本")
+        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_lbl.setStyleSheet(
+            f"color: {AppTheme.TEXT_GOLD}; font-size: 16px; font-weight: bold;"
+            f" background: transparent; border: none;"
+        )
+        layout.addWidget(title_lbl)
 
         # 版本資訊
         current = self.update_info.get("current", "?")
-        latest = self.update_info.get("latest", "?")
-
-        ctk.CTkLabel(
-            container,
-            text=f"v{current}  →  v{latest}",
-            font=AppTheme.FONT_BODY_LG_BOLD,
-            text_color=AppTheme.GOLD_LIGHT,
-        ).pack(pady=(0, 16))
-
-        # 進度條 — 金色調
-        self.progress_bar = ctk.CTkProgressBar(
-            container,
-            width=360,
-            height=16,
-            corner_radius=AppTheme.CORNER_SM,
-            fg_color=AppTheme.BG_CARD,
-            progress_color=AppTheme.GOLD_PRIMARY,
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
+        latest  = self.update_info.get("latest", "?")
+        ver_lbl = QLabel(f"v{current}  →  v{latest}")
+        ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ver_lbl.setStyleSheet(
+            f"color: {AppTheme.GOLD_LIGHT}; font-size: 14px; font-weight: bold;"
+            f" background: transparent; border: none;"
         )
-        self.progress_bar.set(0)
-        self.progress_bar.pack(pady=(0, 8))
+        layout.addWidget(ver_lbl)
+
+        # 進度條（金色調）
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFixedHeight(16)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet(
+            f"QProgressBar {{ background-color: {AppTheme.BG_CARD};"
+            f" border: 1px solid {AppTheme.GOLD_MUTED};"
+            f" border-radius: {AppTheme.CORNER_SM}px; }}"
+            f"QProgressBar::chunk {{ background-color: {AppTheme.GOLD_PRIMARY};"
+            f" border-radius: {AppTheme.CORNER_SM}px; }}"
+        )
+        layout.addWidget(self.progress_bar)
 
         # 狀態文字
-        self.status_label = ctk.CTkLabel(
-            container,
-            text="點擊「開始更新」下載並安裝",
-            font=AppTheme.FONT_BODY_MD,
-            text_color=AppTheme.TEXT_SECONDARY,
+        self.status_label = QLabel("點擊「開始更新」下載並安裝")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet(
+            f"color: {AppTheme.TEXT_SECONDARY}; font-size: 12px;"
+            f" background: transparent; border: none;"
         )
-        self.status_label.pack(pady=(0, 16))
+        layout.addWidget(self.status_label)
 
         # 按鈕列
-        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
-        btn_frame.pack(pady=(0, 16))
+        btn_row = QWidget()
+        btn_row.setStyleSheet("background: transparent;")
+        br = QHBoxLayout(btn_row)
+        br.setContentsMargins(0, 0, 0, 0)
+        br.setSpacing(12)
+        br.addStretch()
 
-        self.download_btn = ctk.CTkButton(
-            btn_frame,
-            text="⬇ 開始更新",
-            command=self._start_download,
-            width=140,
-            height=40,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color=AppTheme.GOLD_PRIMARY,
-            hover_color=AppTheme.GOLD_LIGHT,
-            text_color=AppTheme.BG_DEEP,
-            font=AppTheme.FONT_BTN,
-            border_width=1,
-            border_color=AppTheme.GOLD_DARK,
+        self.download_btn = QPushButton("⬇ 開始更新")
+        self.download_btn.setFixedSize(140, 40)
+        self.download_btn.clicked.connect(self._start_download)
+        self.download_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {AppTheme.GOLD_PRIMARY};"
+            f" color: {AppTheme.BG_DEEP}; border: 1px solid {AppTheme.GOLD_DARK};"
+            f" border-radius: {AppTheme.CORNER_MD}px;"
+            f" font-size: 12px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {AppTheme.GOLD_LIGHT}; }}"
+            f"QPushButton:disabled {{ background-color: {AppTheme.GOLD_MUTED}; color: #888; }}"
         )
-        self.download_btn.pack(side="left", padx=(0, 12))
+        br.addWidget(self.download_btn)
 
-        self.cancel_btn = ctk.CTkButton(
-            btn_frame,
-            text="取消",
-            command=self._on_cancel,
-            width=100,
-            height=40,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color=AppTheme.BG_CARD,
-            hover_color=AppTheme.BG_CARD_HOVER,
-            font=AppTheme.FONT_BTN,
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setFixedSize(100, 40)
+        self.cancel_btn.clicked.connect(self._on_cancel)
+        self.cancel_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {AppTheme.BG_CARD};"
+            f" color: {AppTheme.TEXT_PRIMARY}; border: 1px solid {AppTheme.GOLD_MUTED};"
+            f" border-radius: {AppTheme.CORNER_MD}px; font-size: 12px; }}"
+            f"QPushButton:hover {{ background-color: {AppTheme.BG_CARD_HOVER}; }}"
         )
-        self.cancel_btn.pack(side="left")
+        br.addWidget(self.cancel_btn)
+        br.addStretch()
+        layout.addWidget(btn_row)
 
         # 手動下載連結
-        ctk.CTkButton(
-            container,
-            text="📎 手動下載頁面",
-            command=self._open_download_page,
-            width=140,
-            height=28,
-            corner_radius=AppTheme.CORNER_SM,
-            fg_color="transparent",
-            hover_color=AppTheme.BG_CARD_HOVER,
-            text_color=AppTheme.GOLD_MUTED,
-            font=AppTheme.FONT_BODY_SM,
-        ).pack(pady=(0, 8))
+        manual_btn = QPushButton("📎 手動下載頁面")
+        manual_btn.setFixedHeight(28)
+        manual_btn.clicked.connect(self._open_download_page)
+        manual_btn.setStyleSheet(
+            f"QPushButton {{ background-color: transparent;"
+            f" color: {AppTheme.GOLD_MUTED}; border: none; font-size: 11px; }}"
+            f"QPushButton:hover {{ color: {AppTheme.GOLD_PRIMARY}; }}"
+        )
+        layout.addWidget(manual_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+    # --------------------------------------------------
+    # 下載邏輯
+    # --------------------------------------------------
 
     def _start_download(self):
         """開始下載更新"""
         url = self.update_info.get("download_url")
 
-        # 備用：download_url 未帶回時，依版本號組合已知下載路徑
+        # 備用：依版本號組合下載路徑
         if not url:
             latest = self.update_info.get("latest", "")
             if latest:
                 url = (
                     f"https://github.com/asd23353934/skill_tracker"
-                    f"/releases/download/{latest}/default.7z"
+                    f"/releases/download/v{latest}"
+                    f"/技能追蹤器_v{latest}.zip"
                 )
-
         if not url:
-            self.status_label.configure(
-                text="找不到下載連結，請手動下載",
-                text_color=AppTheme.ACCENT_RED,
-            )
+            self._set_status("找不到下載連結，請手動下載", AppTheme.ACCENT_RED)
             return
 
-        # 確保 update_info 裡的 download_url 也一併補齊，供 _download_thread 使用
         self.update_info["download_url"] = url
-
         self._downloading = True
-        self._cancelled = False
-        self.download_btn.configure(state="disabled", text="下載中...")
-        self.status_label.configure(
-            text="正在下載...",
-            text_color=AppTheme.TEXT_SECONDARY,
-        )
+        self._cancelled   = False
+        self.download_btn.setEnabled(False)
+        self.download_btn.setText("下載中...")
+        self._set_status("正在下載...", AppTheme.TEXT_SECONDARY)
 
-        # 在背景執行緒中下載
-        thread = threading.Thread(target=self._download_thread, daemon=True)
-        thread.start()
+        threading.Thread(target=self._download_thread, daemon=True).start()
 
     def _download_thread(self):
         """背景下載執行緒"""
         from src.ui.updater import Updater
-
         updater = Updater()
         updater.download_url = self.update_info.get("download_url")
         dest_path = updater.get_update_temp_path()
@@ -169,7 +179,6 @@ class UpdateDialog(BaseDialog):
         )
 
         if self._cancelled:
-            # 使用者取消，清理檔案
             try:
                 if os.path.exists(dest_path):
                     os.remove(dest_path)
@@ -177,149 +186,116 @@ class UpdateDialog(BaseDialog):
                 pass
             return
 
-        # 回到主執行緒更新 UI
         if success:
-            self.after(0, lambda: self._on_download_complete(dest_path))
+            self._complete_signal.emit(dest_path)
         else:
-            self.after(0, self._on_download_failed)
+            self._failed_signal.emit()
 
     def _on_progress(self, downloaded, total):
-        """下載進度回調（在背景執行緒中呼叫）
-
-        Args:
-            downloaded: 已下載位元組數
-            total: 總位元組數
-        """
+        """下載進度回調（背景執行緒中呼叫）"""
         if self._cancelled:
             return
-
         if total > 0:
-            progress = downloaded / total
-            mb_downloaded = downloaded / (1024 * 1024)
-            mb_total = total / (1024 * 1024)
-            text = f"下載中... {mb_downloaded:.1f} / {mb_total:.1f} MB ({progress * 100:.0f}%)"
+            progress  = downloaded / total
+            mb_dl     = downloaded / (1024 * 1024)
+            mb_tot    = total / (1024 * 1024)
+            text = f"下載中... {mb_dl:.1f} / {mb_tot:.1f} MB ({progress * 100:.0f}%)"
         else:
-            mb_downloaded = downloaded / (1024 * 1024)
-            progress = 0
-            text = f"下載中... {mb_downloaded:.1f} MB"
+            progress  = 0
+            mb_dl     = downloaded / (1024 * 1024)
+            text = f"下載中... {mb_dl:.1f} MB"
+        self._progress_signal.emit(progress, text)
 
-        # 排程至主執行緒更新 UI
-        self.after(0, lambda p=progress, t=text: self._update_progress(p, t))
+    # --------------------------------------------------
+    # UI 更新（主執行緒）
+    # --------------------------------------------------
 
-    def _update_progress(self, progress, text):
-        """更新進度條 UI（主執行緒）
-
-        Args:
-            progress: 進度值 0.0 ~ 1.0
-            text: 狀態文字
-        """
+    def _update_progress(self, progress: float, text: str):
+        """更新進度條 UI（主執行緒）"""
         try:
-            self.progress_bar.set(min(progress, 1.0))
-            self.status_label.configure(text=text)
+            self.progress_bar.setValue(int(min(progress, 1.0) * 100))
+            self.status_label.setText(text)
         except Exception:
             pass
 
-    def _on_download_complete(self, file_path):
-        """下載完成處理
-
-        Args:
-            file_path: 下載檔案的路徑
-        """
+    def _on_download_complete(self, file_path: str):
+        """下載完成處理"""
         self._downloading = False
-        self.progress_bar.set(1.0)
-        self.status_label.configure(
-            text="下載完成！正在啟動更新...",
-            text_color=AppTheme.ACCENT_GREEN,
-        )
-        self.download_btn.configure(text="✓ 下載完成")
-
-        # 延遲 1 秒後啟動更新腳本
-        self.after(1000, lambda: self._launch_updater(file_path))
+        self.progress_bar.setValue(100)
+        self._set_status("下載完成！正在啟動更新...", AppTheme.ACCENT_GREEN)
+        self.download_btn.setText("✓ 下載完成")
+        QTimer.singleShot(1000, lambda: self._launch_updater(file_path))
 
     def _on_download_failed(self):
         """下載失敗處理"""
         self._downloading = False
-        self.progress_bar.set(0)
-        self.status_label.configure(
-            text="下載失敗，請手動下載或稍後再試",
-            text_color=AppTheme.ACCENT_RED,
+        self.progress_bar.setValue(0)
+        self._set_status("下載失敗，請手動下載或稍後再試", AppTheme.ACCENT_RED)
+        self.download_btn.setEnabled(True)
+        self.download_btn.setText("⬇ 重試下載")
+
+    def _set_status(self, text: str, color: str):
+        """更新狀態文字顏色"""
+        self.status_label.setText(text)
+        self.status_label.setStyleSheet(
+            f"color: {color}; font-size: 12px; background: transparent; border: none;"
         )
-        self.download_btn.configure(state="normal", text="⬇ 重試下載")
 
-    def _launch_updater(self, downloaded_file):
-        """啟動更新替換腳本並關閉應用
+    # --------------------------------------------------
+    # 更新啟動 / 關閉
+    # --------------------------------------------------
 
-        Args:
-            downloaded_file: 已下載的更新檔案路徑
-        """
+    def _launch_updater(self, downloaded_file: str):
+        """啟動更新替換腳本並關閉應用"""
         try:
             from src.ui.helpers import resource_path
-
-            # 取得當前應用程式路徑
             if getattr(sys, 'frozen', False):
-                # PyInstaller 打包模式
                 app_dir = os.path.dirname(sys.executable)
-                app_exe = sys.executable
             else:
-                # 開發模式
                 app_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-                app_exe = sys.executable
 
             launcher = resource_path("update_launcher.bat")
-
             if not os.path.exists(launcher):
-                self.status_label.configure(
-                    text="找不到更新腳本，請手動更新",
-                    text_color=AppTheme.ACCENT_RED,
-                )
+                self._set_status("找不到更新腳本，請手動更新", AppTheme.ACCENT_RED)
                 return
 
-            # 啟動替換腳本: update_launcher.bat <downloaded_file> <app_dir> <app_exe>
-            # 隱藏 cmd 視窗，不讓使用者看到黑色終端機
+            # 隱藏 cmd 視窗，透過 cmd.exe /c 執行 bat 檔
             si = subprocess.STARTUPINFO()
             si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             si.wShowWindow = 0  # SW_HIDE
             subprocess.Popen(
-                [launcher, downloaded_file, app_dir, app_exe],
+                ['cmd.exe', '/c', launcher, downloaded_file, app_dir, sys.executable],
                 startupinfo=si,
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
             )
 
-            # 關閉應用
-            self.status_label.configure(text="應用程式即將關閉...")
-            self.after(500, self._shutdown_app)
+            self.status_label.setText("應用程式即將關閉...")
+            QTimer.singleShot(500, self._shutdown_app)
 
         except Exception as e:
-            self.status_label.configure(
-                text=f"啟動更新失敗: {e}",
-                text_color=AppTheme.ACCENT_RED,
-            )
+            self._set_status(f"啟動更新失敗: {e}", AppTheme.ACCENT_RED)
 
     def _shutdown_app(self):
         """關閉整個應用程式"""
         try:
-            self.grab_release()
-            self.destroy()
+            self.reject()
         except Exception:
             pass
-
         try:
-            self.parent_app.destroy()
+            self.parent_app.close()
         except Exception:
             pass
-
+        QApplication.quit()
         sys.exit(0)
 
     def _on_cancel(self):
         """取消下載或關閉對話框"""
         if self._downloading:
-            self._cancelled = True
+            self._cancelled   = True
             self._downloading = False
-            self.status_label.configure(
-                text="已取消下載",
-                text_color=AppTheme.TEXT_MUTED,
-            )
-            self.download_btn.configure(state="normal", text="⬇ 重新下載")
+            self._set_status("已取消下載", AppTheme.TEXT_MUTED)
+            self.download_btn.setEnabled(True)
+            self.download_btn.setText("⬇ 重新下載")
         else:
             self.close()
 

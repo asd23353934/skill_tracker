@@ -1,53 +1,64 @@
 # -*- mode: python ; coding: utf-8 -*-
-
-block_cipher = None
+# PySide6 移植版 spec 檔案
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('images', 'images'),
-        ('config.json', '.'),
-        ('icon.ico', '.'),
-        ('profiles', 'profiles'),  # 包含 profiles 資料夾
-        ('version.py', '.'),       # 包含版本文件
-        ('sounds', 'sounds'),      # 包含音效資料夾
-        ('update_launcher.bat', '.'),  # 包含更新腳本
+        ('images',              'images'),
+        ('config.json',         '.'),
+        ('icon.ico',            '.'),
+        ('profiles',            'profiles'),
+        ('version.py',          '.'),
+        ('update_launcher.bat', '.'),
     ],
     hiddenimports=[
+        # pynput Windows 後端
         'pynput.keyboard._win32',
         'pynput.mouse._win32',
+        # PySide6 核心模組
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtWidgets',
+        'PySide6.QtXml',
+        # Pillow
+        'PIL._imagingtk',
+        'PIL.Image',
+        'PIL.ImageDraw',
+        'PIL.ImageFilter',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
+    excludes=[
+        'customtkinter',
+        'tkinter',
+        '_tkinter',
+        'pygame',
+    ],
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
-    [],  # 不打包所有檔案到 EXE（目錄模式）
-    exclude_binaries=True,  # 排除二進制文件
+    [],
+    exclude_binaries=True,
     name='技能追蹤器',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,  # 不顯示控制台
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',  # 使用自訂圖示
+    icon='icon.ico',
 )
 
 coll = COLLECT(

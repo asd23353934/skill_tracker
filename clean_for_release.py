@@ -28,10 +28,10 @@ def clean_config_json():
             "skill_permanent": {},
             "current_profile": "預設配置"
         }
-        
+
         with open('config.json', 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
-        
+
         print("  ✅ config.json 已恢復初始狀態")
         return True
     except Exception as e:

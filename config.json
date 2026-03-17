@@ -148,7 +148,7 @@
       "id": "魔力無限",
       "name": "魔力無限",
       "icon": "638533623_3812309965739430_8944061941698520710_n.png",
-      "cooldown": 420,
+      "cooldown": 423,
       "hotkey": "",
       "category": "player",
       "subcategory": "法師"
@@ -256,7 +256,7 @@
       "id": "Snipaste_2026-01-03_00-47-05",
       "name": "小怪存活",
       "icon": "Snipaste_2026-01-03_00-47-05.png",
-      "cooldown": 40,
+      "cooldown": 45,
       "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
@@ -274,16 +274,16 @@
       "id": "resurrection-黑暗星存活",
       "name": "黑暗星",
       "icon": "642628248_1579256506702336_7756160188758334446_n.png",
-      "cooldown": 16,
+      "cooldown": 14,
       "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
     },
     {
-      "id": "20130907185517a4d-困難拉圖斯",
-      "name": "反盾",
-      "icon": "20130907185517a4d.png",
-      "cooldown": 80,
+      "id": "消技-困難拉圖斯",
+      "name": "消技",
+      "icon": "Snipaste_2026-03-17_11-11-22.png",
+      "cooldown": 30,
       "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
@@ -292,7 +292,7 @@
       "id": "000001_1753953383",
       "name": "黑水",
       "icon": "000001_1753953383.webp",
-      "cooldown": 70,
+      "cooldown": 60,
       "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
@@ -400,7 +400,8 @@
       "精神強化": false,
       "魔力無限": false,
       "章魚砲台": false,
-      "海盜船": false
+      "海盜船": false,
+      "消技-困難拉圖斯": false
     },
     "current_profile": "預設配置",
     "alert_before_seconds": 10,
@@ -420,6 +421,18 @@
       "alert_before": 10,
       "alert_sound": "",
       "loop": true
+    }
+  ],
+  "overlays": [
+    {
+      "id": "ov_dd5c50d53f39",
+      "name": "Snipaste_2026-03-17_11-09-58",
+      "file": "d08bb4e1.png",
+      "alpha": 0.9,
+      "x": 960,
+      "y": 540,
+      "width": 680,
+      "height": 167
     }
   ]
 }

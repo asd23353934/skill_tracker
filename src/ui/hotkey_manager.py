@@ -47,13 +47,17 @@ class HotkeyManager:
             # 先檢查技能快捷鍵
             skill_id = self.app.skill_manager.get_skill_by_hotkey(key_name)
             if skill_id:
-                self.app.after(0, self.app.window_manager.trigger_skill, skill_id)
+                self.app.after(
+                    0, lambda sid=skill_id: self.app.window_manager.trigger_skill(sid)
+                )
                 return
 
             # 再檢查怪物快捷鍵
             monster_id = self.app.get_monster_by_hotkey(key_name)
             if monster_id:
-                self.app.after(0, self.app.window_manager.trigger_monster, monster_id)
+                self.app.after(
+                    0, lambda mid=monster_id: self.app.window_manager.trigger_monster(mid)
+                )
         except Exception:
             pass
 
@@ -73,20 +77,25 @@ class HotkeyManager:
             is_monster = self.app.get_monster(waiting_id) is not None
             is_skill = self.app.skill_manager.get_skill(waiting_id) is not None
 
-            # 清除其他技能/怪物的相同快捷鍵
-            for sid, skill in self.app.skill_manager.get_all_skills().items():
-                if skill.get("hotkey") == key_str and sid != waiting_id:
-                    skill["hotkey"] = ""
-                    self.app.update_hotkey_display(sid, "", False)
-
-            for monster in self.app.get_all_monsters():
-                if monster.get("hotkey", "").upper() == key_str and monster["id"] != waiting_id:
-                    monster["hotkey"] = ""
-                    # 更新怪物卡牌顯示
-                    if hasattr(self.app, "monster_page"):
-                        card = self.app.monster_page.cards.get(monster["id"])
-                        if card:
-                            self.app.after(0, card.update_hotkey_display, "", False)
+            # 清除相同快捷鍵（技能與怪物互相獨立，不互相衝突）
+            if is_skill:
+                # 僅清除其他技能的重複快捷鍵
+                for sid, skill in self.app.skill_manager.get_all_skills().items():
+                    if skill.get("hotkey") == key_str and sid != waiting_id:
+                        skill["hotkey"] = ""
+                        self.app.update_hotkey_display(sid, "", False)
+            elif is_monster:
+                # 僅清除其他怪物的重複快捷鍵
+                for monster in self.app.get_all_monsters():
+                    if monster.get("hotkey", "").upper() == key_str and monster["id"] != waiting_id:
+                        monster["hotkey"] = ""
+                        # 更新怪物卡牌顯示
+                        if hasattr(self.app, "monster_page"):
+                            card = self.app.monster_page.cards.get(monster["id"])
+                            if card:
+                                self.app.after(
+                                    0, lambda c=card: c.update_hotkey_display("", False)
+                                )
 
             if is_monster:
                 # 設定怪物快捷鍵
@@ -97,7 +106,9 @@ class HotkeyManager:
                 # 更新怪物卡牌 UI
                 monster_card = getattr(self, "_monster_card", None)
                 if monster_card:
-                    self.app.after(0, monster_card.update_hotkey_display, key_str, True)
+                    self.app.after(
+                        0, lambda mc=monster_card, ks=key_str: mc.update_hotkey_display(ks, True)
+                    )
                     self._monster_card = None
 
             elif is_skill:

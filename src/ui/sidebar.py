@@ -1,229 +1,152 @@
 """
-固定式側邊欄導航元件
-僅顯示 icon，hover 時以 tooltip 顯示文字
-不展開，不擠壓其他元件
+固定式側邊欄導航元件 — PyDracula 風格 PySide6 版本
+頂部漢堡 icon、中段 icon-only 頁面導航、底部設定按鈕
+Active 狀態：左側 3px 金色細線 + 淡色背景
 """
 
-import customtkinter as ctk
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFrame
+from PySide6.QtCore import Qt
 from src.ui.theme import AppTheme
 
 
-class Sidebar(ctk.CTkFrame):
-    """固定寬度側邊欄導航 — icon-only + tooltip"""
+class Sidebar(QWidget):
+    """固定寬度側邊欄導航 — PyDracula 風格"""
 
-    # 頁面定義：(page_name, icon, label)
+    # 頁面定義：(page_name, icon, tooltip)
     PAGES = [
         ("skill",   "🍁", "技能倒數"),
         ("monster", "👾", "怪物重生"),
         ("overlay", "🖼️", "覆蓋圖片"),
     ]
 
-    def __init__(self, parent, app, on_page_change):
-        super().__init__(
-            parent,
-            width=AppTheme.SIDEBAR_COLLAPSED,
-            fg_color=AppTheme.SIDEBAR_BG,
-            corner_radius=0,
-        )
-        self.pack_propagate(False)
-        self.app = app
+    def __init__(self, parent, on_page_change, app):
+        """初始化側邊欄
+
+        Args:
+            parent:         父元件
+            on_page_change: 頁面切換回呼 callable(page_name: str)
+            app:            App 主應用實例（用於底部設定按鈕）
+        """
+        super().__init__(parent)
         self.on_page_change = on_page_change
-        self.current_page = "skill"
-
-        # UI 元素追蹤
-        self._items = {}       # {page_name: {frame, indicator, btn}}
-        self.buttons = {}      # 向下相容
-
-        # tooltip 元件
-        self._tooltip_win = None
-        self._tooltip_after_id = None
-        self._tooltip_auto_hide_id = None
-        self._tooltip_widget = None
+        self.app_ref        = app
+        self.current_page   = "skill"
+        self._items         = {}   # {page_name: QPushButton}
 
         self._build_ui()
 
     def _build_ui(self):
         """建構側邊欄 UI"""
-        import tkinter as tk
-
-        # 右側垂直分隔線（貫穿全高，與右側主內容區分隔）
-        right_border = ctk.CTkFrame(
-            self,
-            width=1,
-            fg_color=AppTheme.GOLD_MUTED,
-            corner_radius=0,
+        self.setObjectName("sidebar_root")
+        self.setAutoFillBackground(True)
+        self.setStyleSheet(
+            f"Sidebar, QWidget#sidebar_root {{"
+            f" background-color: {AppTheme.SIDEBAR_BG}; }}"
         )
-        right_border.place(relx=1.0, x=-1, y=0, relheight=1.0)
 
-        # 頂部間距
-        ctk.CTkFrame(self, fg_color="transparent", height=16).pack(fill="x")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # 側邊欄分隔線（頂部裝飾）
-        ctk.CTkFrame(
-            self, fg_color=AppTheme.GOLD_MUTED, height=1
-        ).pack(fill="x", padx=8, pady=(0, 8))
+        layout.addSpacing(8)
 
-        for page_name, icon, label in self.PAGES:
-            self._create_nav_item(page_name, icon, label)
+        # ===== 中段：頁面導航按鈕（統一 40px 高）=====
+        for page_name, icon, tooltip in self.PAGES:
+            btn = QPushButton(icon)
+            btn.setFixedSize(AppTheme.SIDEBAR_COLLAPSED, 40)
+            btn.setToolTip(tooltip)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda checked=False, p=page_name: self._on_click(p))
 
-        # 底部裝飾分隔線
-        ctk.CTkFrame(
-            self, fg_color=AppTheme.GOLD_MUTED, height=1
-        ).pack(fill="x", padx=8, pady=(8, 0))
+            self._apply_btn_state(btn, page_name == self.current_page)
+            self._items[page_name] = btn
+            layout.addWidget(btn)
+            layout.addSpacing(2)
 
-    def _create_nav_item(self, page_name, icon, label_text):
-        """建立單個導航項目
+        layout.addStretch()
+
+        # ===== 底部：設定按鈕 =====
+        settings_btn = QPushButton("⚙")
+        settings_btn.setFixedSize(AppTheme.SIDEBAR_COLLAPSED, 40)
+        settings_btn.setToolTip("設定")
+        settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        settings_btn.clicked.connect(lambda: self.app_ref.show_settings())
+        settings_btn.setStyleSheet(self._inactive_style())
+        layout.addWidget(settings_btn)
+
+        # 右側金色細線（1px 寬 QFrame 貼右邊）
+        right_border = QFrame(self)
+        right_border.setFrameShape(QFrame.Shape.VLine)
+        right_border.setStyleSheet(
+            f"color: {AppTheme.GOLD_MUTED}; background: {AppTheme.GOLD_MUTED};"
+        )
+        right_border.setFixedWidth(1)
+        self._right_border = right_border
+
+    def resizeEvent(self, event):
+        """視窗縮放時將右側邊框置右"""
+        super().resizeEvent(event)
+        if hasattr(self, "_right_border"):
+            self._right_border.setGeometry(
+                self.width() - 1, 0, 1, self.height()
+            )
+
+    # --------------------------------------------------
+    # 樣式生成
+    # --------------------------------------------------
+
+    def _active_style(self) -> str:
+        """Active 頁面按鈕 QSS — 左側 3px 金色線 + 淡色背景"""
+        return (
+            f"QPushButton {{"
+            f" background-color: {AppTheme.SIDEBAR_HOVER_BG};"
+            f" color: {AppTheme.GOLD_LIGHT};"
+            f" border: none;"
+            f" border-left: 3px solid {AppTheme.GOLD_PRIMARY};"
+            f" border-radius: 0px;"
+            f" font-size: 16px; }}"
+            f"QPushButton:hover {{"
+            f" background-color: {AppTheme.SIDEBAR_HOVER_BG}; }}"
+        )
+
+    def _inactive_style(self) -> str:
+        """Inactive 按鈕 QSS — 透明背景，hover 時淡亮"""
+        return (
+            f"QPushButton {{"
+            f" background-color: transparent;"
+            f" color: {AppTheme.SIDEBAR_ICON_INACTIVE};"
+            f" border: none;"
+            f" border-left: 3px solid transparent;"
+            f" border-radius: 0px;"
+            f" font-size: 16px; }}"
+            f"QPushButton:hover {{"
+            f" background-color: {AppTheme.SIDEBAR_HOVER_BG};"
+            f" color: {AppTheme.TEXT_PRIMARY}; }}"
+        )
+
+    def _apply_btn_state(self, btn: QPushButton, is_active: bool):
+        """套用按鈕 active / inactive 樣式
 
         Args:
-            page_name: 頁面識別名稱
-            icon: 圖示 emoji
-            label_text: tooltip 文字
+            btn:       QPushButton 實例
+            is_active: 是否為當前頁面
         """
-        is_active = page_name == self.current_page
-
-        # 項目外框
-        item_frame = ctk.CTkFrame(
-            self,
-            fg_color=AppTheme.SIDEBAR_HOVER_BG if is_active else "transparent",
-            corner_radius=AppTheme.CORNER_MD,
-            height=48,
+        btn.setStyleSheet(
+            self._active_style() if is_active else self._inactive_style()
         )
-        item_frame.pack(fill="x", padx=6, pady=2)
-        item_frame.pack_propagate(False)
-
-        # 左側金色活動指示條
-        indicator = ctk.CTkFrame(
-            item_frame,
-            width=3,
-            fg_color=AppTheme.GOLD_PRIMARY if is_active else "transparent",
-            corner_radius=2,
-        )
-        indicator.pack(side="left", fill="y", padx=(2, 0), pady=6)
-
-        # 圖示按鈕
-        btn = ctk.CTkButton(
-            item_frame,
-            text=icon,
-            command=lambda p=page_name: self._on_click(p),
-            width=44,
-            height=44,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color="transparent",
-            hover_color=AppTheme.SIDEBAR_HOVER_BG,
-            font=AppTheme.FONT_SIDEBAR_ICON,
-            text_color=(
-                AppTheme.GOLD_LIGHT if is_active
-                else AppTheme.SIDEBAR_ICON_INACTIVE
-            ),
-        )
-        btn.pack(side="left")
-
-        # 為按鈕綁定 tooltip 事件
-        btn.bind("<Enter>", lambda e, t=label_text: self._show_tooltip(e, t))
-        btn.bind("<Leave>", lambda e: self._hide_tooltip())
-
-        # 為整個 item_frame 綁定點擊事件
-        item_frame.bind(
-            "<Button-1>", lambda e, p=page_name: self._on_click(p)
-        )
-
-        # 存儲引用
-        self._items[page_name] = {
-            "frame": item_frame,
-            "indicator": indicator,
-            "btn": btn,
-            "label_text": label_text,
-        }
-        self.buttons[page_name] = btn
-
-    # --------------------------------------------------
-    # Tooltip
-    # --------------------------------------------------
-    def _show_tooltip(self, event, text):
-        """顯示 tooltip（延遲 300ms 避免閃爍）"""
-        self._hide_tooltip()
-        self._tooltip_widget = event.widget
-        self._tooltip_after_id = self.after(
-            300, lambda: self._create_tooltip(event, text)
-        )
-
-    def _create_tooltip(self, event, text):
-        """建立 tooltip 視窗"""
-        if self._tooltip_win:
-            return
-
-        widget = event.widget
-        try:
-            # 確認 widget 還存在且滑鼠仍在上面
-            if not widget.winfo_exists():
-                return
-        except Exception:
-            return
-
-        # 計算 tooltip 位置（按鈕右側）
-        x = widget.winfo_rootx() + widget.winfo_width() + 4
-        y = widget.winfo_rooty() + widget.winfo_height() // 2 - 14
-
-        import tkinter as tk
-        self._tooltip_win = tw = tk.Toplevel(self)
-        tw.withdraw()
-        tw.overrideredirect(True)
-        tw.attributes("-topmost", True)
-        tw.configure(bg=AppTheme.GOLD_DARK)
-
-        label = ctk.CTkLabel(
-            tw,
-            text=text,
-            font=AppTheme.FONT_BODY_MD_BOLD,
-            text_color=AppTheme.TEXT_PRIMARY,
-            fg_color=AppTheme.BG_SECONDARY,
-            corner_radius=4,
-            padx=10,
-            pady=4,
-        )
-        label.pack(padx=1, pady=1)
-
-        tw.update_idletasks()
-        tw.geometry(f"+{x}+{y}")
-        tw.deiconify()
-
-        # 安全機制：2 秒後自動關閉，防止殘留
-        self._tooltip_auto_hide_id = self.after(2000, self._hide_tooltip)
-
-    def _hide_tooltip(self):
-        """隱藏 tooltip"""
-        if self._tooltip_after_id:
-            try:
-                self.after_cancel(self._tooltip_after_id)
-            except Exception:
-                pass
-            self._tooltip_after_id = None
-
-        if hasattr(self, "_tooltip_auto_hide_id") and self._tooltip_auto_hide_id:
-            try:
-                self.after_cancel(self._tooltip_auto_hide_id)
-            except Exception:
-                pass
-            self._tooltip_auto_hide_id = None
-
-        if self._tooltip_win:
-            try:
-                self._tooltip_win.destroy()
-            except Exception:
-                pass
-            self._tooltip_win = None
 
     # --------------------------------------------------
     # 事件處理
     # --------------------------------------------------
-    def _on_click(self, page_name):
-        """點擊頁面按鈕"""
-        # 切換頁面時強制關閉 tooltip
-        self._hide_tooltip()
 
+    def _on_click(self, page_name: str):
+        """點擊頁面按鈕
+
+        Args:
+            page_name: 頁面名稱
+        """
         if page_name == self.current_page:
             return
-
         self.current_page = page_name
         self._update_button_states()
         self.on_page_change(page_name)
@@ -231,31 +154,8 @@ class Sidebar(ctk.CTkFrame):
     # --------------------------------------------------
     # 狀態更新
     # --------------------------------------------------
+
     def _update_button_states(self):
-        """更新所有導航項目的 active / inactive 狀態"""
-        for name, item_data in self._items.items():
-            is_active = name == self.current_page
-
-            # 外框背景
-            item_data["frame"].configure(
-                fg_color=(
-                    AppTheme.SIDEBAR_HOVER_BG if is_active
-                    else "transparent"
-                )
-            )
-
-            # 金色指示條
-            item_data["indicator"].configure(
-                fg_color=(
-                    AppTheme.GOLD_PRIMARY if is_active
-                    else "transparent"
-                )
-            )
-
-            # 圖示顏色
-            item_data["btn"].configure(
-                text_color=(
-                    AppTheme.GOLD_LIGHT if is_active
-                    else AppTheme.SIDEBAR_ICON_INACTIVE
-                )
-            )
+        """更新所有導航按鈕的 active / inactive 樣式"""
+        for name, btn in self._items.items():
+            self._apply_btn_state(btn, name == self.current_page)

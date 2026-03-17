@@ -213,10 +213,11 @@ def main():
     print("  1. 運行: python clean_for_release.py")
     print("  2. 運行: python check_release.py")
     print("  3. 打包: pyinstaller skill_tracker.spec")
-    print("  4. 測試打包結果")
-    print(f"  5. 創建 Git tag: git tag v{new_version}")
-    print(f"  6. 推送: git push origin v{new_version}")
-    print(f"  7. 在 GitHub 創建 Release v{new_version}")
+    print("  4. 壓縮: python zip_release.py")
+    print(f"  5. 測試 dist/技能追蹤器_v{new_version}.zip")
+    print(f"  6. 創建 Git tag: git tag v{new_version}")
+    print(f"  7. 推送: git push origin v{new_version}")
+    print(f"  8. 在 GitHub 創建 Release，上傳 dist/技能追蹤器_v{new_version}.zip")
     print()
     
     return 0

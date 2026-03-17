@@ -1,58 +1,44 @@
 """
-技能倒數頁面
-Header + 三欄技能卡片列表，RPG Banner 色調區分
+技能倒數頁面 — PySide6 版本
+三欄技能卡片列表：玩家技能 | BOSS 技能 | 道具
+RPG Banner 色調區分各欄
 """
 
-import customtkinter as ctk
+from PySide6.QtWidgets import QWidget, QHBoxLayout
 from src.ui.theme import AppTheme
-from src.ui.header import Header
 from src.ui.skill_column import SkillColumn
 
 
-class SkillPage(ctk.CTkFrame):
-    """技能倒數頁面"""
+class SkillPage(QWidget):
+    """技能倒數頁面 — 三欄技能卡片列表"""
 
     def __init__(self, parent, app):
-        super().__init__(parent, fg_color="transparent")
+        """初始化技能頁
+
+        Args:
+            parent: 父元件
+            app:    App 主應用實例
+        """
+        super().__init__(parent)
         self.app = app
         self._build_ui()
 
     def _build_ui(self):
-        """建構技能倒數頁面 UI"""
-        # 標題列
-        self.app.header = Header(self, self.app)
-        self.app.header.pack(fill="x", padx=10, pady=(10, 5))
+        """建構三欄技能頁面 UI"""
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
-        # 主內容區 - 三欄佈局
-        main_container = ctk.CTkFrame(self, fg_color="transparent")
-        main_container.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        # banner_color 已棄用；只傳 border_color 作欄位底線強調色
+        columns = [
+            ("玩家技能", "player", AppTheme.BANNER_BORDER_PLAYER),  # 藍 #3b82f6
+            ("BOSS 技能", "boss",  AppTheme.BANNER_BORDER_BOSS),    # 紅 #ef4444
+            ("道具",     "item",  AppTheme.BANNER_BORDER_ITEM),     # 綠 #10b981
+        ]
 
-        # 設定三欄等寬
-        main_container.columnconfigure(0, weight=1)
-        main_container.columnconfigure(1, weight=1)
-        main_container.columnconfigure(2, weight=1)
-        main_container.rowconfigure(0, weight=1)
-
-        # 玩家技能（藍色調 Banner）
-        self.app.player_col = SkillColumn(
-            main_container, "玩家技能", "player", self.app,
-            banner_color=AppTheme.BANNER_PLAYER,
-            border_color=AppTheme.BANNER_BORDER_PLAYER,
-        )
-        self.app.player_col.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
-
-        # BOSS 技能（紅色調 Banner）
-        self.app.boss_col = SkillColumn(
-            main_container, "BOSS 技能", "boss", self.app,
-            banner_color=AppTheme.BANNER_BOSS,
-            border_color=AppTheme.BANNER_BORDER_BOSS,
-        )
-        self.app.boss_col.grid(row=0, column=1, sticky="nsew", padx=4)
-
-        # 道具（綠色調 Banner）
-        self.app.items_col = SkillColumn(
-            main_container, "道具", "item", self.app,
-            banner_color=AppTheme.BANNER_ITEM,
-            border_color=AppTheme.BANNER_BORDER_ITEM,
-        )
-        self.app.items_col.grid(row=0, column=2, sticky="nsew", padx=(4, 0))
+        for title, category, border_color in columns:
+            col = SkillColumn(
+                self, title, category, self.app,
+                border_color=border_color,
+            )
+            layout.addWidget(col, 1)   # stretch=1 確保三欄等寬填滿頁面

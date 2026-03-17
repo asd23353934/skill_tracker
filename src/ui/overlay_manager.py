@@ -78,6 +78,7 @@ class OverlayManager:
             position=(data.get("x", 100), data.get("y", 100)),
             on_close=self._on_window_close,
             on_position_change=self._on_position_change,
+            on_size_change=self._on_size_change,
             width=data.get("width"),
             height=data.get("height"),
         )
@@ -132,8 +133,8 @@ class OverlayManager:
             win = self.active_windows.get(overlay_id)
             if win:
                 try:
-                    data["x"] = win.window.winfo_x()
-                    data["y"] = win.window.winfo_y()
+                    data["x"] = win.x()
+                    data["y"] = win.y()
                 except Exception:
                     pass
             data["width"] = w
@@ -195,8 +196,10 @@ class OverlayManager:
 
         # 螢幕中央作為預設位置
         try:
-            screen_w = self.app.winfo_screenwidth()
-            screen_h = self.app.winfo_screenheight()
+            from PySide6.QtWidgets import QApplication
+            geo = QApplication.primaryScreen().geometry()
+            screen_w = geo.width()
+            screen_h = geo.height()
         except Exception:
             screen_w, screen_h = 1920, 1080
 
@@ -261,6 +264,14 @@ class OverlayManager:
         if data:
             data["x"] = x
             data["y"] = y
+            self.app.config_manager.save()
+
+    def _on_size_change(self, overlay_id: str, w: int, h: int):
+        """方向鍵調整尺寸後持久化"""
+        data = self._get_data(overlay_id)
+        if data:
+            data["width"]  = w
+            data["height"] = h
             self.app.config_manager.save()
 
     # --------------------------------------------------

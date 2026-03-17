@@ -1,226 +1,332 @@
 """
-標題列元件
-RPG 風格雙重金色邊框橫幅，包含標題、配置名稱、操作按鈕
+標題列元件 — PyDracula 風格 PySide6 版本
+平坦深色橫幅（無裝飾線條），可拖曳移動視窗
+右側整合視窗控制按鈕（最小化 / 最大化 / 關閉）
 """
 
-import customtkinter as ctk
+from PySide6.QtWidgets import (
+    QWidget, QHBoxLayout, QLabel, QPushButton, QFrame,
+)
+from PySide6.QtCore import Qt, QPointF, QRectF
+from PySide6.QtGui import QPainter, QPen, QColor
 from src.ui.theme import AppTheme
 
 
-class Header(ctk.CTkFrame):
-    """RPG 風格標題列 — 雙重金色邊框"""
+class _WindowCtrlBtn(QPushButton):
+    """自定義繪製視窗控制按鈕 — QPainter 確保三個按鈕符號視覺大小完全一致"""
+
+    MINIMIZE = "minimize"
+    MAXIMIZE = "maximize"
+    RESTORE  = "restore"
+    CLOSE    = "close"
+
+    def __init__(self, icon_type: str, parent=None):
+        super().__init__(parent)
+        self._icon_type = icon_type
+        self._hovered   = False
+        self.setFlat(True)
+
+    def set_icon_type(self, icon_type: str):
+        self._icon_type = icon_type
+        self.update()
+
+    def enterEvent(self, event):
+        self._hovered = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event):  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+
+        # 懸停背景
+        if self._hovered:
+            bg_hex = "#c42b1c" if self._icon_type == self.CLOSE else "#3a4556"
+            painter.fillRect(0, 0, w, h, QColor(bg_hex))
+
+        icon_color = QColor("#ffffff" if self._hovered else "#d0d8e8")
+        pen = QPen(icon_color, 1.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        cx, cy = w / 2.0, h / 2.0
+
+        if self._icon_type == self.MINIMIZE:
+            painter.drawLine(QPointF(cx - 6, cy), QPointF(cx + 6, cy))
+
+        elif self._icon_type == self.MAXIMIZE:
+            painter.drawRect(QRectF(cx - 6, cy - 5, 12, 10))
+
+        elif self._icon_type == self.RESTORE:
+            # 後方方框
+            painter.drawRect(QRectF(cx - 1, cy - 7, 9, 8))
+            # 用 header 背景色填充前方方框區域（讓前框蓋住後框的左下角）
+            bg_fill = "#3a4556" if self._hovered else AppTheme.BG_SECONDARY
+            painter.setBrush(QColor(bg_fill))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(QRectF(cx - 8, cy - 1, 9, 8))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(pen)
+            # 前方方框邊框
+            painter.drawRect(QRectF(cx - 8, cy - 1, 9, 8))
+
+        elif self._icon_type == self.CLOSE:
+            painter.drawLine(QPointF(cx - 5, cy - 5), QPointF(cx + 5, cy + 5))
+            painter.drawLine(QPointF(cx + 5, cy - 5), QPointF(cx - 5, cy + 5))
+
+
+class Header(QWidget):
+    """PyDracula 風格平坦深色標題列 — 可拖曳 + 視窗控制按鈕"""
+
+    # 按鈕統一高度（配合 HEADER_HEIGHT=44，留 8px 上下 padding）
+    _BTN_H  = 28   # 操作按鈕高度
+    _CTRL_W = 38   # 視窗控制按鈕寬（三個按鈕統一寬度）
+    _CTRL_H = 28   # 視窗控制按鈕高
 
     def __init__(self, parent, app):
-        # 外層金色邊框
-        super().__init__(
-            parent,
-            corner_radius=AppTheme.CORNER_LG,
-            fg_color=AppTheme.GOLD_PRIMARY,
-            height=AppTheme.HEADER_HEIGHT,
-        )
-        self.pack_propagate(False)
+        """初始化標題列
+
+        Args:
+            parent: 父元件
+            app:    App 主應用實例
+        """
+        super().__init__(parent)
         self.app = app
-
-        # 內層內容框（深色背景 + 暗金邊框）
-        self.inner = ctk.CTkFrame(
-            self,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color=AppTheme.BG_CARD,
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
-        )
-        self.inner.pack(fill="both", expand=True, padx=2, pady=2)
-        self.inner.pack_propagate(False)
-
+        self._drag_pos = None
+        self.setFixedHeight(AppTheme.HEADER_HEIGHT)
         self._build_ui()
 
     def _build_ui(self):
-        """建構 UI"""
-        # ===== 左側：裝飾標題 + 配置 =====
-        left = ctk.CTkFrame(self.inner, fg_color="transparent")
-        left.pack(side="left", padx=16, pady=10)
-
-        ctk.CTkLabel(
-            left,
-            text="🍁 技能追蹤器 🍁",
-            font=AppTheme.FONT_RPG_TITLE,
-            text_color=AppTheme.GOLD_LIGHT,
-        ).pack(side="left", padx=(0, 8))
-
-        ctk.CTkLabel(
-            left,
-            text="Artale 楓之谷",
-            font=AppTheme.FONT_BODY_MD,
-            text_color=AppTheme.TEXT_MUTED,
-        ).pack(side="left", padx=(0, 12))
-
-        # 配置徽章（遊戲成就風格）
-        badge = ctk.CTkFrame(
-            left,
-            corner_radius=6,
-            fg_color=AppTheme.BG_DARKEST,
-            border_width=1,
-            border_color=AppTheme.GOLD_DARK,
+        """建構 UI — 平坦深色列，底部細線分隔"""
+        self.setObjectName("app_header")
+        self.setStyleSheet(
+            f"QWidget#app_header {{"
+            f" background-color: {AppTheme.BG_SECONDARY};"
+            f" border-bottom: 1px solid {AppTheme.BORDER_GOLD_HAIRLINE}; }}"
         )
-        badge.pack(side="left", padx=4)
 
-        ctk.CTkLabel(
-            badge,
-            text="📋",
-            font=AppTheme.FONT_BODY_SM,
-            text_color=AppTheme.GOLD_PRIMARY,
-        ).pack(side="left", padx=(8, 2), pady=4)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 0, 4, 0)
+        layout.setSpacing(6)
 
-        self.profile_label = ctk.CTkLabel(
-            badge,
-            text=self.app.current_profile_name,
-            font=AppTheme.FONT_BODY_MD_BOLD,
-            text_color=AppTheme.GOLD_PRIMARY,
+        # ===== 左側：標題 + 副標 + 配置名稱 =====
+        title_lbl = QLabel("🍁 技能追蹤器")
+        title_lbl.setStyleSheet(
+            f"color: {AppTheme.GOLD_LIGHT};"
+            f" font-size: 14px; font-weight: bold;"
+            f" background: transparent; border: none;"
         )
-        self.profile_label.pack(side="left", padx=(0, 8), pady=4)
+        layout.addWidget(title_lbl)
 
-        # ===== 右側：按鈕組 =====
-        right = ctk.CTkFrame(self.inner, fg_color="transparent")
-        right.pack(side="right", padx=16, pady=10)
-
-        # 快捷鍵提示標籤
-        self.hotkey_hint = ctk.CTkLabel(
-            right,
-            text="",
-            font=AppTheme.FONT_BODY_LG_BOLD,
-            text_color=AppTheme.ACCENT_GREEN,
+        subtitle_lbl = QLabel("Artale 楓之谷")
+        subtitle_lbl.setStyleSheet(
+            f"color: {AppTheme.TEXT_MUTED}; font-size: 11px;"
+            f" background: transparent; border: none;"
         )
-        self.hotkey_hint.pack(side="left", padx=(0, 12))
+        layout.addWidget(subtitle_lbl)
+
+        self.profile_label = QLabel(f"📋 {self.app.current_profile_name}")
+        self.profile_label.setStyleSheet(
+            f"color: {AppTheme.TEXT_MUTED}; font-size: 11px;"
+            f" background: transparent; border: none;"
+        )
+        layout.addWidget(self.profile_label)
+
+        layout.addStretch()
+
+        # ===== 中右：快捷鍵提示 =====
+        self.hotkey_hint = QLabel("")
+        self.hotkey_hint.setStyleSheet(
+            f"color: {AppTheme.ACCENT_GREEN}; font-size: 11px; font-weight: bold;"
+            f" background: transparent; border: none;"
+        )
+        layout.addWidget(self.hotkey_hint)
 
         # 更新按鈕（初始隱藏）
-        self.update_btn = ctk.CTkButton(
-            right,
-            text="⬆ 有新版本",
-            command=self.app.show_update_dialog,
-            width=110,
-            height=34,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color=AppTheme.ACCENT_GREEN,
-            hover_color="#0d9668",
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
-            font=AppTheme.FONT_BTN_SM,
+        self.update_btn = QPushButton("⬆ 新版本")
+        self.update_btn.setFixedHeight(self._BTN_H)
+        self.update_btn.clicked.connect(self.app.show_update_dialog)
+        self.update_btn.setStyleSheet(
+            f"QPushButton {{ background: {AppTheme.ACCENT_GREEN}; color: white;"
+            f" border: none; border-radius: 4px;"
+            f" padding: 0 8px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: {AppTheme.ACCENT_GREEN_HOVER}; }}"
         )
-        # 不 pack，等有更新時顯示
+        self.update_btn.hide()
+        layout.addWidget(self.update_btn)
 
         # 清空按鍵
-        ctk.CTkButton(
-            right,
-            text="清空按鍵",
-            command=self.app.clear_all_hotkeys,
-            width=100,
-            height=34,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color=AppTheme.ACCENT_RED,
-            hover_color="#dc2626",
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
-            font=AppTheme.FONT_BTN_SM,
-        ).pack(side="left", padx=3)
+        clear_btn = QPushButton("清空按鍵")
+        clear_btn.setFixedHeight(self._BTN_H)
+        clear_btn.clicked.connect(self.app.clear_all_hotkeys)
+        clear_btn.setStyleSheet(
+            f"QPushButton {{ background: {AppTheme.ACCENT_RED}; color: white;"
+            f" border: none; border-radius: 4px;"
+            f" padding: 0 8px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: #dc2626; }}"
+        )
+        layout.addWidget(clear_btn)
 
         # 配置管理
-        ctk.CTkButton(
-            right,
-            text="💾 配置管理",
-            command=self.app.show_profile_manager,
-            width=110,
-            height=34,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color=AppTheme.ACCENT_PURPLE,
-            hover_color="#7c3aed",
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
-            font=AppTheme.FONT_BTN_SM,
-        ).pack(side="left", padx=3)
-
-        # 全選按鈕組（金色細邊框容器）
-        toggle_group = ctk.CTkFrame(
-            right,
-            fg_color=AppTheme.BG_DEEP,
-            corner_radius=6,
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
+        profile_btn = QPushButton("💾 配置管理")
+        profile_btn.setFixedHeight(self._BTN_H)
+        profile_btn.clicked.connect(self.app.show_profile_manager)
+        profile_btn.setStyleSheet(
+            f"QPushButton {{ background: {AppTheme.ACCENT_PURPLE}; color: white;"
+            f" border: none; border-radius: 4px;"
+            f" padding: 0 8px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: #7c3aed; }}"
         )
-        toggle_group.pack(side="left", padx=6)
+        layout.addWidget(profile_btn)
 
-        ctk.CTkLabel(
-            toggle_group,
-            text="全選:",
-            font=AppTheme.FONT_BODY_SM,
-            text_color=AppTheme.TEXT_MUTED,
-        ).pack(side="left", padx=(8, 4), pady=4)
+        # ===== 全選按鈕組（高度嚴格限制，不撐高 header）=====
+        toggle_group = QFrame()
+        toggle_group.setObjectName("toggle_group")
+        toggle_group.setFixedHeight(self._BTN_H)
+        toggle_group.setStyleSheet(
+            f"QFrame#toggle_group {{"
+            f" background: {AppTheme.BG_TERTIARY};"
+            f" border: 1px solid {AppTheme.GOLD_MUTED};"
+            f" border-radius: 4px; }}"
+        )
+        tg_layout = QHBoxLayout(toggle_group)
+        tg_layout.setContentsMargins(6, 0, 6, 0)
+        tg_layout.setSpacing(2)
 
-        ctk.CTkButton(
-            toggle_group,
-            text="常駐",
-            command=lambda: self.app.toggle_all("permanent"),
-            width=55,
-            height=28,
-            corner_radius=4,
-            fg_color=AppTheme.ACCENT_YELLOW,
-            hover_color="#e5a800",
-            text_color="#000000",
-            font=AppTheme.FONT_BTN_SM,
-        ).pack(side="left", padx=2, pady=4)
+        tg_lbl = QLabel("全選")
+        tg_lbl.setStyleSheet(
+            f"color: {AppTheme.TEXT_MUTED}; font-size: 10px;"
+            f" background: transparent; border: none;"
+        )
+        tg_layout.addWidget(tg_lbl)
 
-        ctk.CTkButton(
-            toggle_group,
-            text="循環",
-            command=lambda: self.app.toggle_all("loop"),
-            width=55,
-            height=28,
-            corner_radius=4,
-            fg_color=AppTheme.ACCENT_GREEN,
-            hover_color="#0d9668",
-            font=AppTheme.FONT_BTN_SM,
-        ).pack(side="left", padx=2, pady=4)
+        toggle_defs = [
+            ("常駐",    "permanent", AppTheme.ACCENT_YELLOW, "#e5a800", "#000000"),
+            ("循環",    "loop",      AppTheme.ACCENT_GREEN,  "#0d9668", "#ffffff"),
+            ("提前提示", "alert",    AppTheme.ACCENT_ORANGE, "#e07a2a", "#ffffff"),
+        ]
+        for text, key, color, hover, fg in toggle_defs:
+            tb = QPushButton(text)
+            tb.setFixedHeight(20)
+            tb.clicked.connect(
+                lambda checked=False, k=key: self.app.toggle_all(k)
+            )
+            tb.setStyleSheet(
+                f"QPushButton {{ background: {color}; color: {fg};"
+                f" border: none; border-radius: 3px;"
+                f" padding: 0 6px; font-size: 10px; font-weight: bold; }}"
+                f"QPushButton:hover {{ background: {hover}; }}"
+            )
+            tg_layout.addWidget(tb)
 
-        ctk.CTkButton(
-            toggle_group,
-            text="提前提示",
-            command=lambda: self.app.toggle_all("alert"),
-            width=75,
-            height=28,
-            corner_radius=4,
-            fg_color=AppTheme.ACCENT_ORANGE,
-            hover_color="#e07a2a",
-            font=AppTheme.FONT_BTN_SM,
-        ).pack(side="left", padx=(2, 6), pady=4)
+        layout.addWidget(toggle_group)
+        layout.addSpacing(4)
 
-        # 設定
-        ctk.CTkButton(
-            right,
-            text="⚙ 設定",
-            command=self.app.show_settings,
-            width=90,
-            height=34,
-            corner_radius=AppTheme.CORNER_MD,
-            fg_color=AppTheme.BG_TERTIARY,
-            hover_color=AppTheme.BG_DEEP,
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
-            font=AppTheme.FONT_BTN_SM,
-        ).pack(side="left", padx=3)
+        # ===== 右側：視窗控制按鈕（Windows 11 風格）=====
+        layout.addSpacing(8)   # 與左側操作按鈕的視覺隔離
+
+        min_btn = _WindowCtrlBtn(_WindowCtrlBtn.MINIMIZE)
+        min_btn.setFixedSize(self._CTRL_W, self._CTRL_H)
+        min_btn.setToolTip("最小化")
+        min_btn.clicked.connect(self._on_minimize)
+        layout.addWidget(min_btn)
+
+        self.max_btn = _WindowCtrlBtn(_WindowCtrlBtn.MAXIMIZE)
+        self.max_btn.setFixedSize(self._CTRL_W, self._CTRL_H)
+        self.max_btn.setToolTip("最大化")
+        self.max_btn.clicked.connect(self._toggle_maximize)
+        layout.addWidget(self.max_btn)
+
+        close_btn = _WindowCtrlBtn(_WindowCtrlBtn.CLOSE)
+        close_btn.setFixedSize(self._CTRL_W, self._CTRL_H)
+        close_btn.setToolTip("關閉")
+        close_btn.clicked.connect(self.app.close)
+        layout.addWidget(close_btn)
+
+    # --------------------------------------------------
+    # 視窗控制
+    # --------------------------------------------------
+
+    def _ctrl_btn_style(self, close: bool = False, font_size: int = 14) -> str:
+        """視窗控制按鈕 QSS — Windows 11 風格（Segoe UI 字型確保符號渲染清晰）
+
+        Args:
+            close:     True 表示關閉按鈕（hover 紅色）
+            font_size: 字型大小（─ 需較大以補足視覺重量）
+        """
+        hover_bg = "#c42b1c" if close else "#2d3748"
+        hover_fg = "#ffffff" if close else AppTheme.TEXT_PRIMARY
+        return (
+            f"QPushButton {{ background: transparent; color: #c8d0dc;"
+            f" border: none; border-radius: 0px;"
+            f" font-family: 'Segoe UI', 'Arial'; font-size: {font_size}px; }}"
+            f"QPushButton:hover {{ background: {hover_bg}; color: {hover_fg}; }}"
+        )
+
+    def _on_minimize(self):
+        self.window().showMinimized()
+
+    def _toggle_maximize(self):
+        win = self.window()
+        if win.isMaximized():
+            win.showNormal()
+            self.max_btn.set_icon_type(_WindowCtrlBtn.MAXIMIZE)
+            self.max_btn.setToolTip("最大化")
+        else:
+            win.showMaximized()
+            self.max_btn.set_icon_type(_WindowCtrlBtn.RESTORE)
+            self.max_btn.setToolTip("還原視窗")
+
+    # --------------------------------------------------
+    # 拖曳移動視窗
+    # --------------------------------------------------
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = (
+                event.globalPosition().toPoint()
+                - self.window().frameGeometry().topLeft()
+            )
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if (event.buttons() == Qt.MouseButton.LeftButton
+                and self._drag_pos is not None
+                and not self.window().isMaximized()):
+            self.window().move(
+                event.globalPosition().toPoint() - self._drag_pos
+            )
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._toggle_maximize()
 
     # ==================== 公開方法 ====================
 
     def show_update_button(self):
-        """顯示更新按鈕"""
-        self.update_btn.pack(side="left", padx=3)
+        self.update_btn.show()
 
-    def update_profile_name(self, name):
-        """更新配置名稱"""
-        self.profile_label.configure(text=name)
+    def update_profile_name(self, name: str):
+        self.profile_label.setText(f"📋 {name}")
 
-    def show_hotkey_hint(self, text, color):
-        """顯示快捷鍵提示"""
-        self.hotkey_hint.configure(text=text, text_color=color)
+    def show_hotkey_hint(self, text: str, color: str):
+        self.hotkey_hint.setText(text)
+        self.hotkey_hint.setStyleSheet(
+            f"color: {color}; font-size: 11px; font-weight: bold;"
+            f" background: transparent; border: none;"
+        )
 
     def clear_hotkey_hint(self):
-        """清除快捷鍵提示"""
-        self.hotkey_hint.configure(text="")
+        self.hotkey_hint.setText("")

@@ -1,5 +1,4 @@
 pynput==1.7.6
 Pillow>=11.0.0
 requests>=2.31.0
-customtkinter>=5.2.0
-pygame>=2.5.0
+PySide6>=6.7.0

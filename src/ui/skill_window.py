@@ -1,542 +1,574 @@
 """
-技能倒數視窗模組
-處理單個技能的倒數顯示視窗，含灰色順時針遮罩與快秒顯示
-RPG 金色邊框 + 金色倒數文字風格
+技能倒數視窗模組 — PySide6 版本
+無邊框透明浮動視窗，QPainter 繪製 RPG 金色邊框 + 倒數文字 + 灰色矩形遮罩
+取代原版 tkinter.Toplevel + Canvas 方案
 """
 
-import tkinter as tk
 import time
 import math
+
+from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import Qt, QTimer, QRect
+from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPixmap, QImage
 
 from src.ui.theme import AppTheme
 
 
-class SkillWindow:
-    """技能倒數視窗"""
+class SkillWindow(QWidget):
+    """技能/怪物倒數浮動視窗 — QPainter 繪製"""
 
-    # 金色調常量（Canvas 繪製用，不經 AppTheme 因為是原生 tkinter）
-    GOLD_BORDER = "#d4a843"
+    # 金色調常量（RPG 風格）
+    GOLD_BORDER       = "#d4a843"
     GOLD_BORDER_INNER = "#8b7435"
-    GOLD_TEXT = "#f0d78c"
-    GOLD_OUTLINE = "#8b7435"
-    GOLD_CLOSE = "#d4a843"
-    GOLD_CLOSE_HOVER = "#f0d78c"
-    GOLD_FLASH = "#f0d78c"
+    GOLD_TEXT         = "#f0d78c"
+    GOLD_OUTLINE      = "#8b7435"
+    GOLD_CLOSE        = "#d4a843"
+    GOLD_CLOSE_HOVER  = "#f0d78c"
+    GOLD_FLASH        = "#f0d78c"
+
+    # 邊框寬度
+    BORDER_W       = 2
+    INNER_BORDER_W = 1
 
     def __init__(
         self, skill, player, position, skill_image, on_close,
-        enable_sound, skill_id, is_permanent, is_loop=False,
-        start_at_zero=False, window_alpha=None,
-        alert_enabled=False, alert_before_seconds=0, on_alert=None,
-        on_drag_start=None, on_drag_motion=None, on_drag_end=None,
-        window_size=64,
-        skill_image_path=None,
-        sound_manager=None,
-        sound_filename="",
-        alert_sound_filename="",
-        count_up=False,
-        title=None,
-        idle_start=False,
+        enable_sound, skill_id,
+        is_permanent   = False,
+        is_loop        = False,
+        start_at_zero  = False,
+        window_alpha   = None,
+        alert_enabled  = False,
+        alert_before_seconds = 0,
+        on_alert       = None,
+        on_drag_start  = None,
+        on_drag_motion = None,
+        on_drag_end    = None,
+        window_size    = 64,
+        skill_image_path = None,
+        sound_manager  = None,
+        sound_filename = "",
+        alert_sound_filename = "",
+        count_up       = False,
+        title          = None,
+        idle_start     = False,
     ):
-        self.skill = skill
-        self.player = player
-        self.on_close = on_close
-        self.enable_sound = enable_sound
-        self.skill_id = skill_id
-        self.is_permanent = is_permanent
-        self.is_loop = is_loop
-        self.skill_image = skill_image
-        self._skill_image_path = skill_image_path
-        self.count_up = count_up
-        self.title = title
-        self.idle_start = idle_start
+        """初始化倒數視窗
 
-        self.window_alpha = window_alpha if window_alpha is not None else 0.95
-        self.window_size = window_size
+        Args:
+            skill:               技能/怪物資料字典
+            player:              玩家名稱
+            position:            (x, y) 視窗位置
+            skill_image:         預留（舊版 PhotoImage，Qt 版本不使用）
+            on_close:            視窗關閉回調 callback(window)
+            enable_sound:        是否啟用音效
+            skill_id:            技能/怪物 ID
+            is_permanent:        是否常駐
+            is_loop:             是否循環
+            start_at_zero:       是否從 0 開始（常駐技能）
+            window_alpha:        視窗透明度
+            alert_enabled:       是否啟用提前提示
+            alert_before_seconds: 提前幾秒提示
+            on_alert:            提示回調
+            on_drag_start:       拖曳開始回調 (global_x, global_y)
+            on_drag_motion:      拖曳中回調 (global_x, global_y)
+            on_drag_end:         拖曳結束回調 (global_x, global_y)
+            window_size:         視窗寬高（像素）
+            skill_image_path:    技能圖片路徑
+            sound_manager:       音效管理器
+            sound_filename:      完成音效
+            alert_sound_filename: 提示音效
+            count_up:            是否正數模式（怪物）
+            title:               標題文字（可選）
+            idle_start:          是否以 idle 狀態啟動（常駐怪物）
+        """
+        # 無邊框透明置頂工具視窗
+        super().__init__(
+            None,
+            Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Tool,
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self.setMouseTracking(True)
 
-        # 提前提示設定
-        self.alert_enabled = alert_enabled
+        # 參數儲存
+        self.skill               = skill
+        self.player              = player
+        self.on_close            = on_close
+        self.enable_sound        = enable_sound
+        self.skill_id            = skill_id
+        self.is_permanent        = is_permanent
+        self.is_loop             = is_loop
+        self.skill_image         = skill_image      # 保留相容性，Qt 版本不使用
+        self._skill_image_path   = skill_image_path
+        self.count_up            = count_up
+        self.title               = title
+        self.idle_start          = idle_start
+
+        self.window_alpha        = window_alpha if window_alpha is not None else 0.95
+        self.window_size         = window_size
+
+        self.alert_enabled       = alert_enabled
         self.alert_before_seconds = alert_before_seconds
-        self.on_alert = on_alert
-        self.alert_triggered = False
+        self.on_alert            = on_alert
+        self.alert_triggered     = False
 
-        # 音效設定
-        self.sound_manager = sound_manager
-        self.sound_filename = sound_filename
+        self.sound_manager       = sound_manager
+        self.sound_filename      = sound_filename
         self.alert_sound_filename = alert_sound_filename
 
-        # 拖曳回調函數
-        self.on_drag_start = on_drag_start
-        self.on_drag_motion = on_drag_motion
-        self.on_drag_end = on_drag_end
+        self.on_drag_start       = on_drag_start
+        self.on_drag_motion      = on_drag_motion
+        self.on_drag_end         = on_drag_end
 
-        self.total = skill.get("cooldown") or skill.get("respawn_time", 0)
+        self.total     = skill.get("cooldown") or skill.get("respawn_time", 0)
         self.remaining = 0 if (start_at_zero or count_up) else self.total
 
-        self.after_id = None
-        self.running = False
-
-        # 使用時間戳計時（更精確）
+        self.running    = False
         self.start_time = None
-        self.end_time = None
+        self.end_time   = None
 
-        # PIL 基底圖片（用於遮罩合成）
-        self._base_pil_image = None
-        self._overlay_photo = None
-        self._image_item = None
+        # 圖片遮罩快取
+        self._base_pil_image      = None
+        self._overlay_pixmap: QPixmap | None = None
         self._last_overlay_degree = -1
 
         # 閃爍狀態
-        self._flash_count = 0
-        self._flash_after_id = None
+        self._flash_active = False
+        self._flash_count  = 0
 
-        self._create_window(position)
+        # 關閉按鈕 hover
+        self._close_hovered = False
 
+        # 防止重複關閉
+        self._closed = False
+
+        # 當前顯示文字
+        self._current_display_text = "0" if count_up else str(self.remaining)
+
+        # 計算視窗尺寸
+        self._calc_dimensions()
+
+        # 載入圖片
+        self._setup_image()
+
+        # 套用透明度並顯示
+        self.setWindowOpacity(self.window_alpha)
+        self.resize(self._canvas_width, self._total_height)
+        self.move(position[0], position[1])
+        self.show()
+
+        # 計時 Timer（tick 週期 100ms，快秒切換 50ms）
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._tick)
+
+        # 閃爍 Timer
+        self._flash_timer = QTimer(self)
+        self._flash_timer.setInterval(120)
+        self._flash_timer.timeout.connect(self._flash_tick)
+
+        # 啟動邏輯
         if count_up:
-            # 正數模式：idle_start=True 時停留 idle，等待按鍵觸發
             if not idle_start:
                 self.start_countdown()
+            else:
+                self._update_overlay(0)
+                self.update()
         elif not start_at_zero:
             self.start_countdown()
         else:
-            self._update_display()
+            self._update_overlay(0)
+            self.update()
 
     # --------------------------------------------------
-    # UI
+    # 尺寸計算
     # --------------------------------------------------
-    def _create_window(self, position):
-        """建立倒數視窗 — RPG 金色邊框風格"""
-        from PIL import Image, ImageTk
 
-        window_size = self.window_size
-        border_w = 2  # 外層金色邊框寬度
-        inner_border_w = 1  # 內層暗金邊框寬度
+    def _calc_dimensions(self):
+        """計算視窗各區塊高度與關閉按鈕位置"""
+        ws = self.window_size
+        bw = self.BORDER_W
 
-        self.window = tk.Toplevel()
-        self.window.attributes("-topmost", True)
-        self.window.attributes("-alpha", self.window_alpha)
-        self.window.overrideredirect(True)
+        self._canvas_width = ws + bw * 2
 
-        # Windows 透明背景設定
-        transparent_color = '#010101'
-        self.window.configure(bg=transparent_color)
-        try:
-            self.window.attributes('-transparentcolor', transparent_color)
-        except Exception:
-            pass
-
-        # 計算各區塊高度與計時文字位置
-        # 兩種模式都是：秒數文字在上，圖示在下
-        # count_up（怪物）用 0.5 係數讓文字有足夠空間，避免頂端被裁切
         if self.count_up:
-            text_height = int(window_size * 0.5)            # 比技能略高，留足頂部空間
-            title_height = 0
-            img_y0 = text_height                            # 秒數在上，圖示在下
-            img_y1 = text_height + window_size + border_w * 2
-            text_y = text_height // 2
+            # 怪物正數：時間文字在上，留更多空間避免裁切
+            self._text_height  = int(ws * 0.5)
+            self._title_height = 0
         else:
-            title_height = max(18, int(window_size * 0.28)) if self.title else 0
-            text_height = int(window_size * 0.4)
-            img_y0 = text_height + title_height             # 文字在圖示上方
-            img_y1 = text_height + title_height + window_size + border_w * 2
-            text_y = text_height // 2
+            self._title_height = max(18, int(ws * 0.28)) if self.title else 0
+            self._text_height  = int(ws * 0.4)
 
-        total_height = text_height + title_height + window_size + border_w * 2
+        self._img_y0     = self._text_height + self._title_height
+        self._img_y1     = self._img_y0 + ws + bw * 2
+        self._text_y     = self._text_height // 2    # 文字垂直中心
+        self._total_height = self._img_y1
 
-        canvas_width = window_size + border_w * 2
-
-        self.canvas = tk.Canvas(
-            self.window,
-            width=canvas_width,
-            height=total_height,
-            bg=transparent_color,
-            highlightthickness=0
-        )
-        self.canvas.pack()
-
-        # ===== 標題文字（技能模式，緊貼卡片上方置中；count_up 不顯示）=====
-        if self.title and not self.count_up:
-            title_font_size = max(9, int(window_size * 0.17))
-            title_x = canvas_width // 2
-            title_y = text_height + title_height // 2
-            for dx, dy in [(-1, -1), (-1, 0), (-1, 1),
-                           (0, -1), (0, 1),
-                           (1, -1), (1, 0), (1, 1)]:
-                self.canvas.create_text(
-                    title_x + dx,
-                    title_y + dy,
-                    text=self.title,
-                    fill=self.GOLD_OUTLINE,
-                    font=("Arial", title_font_size, "bold"),
-                    anchor="center",
-                    tags="title_outline"
-                )
-            self.canvas.create_text(
-                title_x,
-                title_y,
-                text=self.title,
-                fill=self.GOLD_TEXT,
-                font=("Arial", title_font_size, "bold"),
-                anchor="center",
-                tags="title_text"
-            )
-
-        # ===== 金色邊框 (圖片區域) =====
-        img_x0 = 0
-        img_x1 = canvas_width
-
-        # 外層金色邊框
-        self._border_outer = self.canvas.create_rectangle(
-            img_x0, img_y0, img_x1, img_y1,
-            outline=self.GOLD_BORDER,
-            width=border_w,
-            tags="gold_border"
+        # 關閉按鈕矩形（圖片區域右上角）
+        close_size = 16
+        pad        = 2
+        self._close_rect = QRect(
+            self._canvas_width - close_size - pad - bw,
+            self._img_y0 + pad + bw,
+            close_size,
+            close_size,
         )
 
-        # 內層暗金邊框
-        self.canvas.create_rectangle(
-            img_x0 + border_w, img_y0 + border_w,
-            img_x1 - border_w, img_y1 - border_w,
-            outline=self.GOLD_BORDER_INNER,
-            width=inner_border_w,
-            tags="gold_border"
-        )
+    # --------------------------------------------------
+    # 圖片載入與遮罩
+    # --------------------------------------------------
 
-        # ===== 載入並縮放技能圖片 =====
+    def _setup_image(self):
+        """載入技能圖片並建立初始 QPixmap 快取"""
+        from PIL import Image
+
+        ws = self.window_size
         if self._skill_image_path:
             try:
                 img = Image.open(self._skill_image_path).convert("RGBA")
-                img = img.resize((window_size, window_size), Image.Resampling.LANCZOS)
+                img = img.resize((ws, ws), Image.Resampling.LANCZOS)
                 self._base_pil_image = img
-                self.bg_image = ImageTk.PhotoImage(img)
             except Exception:
-                img = Image.new("RGBA", (window_size, window_size), (128, 128, 128, 255))
-                self._base_pil_image = img
-                self.bg_image = ImageTk.PhotoImage(img)
+                self._base_pil_image = Image.new("RGBA", (ws, ws), (128, 128, 128, 255))
         else:
-            img = Image.new("RGBA", (window_size, window_size), (128, 128, 128, 255))
-            self._base_pil_image = img
-            self.bg_image = ImageTk.PhotoImage(img)
+            self._base_pil_image = Image.new("RGBA", (ws, ws), (128, 128, 128, 255))
 
-        # 圖片放在邊框內
-        self._image_item = self.canvas.create_image(
-            canvas_width // 2,
-            img_y0 + border_w + window_size // 2,
-            image=self.bg_image
-        )
+        self._overlay_pixmap = self._pil_to_qpixmap(self._base_pil_image)
 
-        # ===== 計時文字（技能倒數 / 怪物正數 均顯示）=====
-        # count_up 初始為 "0"，countdown 初始為剩餘秒數
-        font_size = max(18, int(window_size * 0.4))
-        text_x = canvas_width // 2
-        initial_text = "0" if self.count_up else str(self.remaining)
-
-        offset = 2
-        for dx, dy in [(-offset, -offset), (-offset, 0), (-offset, offset),
-                       (0, -offset), (0, offset),
-                       (offset, -offset), (offset, 0), (offset, offset)]:
-            self.canvas.create_text(
-                text_x + dx,
-                text_y + dy,
-                text=initial_text,
-                fill=self.GOLD_OUTLINE,
-                font=("Arial", font_size, "bold"),
-                anchor="center",
-                tags="timer_outline"
-            )
-
-        self.timer_text = self.canvas.create_text(
-            text_x,
-            text_y,
-            text=initial_text,
-            fill=self.GOLD_TEXT,
-            font=("Arial", font_size, "bold"),
-            anchor="center"
-        )
-
-        # ===== 關閉按鈕（金色調）=====
-        close_size = 16
-        padding = 2
-        close_x0 = canvas_width - close_size - padding - border_w
-        close_y0 = img_y0 + padding + border_w
-        close_x1 = canvas_width - padding - border_w
-        close_y1 = img_y0 + close_size + padding + border_w
-
-        self.close_border = self.canvas.create_rectangle(
-            close_x0, close_y0, close_x1, close_y1,
-            outline=self.GOLD_CLOSE,
-            width=2
-        )
-
-        self.close_btn = self.canvas.create_text(
-            (close_x0 + close_x1) // 2,
-            (close_y0 + close_y1) // 2,
-            text="✕",
-            fill=self.GOLD_CLOSE,
-            font=("Arial", 12, "bold"),
-            anchor="center"
-        )
-
-        for item in (self.close_border, self.close_btn):
-            self.canvas.tag_bind(item, "<Button-1>", lambda e: self.close())
-            self.canvas.tag_bind(
-                item, "<Enter>",
-                lambda e: (
-                    self.canvas.itemconfig(self.close_border, outline=self.GOLD_CLOSE_HOVER),
-                    self.canvas.itemconfig(self.close_btn, fill=self.GOLD_CLOSE_HOVER),
-                )
-            )
-            self.canvas.tag_bind(
-                item, "<Leave>",
-                lambda e: (
-                    self.canvas.itemconfig(self.close_border, outline=self.GOLD_CLOSE),
-                    self.canvas.itemconfig(self.close_btn, fill=self.GOLD_CLOSE),
-                )
-            )
-
-        self.window.geometry(f"+{position[0]}+{position[1]}")
-
-        # 綁定拖曳事件
-        self._bind_drag_events()
-
-    # --------------------------------------------------
-    # 金色邊框閃爍（提前提示觸發時）
-    # --------------------------------------------------
-    def _flash_border(self):
-        """短暫閃爍金色邊框 — 亮金 ↔ 原金切換"""
-        if self._flash_count >= 6:
-            # 復原邊框
-            self.canvas.itemconfig(self._border_outer, outline=self.GOLD_BORDER)
-            self._flash_count = 0
-            self._flash_after_id = None
-            return
-
-        # 切換亮金/原金
-        if self._flash_count % 2 == 0:
-            self.canvas.itemconfig(self._border_outer, outline=self.GOLD_FLASH)
-        else:
-            self.canvas.itemconfig(self._border_outer, outline=self.GOLD_BORDER)
-
-        self._flash_count += 1
-        self._flash_after_id = self.window.after(120, self._flash_border)
-
-    # --------------------------------------------------
-    # 灰色矩形遮罩（從下往上填滿）
-    # --------------------------------------------------
-    def _create_overlay_image(self, progress):
-        """建立帶有灰色矩形遮罩的技能圖片
-
-        遮罩從底部向上填滿，progress=0 無遮罩，progress=1 全部遮蔽。
+    @staticmethod
+    def _pil_to_qpixmap(pil_img) -> QPixmap:
+        """PIL RGBA Image → QPixmap
 
         Args:
-            progress: 進度 0.0 ~ 1.0 (0=剛開始, 1=時間結束)
+            pil_img: PIL Image（必須為 RGBA 模式）
 
         Returns:
-            ImageTk.PhotoImage 合成後的圖片
+            QPixmap 物件
         """
-        from PIL import Image, ImageDraw, ImageTk
+        data  = pil_img.tobytes("raw", "RGBA")
+        qimg  = QImage(data, pil_img.width, pil_img.height,
+                       QImage.Format.Format_RGBA8888)
+        return QPixmap.fromImage(qimg)
+
+    def _create_overlay_pixmap(self, progress: float) -> QPixmap:
+        """建立帶有灰色矩形遮罩的技能圖片 QPixmap
+
+        遮罩從底部向上填滿。progress=0 無遮罩，progress=1 全部遮蔽。
+
+        Args:
+            progress: 0.0 ~ 1.0
+
+        Returns:
+            QPixmap
+        """
+        from PIL import Image, ImageDraw
 
         if self._base_pil_image is None:
-            return None
+            return QPixmap()
 
         base = self._base_pil_image.copy()
-
         if progress <= 0:
-            return ImageTk.PhotoImage(base)
+            return self._pil_to_qpixmap(base)
 
-        # 建立半透明灰色遮罩
         overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-
-        w, h = base.size
-        # 矩形從底部向上覆蓋
-        fill_h = int(min(progress, 1.0) * h)
+        draw    = ImageDraw.Draw(overlay)
+        w, h    = base.size
+        fill_h  = int(min(progress, 1.0) * h)
         if fill_h > 0:
             draw.rectangle([0, h - fill_h, w, h], fill=AppTheme.OVERLAY_COLOR)
 
-        # 合成
         result = Image.alpha_composite(base, overlay)
-        return ImageTk.PhotoImage(result)
+        return self._pil_to_qpixmap(result)
 
-    def _update_overlay(self, progress):
-        """更新遮罩圖片（僅在像素高度變化時更新以優化效能）"""
+    def _update_overlay(self, progress: float):
+        """更新遮罩圖片快取（僅像素高度變化時重新合成）
+
+        Args:
+            progress: 0.0 ~ 1.0
+        """
         pixel_h = int(progress * self.window_size)
         if pixel_h == self._last_overlay_degree:
             return
-
         self._last_overlay_degree = pixel_h
-        new_photo = self._create_overlay_image(progress)
-        if new_photo:
-            self._overlay_photo = new_photo  # 防止 GC 回收
-            self.canvas.itemconfig(self._image_item, image=self._overlay_photo)
+        new_pixmap = self._create_overlay_pixmap(progress)
+        if not new_pixmap.isNull():
+            self._overlay_pixmap = new_pixmap
+        self.update()   # 觸發 paintEvent
 
     # --------------------------------------------------
-    # 拖曳事件
+    # 繪製（QPainter）
     # --------------------------------------------------
-    def _bind_drag_events(self):
-        """綁定拖曳事件"""
-        self.window.bind('<Button-1>', self._on_window_drag_start)
-        self.window.bind('<B1-Motion>', self._on_window_drag_motion)
-        self.window.bind('<ButtonRelease-1>', self._on_window_drag_end)
 
-        self.canvas.bind('<Button-1>', self._on_canvas_click)
-        self.canvas.bind('<B1-Motion>', self._on_window_drag_motion)
-        self.canvas.bind('<ButtonRelease-1>', self._on_window_drag_end)
+    def paintEvent(self, event):
+        """繪製全部視覺元素：文字 + 圖片 + 金色邊框 + 關閉按鈕"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        self.canvas.bind('<Enter>', lambda e: self.canvas.config(cursor='hand2'))
-        self.canvas.bind('<Leave>', lambda e: self.canvas.config(cursor=''))
+        ws  = self.window_size
+        bw  = self.BORDER_W
+        cw  = self._canvas_width
+        iy0 = self._img_y0
+        iy1 = self._img_y1
 
-        for item in (self.close_border, self.close_btn):
-            self.canvas.tag_bind(item, '<Enter>',
-                lambda e: self.canvas.config(cursor='hand2'))
+        # ===== 計時文字（倒數 / 正數）=====
+        self._paint_timer_text(painter, cw)
 
-    def _on_canvas_click(self, event):
-        """Canvas 點擊事件（判斷是否點在關閉按鈕上）"""
-        items = self.canvas.find_overlapping(event.x, event.y, event.x, event.y)
-        if self.close_border in items or self.close_btn in items:
+        # ===== 標題文字（僅 countdown 模式且有設定 title）=====
+        if self.title and not self.count_up:
+            self._paint_title_text(painter, cw)
+
+        # ===== 技能圖片（含遮罩）=====
+        if self._overlay_pixmap and not self._overlay_pixmap.isNull():
+            painter.drawPixmap(bw, iy0 + bw, self._overlay_pixmap)
+
+        # ===== 外層金色邊框 =====
+        border_color = self.GOLD_FLASH if self._flash_active else self.GOLD_BORDER
+        pen = QPen(QColor(border_color), bw)
+        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(bw // 2, iy0 + bw // 2,
+                         cw - bw, iy1 - iy0 - bw)
+
+        # ===== 內層暗金邊框 =====
+        ibw = self.INNER_BORDER_W
+        inner_pen = QPen(QColor(self.GOLD_BORDER_INNER), ibw)
+        inner_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        painter.setPen(inner_pen)
+        ib = bw + ibw // 2
+        painter.drawRect(ib, iy0 + ib, cw - ib * 2, iy1 - iy0 - ib * 2)
+
+        # ===== 關閉按鈕 =====
+        self._paint_close_btn(painter)
+
+        painter.end()
+
+    def _paint_timer_text(self, painter: QPainter, cw: int):
+        """繪製計時文字（附描邊）"""
+        text      = self._current_display_text
+        font_size = max(18, int(self.window_size * 0.4))
+        font      = QFont("Arial", font_size)
+        font.setBold(True)
+        painter.setFont(font)
+
+        text_rect = QRect(0, 0, cw, self._text_height)
+        flags     = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+
+        # 描邊（8 方向偏移）
+        offset = 2
+        painter.setPen(QColor(self.GOLD_OUTLINE))
+        for dx in (-offset, 0, offset):
+            for dy in (-offset, 0, offset):
+                if dx == 0 and dy == 0:
+                    continue
+                painter.drawText(text_rect.translated(dx, dy), flags, text)
+
+        # 主文字
+        painter.setPen(QColor(self.GOLD_TEXT))
+        painter.drawText(text_rect, flags, text)
+
+    def _paint_title_text(self, painter: QPainter, cw: int):
+        """繪製技能標題（緊貼圖片上方）"""
+        title_font_size = max(9, int(self.window_size * 0.17))
+        font            = QFont("Arial", title_font_size)
+        font.setBold(True)
+        painter.setFont(font)
+
+        title_rect = QRect(0,
+                           self._text_height,
+                           cw,
+                           self._title_height)
+        flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+
+        # 描邊
+        painter.setPen(QColor(self.GOLD_OUTLINE))
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                painter.drawText(title_rect.translated(dx, dy), flags, self.title)
+
+        # 主文字
+        painter.setPen(QColor(self.GOLD_TEXT))
+        painter.drawText(title_rect, flags, self.title)
+
+    def _paint_close_btn(self, painter: QPainter):
+        """繪製關閉按鈕"""
+        color   = QColor(self.GOLD_CLOSE_HOVER if self._close_hovered else self.GOLD_CLOSE)
+        pen     = QPen(color, 2)
+        painter.setPen(pen)
+        painter.drawRect(self._close_rect)
+
+        close_font = QFont("Arial", 10)
+        close_font.setBold(True)
+        painter.setFont(close_font)
+        painter.setPen(color)
+        painter.drawText(self._close_rect, Qt.AlignmentFlag.AlignCenter, "✕")
+
+    # --------------------------------------------------
+    # 閃爍邊框
+    # --------------------------------------------------
+
+    def _flash_tick(self):
+        """閃爍計時 tick（亮金 ↔ 原金切換）"""
+        if self._flash_count >= 6:
+            self._flash_active = False
+            self._flash_count  = 0
+            self._flash_timer.stop()
+            self.update()
             return
-        self._on_window_drag_start(event)
+        self._flash_active = (self._flash_count % 2 == 0)
+        self._flash_count += 1
+        self.update()
 
-    def _on_window_drag_start(self, event):
-        """拖曳開始"""
-        if self.on_drag_start:
-            self.on_drag_start(event)
+    # --------------------------------------------------
+    # 滑鼠事件（拖曳 + 關閉按鈕）
+    # --------------------------------------------------
 
-    def _on_window_drag_motion(self, event):
-        """拖曳中"""
+    def mousePressEvent(self, event):  # noqa: N802
+        """左鍵點擊：關閉按鈕判斷或開始拖曳"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._close_rect.contains(event.position().toPoint()):
+                self.close()
+            else:
+                gp = event.globalPosition().toPoint()
+                if self.on_drag_start:
+                    self.on_drag_start(gp.x(), gp.y())
+
+    def mouseMoveEvent(self, event):  # noqa: N802
+        """滑鼠移動：更新 hover 狀態並通知拖曳"""
+        pos         = event.position().toPoint()
+        new_hovered = self._close_rect.contains(pos)
+        if new_hovered != self._close_hovered:
+            self._close_hovered = new_hovered
+            self.update()
+
+        gp = event.globalPosition().toPoint()
         if self.on_drag_motion:
-            self.on_drag_motion(event)
+            self.on_drag_motion(gp.x(), gp.y())
 
-    def _on_window_drag_end(self, event):
-        """拖曳結束"""
-        if self.on_drag_end:
-            self.on_drag_end(event)
+    def mouseReleaseEvent(self, event):  # noqa: N802
+        """左鍵釋放：結束拖曳"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            gp = event.globalPosition().toPoint()
+            if self.on_drag_end:
+                self.on_drag_end(gp.x(), gp.y())
 
     # --------------------------------------------------
-    # Countdown Logic
+    # 倒數邏輯
     # --------------------------------------------------
+
     def start_countdown(self):
-        """開始倒數"""
+        """開始倒數/正數計時"""
         self.stop_countdown()
-        self.running = True
+        self.running        = True
         self.alert_triggered = False
-
-        self.start_time = time.perf_counter()
-        self.end_time = self.start_time + self.total
+        self.start_time     = time.perf_counter()
+        self.end_time       = self.start_time + self.total
 
         self._update_display()
         self._update_overlay(0)
-        self.after_id = self.window.after(100, self._tick)
+        self._timer.start(100)
 
     def stop_countdown(self):
-        """停止倒數"""
+        """停止計時"""
         self.running = False
-        if self.after_id:
-            self.window.after_cancel(self.after_id)
-            self.after_id = None
+        if self._timer.isActive():
+            self._timer.stop()
 
     def reset_countdown(self):
-        """重置並重新開始倒數"""
-        self.remaining = self.total
+        """重置並重新開始"""
+        self.remaining       = self.total
         self.alert_triggered = False
         self._last_overlay_degree = -1
         self._update_display()
         self.start_countdown()
 
     def restart_countdown(self):
-        """重新開始倒數"""
+        """重新開始計時（供 WindowManager 呼叫）"""
         self.reset_countdown()
 
     def _tick(self):
-        """計時器 tick（每 100ms 或 50ms 呼叫一次）"""
+        """計時 tick — 由 QTimer 觸發"""
         if not self.running:
             return
 
         current_time = time.perf_counter()
-        elapsed = current_time - self.start_time
+        elapsed      = current_time - self.start_time
 
         if self.count_up:
             self._tick_count_up(elapsed)
         else:
             self._tick_count_down(elapsed)
 
-    def _tick_count_up(self, elapsed):
-        """正數模式 tick — 從 0 數到目標"""
+    def _tick_count_up(self, elapsed: float):
+        """正數模式 tick — 從 0 數到目標時間"""
         elapsed_sec = int(elapsed)
-
-        # 計算遮罩進度（從 0 到 1）
-        progress = min(1.0, elapsed / self.total) if self.total > 0 else 1.0
+        progress    = min(1.0, elapsed / self.total) if self.total > 0 else 1.0
         self._update_overlay(progress)
 
-        # 提前提示：剩餘秒數 <= alert_before_seconds
+        # 提前提示
         remaining_to_target = self.total - elapsed_sec
-        if (self.alert_enabled and not self.alert_triggered and
-                self.alert_before_seconds > 0 and
-                0 < remaining_to_target <= self.alert_before_seconds):
+        if (self.alert_enabled and not self.alert_triggered
+                and self.alert_before_seconds > 0
+                and 0 < remaining_to_target <= self.alert_before_seconds):
             self._trigger_alert()
 
         if elapsed >= self.total:
-            # 到達目標
             self.remaining = self.total
             self._update_display_text(str(self.total))
             self._update_overlay(1.0)
             self._on_finish()
         else:
-            # 更新顯示
             if elapsed_sec != self.remaining:
                 self.remaining = elapsed_sec
                 self._update_display_text(str(self.remaining))
+            self._timer.start(100)
 
-            self.after_id = self.window.after(100, self._tick)
-
-    def _tick_count_down(self, elapsed):
-        """倒數模式 tick — 從目標數到 0"""
+    def _tick_count_down(self, elapsed: float):
+        """倒數模式 tick — 從目標時間數到 0"""
         raw_remaining = self.total - elapsed
-
-        # 計算遮罩進度
-        progress = min(1.0, elapsed / self.total) if self.total > 0 else 1.0
+        progress      = min(1.0, elapsed / self.total) if self.total > 0 else 1.0
         self._update_overlay(progress)
 
-        # 快秒顯示：<1 秒時顯示小數
         if 0 < raw_remaining < 1.0:
-            text = f"{raw_remaining:.1f}"
-            self._update_display_text(text)
+            # 快秒顯示（顯示小數）
+            self._update_display_text(f"{raw_remaining:.1f}")
 
-            # 檢查提前提示
             new_remaining = max(0, math.ceil(raw_remaining))
             if new_remaining != self.remaining:
                 self.remaining = new_remaining
                 self._check_alert()
 
-            # 更快的 tick 間隔使快秒動畫更流暢
-            self.after_id = self.window.after(50, self._tick)
+            self._timer.start(50)   # 快秒使用更短間隔
+
         elif raw_remaining <= 0:
-            # 倒數結束
             self.remaining = 0
             self._update_display_text("0")
             self._update_overlay(1.0)
             self._on_finish()
+
         else:
-            # 正常秒數顯示
             new_remaining = max(0, math.ceil(raw_remaining))
             if new_remaining != self.remaining:
                 self.remaining = new_remaining
                 self._update_display()
                 self._check_alert()
-
-            self.after_id = self.window.after(100, self._tick)
+            self._timer.start(100)
 
     def _check_alert(self):
         """檢查是否需要觸發提前提示"""
-        if (self.alert_enabled and
-            not self.alert_triggered and
-            self.alert_before_seconds > 0 and
-            self.remaining <= self.alert_before_seconds):
+        if (self.alert_enabled
+                and not self.alert_triggered
+                and self.alert_before_seconds > 0
+                and self.remaining <= self.alert_before_seconds):
             self._trigger_alert()
 
     def _on_finish(self):
-        """倒數結束處理"""
-        # 如果設為 0 秒提示，在結束時才觸發
+        """計時結束處理"""
+        # 若設定 0 秒提示，在結束時觸發
         if self.alert_enabled and not self.alert_triggered and self.alert_before_seconds == 0:
             self._trigger_alert()
 
@@ -545,38 +577,37 @@ class SkillWindow:
 
         if self.is_loop:
             self.running = False
-            if self.after_id:
-                self.window.after_cancel(self.after_id)
-                self.after_id = None
-
             import random
             delay = random.randint(50, 500)
-            self.window.after(delay, self._loop_restart)
+            QTimer.singleShot(delay, self._loop_restart)
+
         elif self.is_permanent and self.count_up:
-            # 常駐怪物：時間到後重置為 idle（遮罩清空，秒數歸零，等待下次按鍵）
-            self.running = False
+            # 常駐怪物：時間到後重置為 idle（等待下次按鍵）
+            self.running  = False
             self.remaining = 0
             self._last_overlay_degree = -1
             self._update_overlay(0)
             self._update_display_text("0")
+
         elif self.count_up:
-            # 非常駐怪物：時間到後停留在畫面上（遮罩全滿），不自動關閉
+            # 非常駐怪物：停留畫面（遮罩全滿，不自動關閉）
             self.running = False
+
         elif not self.is_permanent:
-            self.after_id = self.window.after(2000, self.close)
+            # 一般技能：2 秒後關閉
+            QTimer.singleShot(2000, self.close)
+
         else:
+            # 常駐技能：重置遮罩回待機狀態
             self._update_display()
-            # 常駐技能結束時重置遮罩
             self._last_overlay_degree = -1
             self._update_overlay(0)
 
     def _loop_restart(self):
-        """循環重新開始"""
-        self.start_time = time.perf_counter()
-        self.end_time = self.start_time + self.total
-
-        # count_up：elapsed 從 0 開始；countdown：remaining 從 total 開始
-        self.remaining = 0 if self.count_up else self.total
+        """循環模式：重新開始"""
+        self.start_time      = time.perf_counter()
+        self.end_time        = self.start_time + self.total
+        self.remaining       = 0 if self.count_up else self.total
         self.alert_triggered = False
         self._last_overlay_degree = -1
 
@@ -589,60 +620,80 @@ class SkillWindow:
     # --------------------------------------------------
     # 提前提示
     # --------------------------------------------------
+
     def _trigger_alert(self):
-        """觸發提前提示音和視窗"""
+        """觸發提前提示：閃爍邊框 + 音效"""
         self.alert_triggered = True
 
-        # 觸發邊框閃爍效果
-        self._flash_count = 0
-        self._flash_border()
+        # 開始邊框閃爍
+        self._flash_count  = 0
+        self._flash_active = True
+        self._flash_timer.start()
+        self.update()
 
         if self.enable_sound and self.sound_manager and self.alert_sound_filename:
             self.sound_manager.play_alert(self.alert_sound_filename)
 
         if self.on_alert:
-            self.on_alert(self.skill['name'])
+            self.on_alert(self.skill["name"])
 
     # --------------------------------------------------
-    # Utils
+    # 顯示輔助
     # --------------------------------------------------
+
     def _update_display(self):
-        """更新倒數秒數顯示"""
+        """根據 self.remaining 更新顯示文字"""
         text = "0" if self.remaining <= 0 else str(self.remaining)
         self._update_display_text(text)
 
-    def _update_display_text(self, text):
-        """更新所有顯示文字（count_up 模式無文字元件，直接略過）"""
-        if self.timer_text is None:
-            return
-        for item in self.canvas.find_withtag("timer_outline"):
-            self.canvas.itemconfig(item, text=text)
-        self.canvas.itemconfig(self.timer_text, text=text, fill=self.GOLD_TEXT)
+    def _update_display_text(self, text: str):
+        """更新顯示文字並觸發重繪
+
+        Args:
+            text: 要顯示的文字
+        """
+        if self._current_display_text != text:
+            self._current_display_text = text
+            self.update()
 
     def _play_sound(self):
         """播放完成音效"""
         if self.sound_manager and self.sound_filename:
             self.sound_manager.play(self.sound_filename)
 
-    def update_position(self, x, y):
-        """更新視窗位置"""
+    # --------------------------------------------------
+    # 外部 API
+    # --------------------------------------------------
+
+    def update_position(self, x: int, y: int):
+        """更新視窗位置（供 WindowManager.reposition_all 呼叫）
+
+        Args:
+            x: 螢幕 X 座標
+            y: 螢幕 Y 座標
+        """
         try:
-            self.window.geometry(f"+{x}+{y}")
+            self.move(x, y)
         except Exception:
             pass
 
+    # --------------------------------------------------
+    # 視窗關閉
+    # --------------------------------------------------
+
     def close(self):
-        """關閉視窗"""
+        """關閉視窗（停止計時 → 通知 WindowManager → 銷毀）"""
+        if self._closed:
+            return
+        self._closed = True
+
         self.stop_countdown()
-        # 取消閃爍動畫
-        if self._flash_after_id:
-            try:
-                self.window.after_cancel(self._flash_after_id)
-            except Exception:
-                pass
-            self._flash_after_id = None
+        if hasattr(self, "_flash_timer") and self._flash_timer.isActive():
+            self._flash_timer.stop()
+
         try:
-            self.window.destroy()
+            self.on_close(self)
         except Exception:
             pass
-        self.on_close(self)
+
+        super().close()

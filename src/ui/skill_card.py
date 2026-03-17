@@ -1,314 +1,273 @@
 """
-RPG 風格技能卡片元件
+RPG 風格技能卡片元件 — PySide6 版本
 三欄佈局：左(圖示+名稱) | 中(兩行控件) | 右(設定按鈕)
 """
 
-import customtkinter as ctk
+from PySide6.QtWidgets import (
+    QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QCheckBox, QWidget,
+    QSizePolicy,
+)
+from PySide6.QtCore import Qt
 from src.ui.theme import AppTheme
 
 
-class SkillCard(ctk.CTkFrame):
+class SkillCard(QFrame):
     """RPG 風格技能卡片 — 三欄佈局"""
 
+    CARD_HEIGHT = 66
+
     def __init__(self, parent, skill_id, skill, app):
-        super().__init__(
-            parent,
-            corner_radius=4,
-            fg_color=AppTheme.BG_CARD,
-            border_width=1,
-            border_color=AppTheme.BORDER_GOLD_SUBTLE,
-            height=56,
-        )
-        self.pack_propagate(False)
+        """初始化技能卡片
 
+        Args:
+            parent:   父元件
+            skill_id: 技能 ID
+            skill:    技能資料字典
+            app:      App 主應用實例
+        """
+        super().__init__(parent)
         self.skill_id = skill_id
-        self.skill = skill
-        self.app = app
+        self.skill    = skill
+        self.app      = app
 
+        self.setObjectName("skill_card")
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setFixedHeight(self.CARD_HEIGHT)
+        self.setStyleSheet(
+            f"QFrame#skill_card {{"
+            f" background-color: {AppTheme.BG_DEEP};"
+            f" border: 1px solid {AppTheme.GOLD_MUTED};"
+            f" border-radius: 4px; }}"
+            f"QFrame#skill_card:hover {{"
+            f" background-color: {AppTheme.BG_CARD};"
+            f" border: 1px solid {AppTheme.GOLD_PRIMARY}; }}"
+        )
         self._build_ui()
-
-        # Hover 效果
-        self.bind("<Enter>", self._on_enter)
-        self.bind("<Leave>", self._on_leave)
 
     def _build_ui(self):
         """建構卡片 UI — 左中右三欄"""
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 6, 4, 6)
+        layout.setSpacing(2)
 
-        # ===== 左欄：圖示 + 名稱 =====
-        icon_frame = ctk.CTkFrame(
-            self,
-            fg_color=AppTheme.BG_DEEP,
-            corner_radius=4,
-            width=40,
-            height=40,
-            border_width=1,
-            border_color=AppTheme.GOLD_MUTED,
+        # ===== 左欄：圖示框 =====
+        icon_frame = QFrame()
+        icon_frame.setFixedSize(46, 46)
+        icon_frame.setObjectName("card_icon")
+        icon_frame.setStyleSheet(
+            f"QFrame#card_icon {{"
+            f" background-color: {AppTheme.BG_DEEP};"
+            f" border: 1px solid {AppTheme.GOLD_MUTED}; border-radius: 3px; }}"
         )
-        icon_frame.pack(side="left", padx=(4, 0), pady=4)
-        icon_frame.pack_propagate(False)
+        icon_inner = QVBoxLayout(icon_frame)
+        icon_inner.setContentsMargins(3, 3, 3, 3)
+        icon_inner.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        ctk_img = self.app.skill_manager.ctk_images_card.get(self.skill_id)
-        if ctk_img:
-            ctk.CTkLabel(icon_frame, image=ctk_img, text="").place(
-                relx=0.5, rely=0.5, anchor="center"
-            )
+        # 技能圖片（36×36 卡片尺寸）
+        qpixmap = self.app.skill_manager.qpixmaps_card.get(self.skill_id)
+        if qpixmap and not qpixmap.isNull():
+            img_lbl = QLabel()
+            img_lbl.setPixmap(qpixmap)
+            img_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            img_lbl.setStyleSheet("background: transparent; border: none;")
+            icon_inner.addWidget(img_lbl)
 
-        # 狀態圓點
-        self._build_status_dots(icon_frame)
+        layout.addWidget(icon_frame)
+        layout.addSpacing(4)
 
-        # 名稱（固定寬度，靠左對齊）
-        ctk.CTkLabel(
-            self,
-            text=self.skill["name"],
-            font=AppTheme.FONT_CARD_NAME,
-            text_color=AppTheme.TEXT_GOLD,
-            anchor="w",
-            width=58,
-        ).pack(side="left", padx=(5, 0))
-
-        # ===== 右欄：設定按鈕 (固定寬度) =====
-        right = ctk.CTkFrame(self, fg_color="transparent", width=28)
-        right.pack(side="right", fill="y", padx=(0, 2), pady=4)
-        right.pack_propagate(False)
-
-        ctk.CTkButton(
-            right,
-            text="⋮",
-            command=lambda: self.app.show_skill_detail(self.skill_id),
-            width=22,
-            height=40,
-            corner_radius=3,
-            fg_color="transparent",
-            hover_color=AppTheme.BG_TERTIARY,
-            text_color=AppTheme.TEXT_MUTED,
-            font=(AppTheme.FONT_FAMILY, 14),
-        ).place(relx=0.5, rely=0.5, anchor="center")
+        # 名稱標籤（固定寬度，靠左對齊）
+        name_lbl = QLabel(self.skill.get("name", ""))
+        name_lbl.setFixedWidth(58)
+        name_lbl.setWordWrap(True)
+        name_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        name_lbl.setStyleSheet(
+            f"color: {AppTheme.TEXT_GOLD}; font-size: 12px; font-weight: bold;"
+            f" background: transparent; border: none;"
+        )
+        layout.addWidget(name_lbl)
+        layout.addSpacing(2)
 
         # ===== 中欄：兩行控件（垂直置中）=====
-        center = ctk.CTkFrame(self, fg_color="transparent")
-        center.pack(side="left", fill="both", expand=True, padx=(4, 0), pady=4)
-
-        # 用 place 把內容容器垂直置中
-        inner = ctk.CTkFrame(center, fg_color="transparent")
-        inner.place(relx=0, rely=0.5, anchor="w")
+        center = QWidget()
+        center.setStyleSheet("background: transparent;")
+        center.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        center_layout = QVBoxLayout(center)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(2)
+        center_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # --- 第一行：冷卻秒數 ↺ | 快捷鍵 ↺ ---
-        mid_row1 = ctk.CTkFrame(inner, fg_color="transparent")
-        mid_row1.pack(anchor="w", pady=(0, 1))
+        row1 = QWidget()
+        row1.setStyleSheet("background: transparent;")
+        r1 = QHBoxLayout(row1)
+        r1.setContentsMargins(0, 0, 0, 0)
+        r1.setSpacing(1)
 
         original_cooldown = self.app.get_original_cooldown(self.skill_id)
-        is_modified = (
-            original_cooldown and self.skill["cooldown"] != original_cooldown
+        is_modified = bool(
+            original_cooldown and self.skill.get("cooldown") != original_cooldown
         )
 
-        self.cooldown_btn = ctk.CTkButton(
-            mid_row1,
-            text=f"{self.skill['cooldown']}秒",
-            command=lambda: self.app.edit_cooldown(self.skill_id),
-            width=50,
-            height=18,
-            corner_radius=3,
-            fg_color=(
-                AppTheme.ACCENT_BLUE if is_modified else AppTheme.BG_TERTIARY
-            ),
-            hover_color=(
-                "#2563eb" if is_modified else AppTheme.BG_SECONDARY
-            ),
-            text_color=AppTheme.TEXT_PRIMARY,
-            font=AppTheme.FONT_CARD_BADGE,
+        self.cooldown_btn = QPushButton(f"{self.skill.get('cooldown', 0)}秒")
+        self.cooldown_btn.setFixedSize(42, 20)
+        self.cooldown_btn.clicked.connect(lambda: self.app.edit_cooldown(self.skill_id))
+        self.app._apply_btn_style(
+            self.cooldown_btn,
+            bg    = AppTheme.ACCENT_BLUE if is_modified else AppTheme.BG_TERTIARY,
+            fg    = AppTheme.TEXT_PRIMARY,
+            hover = "#2563eb"            if is_modified else AppTheme.BG_SECONDARY,
         )
-        self.cooldown_btn.pack(side="left", padx=(0, 1))
+        r1.addWidget(self.cooldown_btn)
         self.app.cooldown_buttons[self.skill_id] = self.cooldown_btn
 
-        ctk.CTkButton(
-            mid_row1,
-            text="↺",
-            command=lambda: self.app.reset_cooldown(self.skill_id),
-            width=16,
-            height=18,
-            corner_radius=3,
-            fg_color="transparent",
-            hover_color=AppTheme.ACCENT_RED,
-            text_color=AppTheme.TEXT_MUTED,
-            font=AppTheme.FONT_CARD_BADGE,
-        ).pack(side="left", padx=(0, 6))
-
-        # 快捷鍵
-        hotkey_text = self.skill.get("hotkey", "") or "未設定"
-        has_hotkey = bool(self.skill.get("hotkey"))
-
-        self.hotkey_btn = ctk.CTkButton(
-            mid_row1,
-            text=hotkey_text,
-            command=lambda: self.app.hotkey_manager.begin_capture(
-                self.skill_id, self.skill["name"]
-            ),
-            width=54,
-            height=18,
-            corner_radius=3,
-            fg_color=(
-                AppTheme.ACCENT_YELLOW if has_hotkey else AppTheme.BG_TERTIARY
-            ),
-            hover_color=(
-                "#e5a800" if has_hotkey else AppTheme.BG_SECONDARY
-            ),
-            text_color=(
-                "#000000" if has_hotkey else AppTheme.TEXT_MUTED
-            ),
-            font=AppTheme.FONT_CARD_BADGE,
+        reset_cd = QPushButton("↺")
+        reset_cd.setFixedSize(26, 20)
+        reset_cd.setToolTip("重置冷卻秒數")
+        reset_cd.clicked.connect(lambda: self.app.reset_cooldown(self.skill_id))
+        reset_cd.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {AppTheme.TEXT_SECONDARY}; font-size: 13px; }}"
+            f"QPushButton:hover {{ color: {AppTheme.ACCENT_RED};"
+            f" background: {AppTheme.BG_TERTIARY}; border-radius: 3px; }}"
         )
-        self.hotkey_btn.pack(side="left", padx=(0, 1))
+        r1.addWidget(reset_cd)
+        r1.addSpacing(2)
+
+        hotkey_text = self.skill.get("hotkey", "") or "未設定"
+        has_hotkey  = bool(self.skill.get("hotkey"))
+
+        self.hotkey_btn = QPushButton(hotkey_text)
+        self.hotkey_btn.setFixedSize(46, 20)
+        self.hotkey_btn.clicked.connect(
+            lambda: self.app.hotkey_manager.begin_capture(
+                self.skill_id, self.skill["name"]
+            )
+        )
+        self.app._apply_btn_style(
+            self.hotkey_btn,
+            bg    = AppTheme.ACCENT_YELLOW      if has_hotkey else AppTheme.BG_TERTIARY,
+            fg    = "#000000"                   if has_hotkey else AppTheme.TEXT_MUTED,
+            hover = AppTheme.ACCENT_YELLOW_HOVER if has_hotkey else AppTheme.BG_SECONDARY,
+        )
+        r1.addWidget(self.hotkey_btn)
         self.app.hotkey_buttons[self.skill_id] = self.hotkey_btn
 
-        ctk.CTkButton(
-            mid_row1,
-            text="↺",
-            command=lambda: self.app.reset_hotkey(self.skill_id),
-            width=16,
-            height=18,
-            corner_radius=3,
-            fg_color="transparent",
-            hover_color=AppTheme.ACCENT_RED,
-            text_color=AppTheme.TEXT_MUTED,
-            font=AppTheme.FONT_CARD_BADGE,
-        ).pack(side="left")
+        reset_hk = QPushButton("↺")
+        reset_hk.setFixedSize(26, 20)
+        reset_hk.setToolTip("清除快捷鍵")
+        reset_hk.clicked.connect(lambda: self.app.reset_hotkey(self.skill_id))
+        reset_hk.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {AppTheme.TEXT_SECONDARY}; font-size: 13px; }}"
+            f"QPushButton:hover {{ color: {AppTheme.ACCENT_RED};"
+            f" background: {AppTheme.BG_TERTIARY}; border-radius: 3px; }}"
+        )
+        r1.addWidget(reset_hk)
+        r1.addStretch()
+
+        center_layout.addWidget(row1)
 
         # --- 第二行：常駐 | 循環 | 提醒 | 秒數 ---
-        mid_row2 = ctk.CTkFrame(inner, fg_color="transparent")
-        mid_row2.pack(anchor="w", pady=(1, 0))
+        row2 = QWidget()
+        row2.setStyleSheet("background: transparent;")
+        r2 = QHBoxLayout(row2)
+        r2.setContentsMargins(0, 0, 0, 0)
+        r2.setSpacing(2)
 
-        # 常駐
-        self.permanent_var = ctk.BooleanVar(
-            value=self.app.skill_permanent.get(self.skill_id, False)
+        # checkbox 共用樣式
+        _CB_STYLE = (
+            f"QCheckBox {{ color: {AppTheme.TEXT_SECONDARY}; font-size: 11px;"
+            f" background: transparent; spacing: 3px; }}"
+            f"QCheckBox::indicator {{ width: 13px; height: 13px; border-radius: 3px;"
+            f" border: 1px solid {AppTheme.GOLD_MUTED}; background: {AppTheme.BG_TERTIARY}; }}"
+            f"QCheckBox::indicator:hover {{ border-color: {AppTheme.GOLD_PRIMARY}; }}"
         )
-        self.app.permanent_vars[self.skill_id] = self.permanent_var
 
-        ctk.CTkCheckBox(
-            mid_row2,
-            text="常駐",
-            variable=self.permanent_var,
-            command=lambda: self.app.update_skill_setting_exclusive(
-                self.skill_id, "permanent", self.permanent_var
-            ),
-            width=46,
-            height=16,
-            checkbox_width=12,
-            checkbox_height=12,
-            corner_radius=2,
-            fg_color=AppTheme.ACCENT_YELLOW,
-            hover_color="#e5a800",
-            text_color=AppTheme.TEXT_SECONDARY,
-            font=AppTheme.FONT_CARD_BADGE,
-        ).pack(side="left", padx=(0, 2))
-
-        # 循環
-        self.loop_var = ctk.BooleanVar(
-            value=self.app.skill_loop.get(self.skill_id, False)
+        # 常駐 Checkbox
+        permanent_cb = QCheckBox("常駐")
+        permanent_cb.setChecked(self.app.skill_permanent.get(self.skill_id, False))
+        permanent_cb.setStyleSheet(
+            _CB_STYLE +
+            f"QCheckBox::indicator:checked {{"
+            f" background: {AppTheme.ACCENT_YELLOW}; border-color: {AppTheme.ACCENT_YELLOW}; }}"
         )
-        self.app.loop_vars[self.skill_id] = self.loop_var
-
-        ctk.CTkCheckBox(
-            mid_row2,
-            text="循環",
-            variable=self.loop_var,
-            command=lambda: self.app.update_skill_setting_exclusive(
-                self.skill_id, "loop", self.loop_var
-            ),
-            width=46,
-            height=16,
-            checkbox_width=12,
-            checkbox_height=12,
-            corner_radius=2,
-            fg_color=AppTheme.ACCENT_GREEN,
-            hover_color="#0d9668",
-            text_color=AppTheme.TEXT_SECONDARY,
-            font=AppTheme.FONT_CARD_BADGE,
-        ).pack(side="left", padx=(0, 2))
-
-        # 提醒
-        self.alert_var = ctk.BooleanVar(
-            value=self.app.skill_alert_enabled.get(self.skill_id, False)
+        permanent_cb.stateChanged.connect(
+            lambda: self.app.update_skill_setting_exclusive(
+                self.skill_id, "permanent", permanent_cb
+            )
         )
-        self.app.alert_enabled_vars[self.skill_id] = self.alert_var
+        r2.addWidget(permanent_cb)
+        self.app.permanent_vars[self.skill_id] = permanent_cb
 
-        ctk.CTkCheckBox(
-            mid_row2,
-            text="提醒",
-            variable=self.alert_var,
-            command=lambda: self.app.update_alert_setting(
-                self.skill_id, self.alert_var
-            ),
-            width=46,
-            height=16,
-            checkbox_width=12,
-            checkbox_height=12,
-            corner_radius=2,
-            fg_color=AppTheme.ACCENT_ORANGE,
-            hover_color="#e07a2a",
-            text_color=AppTheme.TEXT_SECONDARY,
-            font=AppTheme.FONT_CARD_BADGE,
-        ).pack(side="left", padx=(0, 3))
-
-        # 提前提示秒數
-        alert_seconds = self.app.skill_alert_seconds_overrides.get(
-            self.skill_id, None
+        # 循環 Checkbox
+        loop_cb = QCheckBox("循環")
+        loop_cb.setChecked(self.app.skill_loop.get(self.skill_id, False))
+        loop_cb.setStyleSheet(
+            _CB_STYLE +
+            f"QCheckBox::indicator:checked {{"
+            f" background: {AppTheme.ACCENT_GREEN}; border-color: {AppTheme.ACCENT_GREEN}; }}"
         )
+        loop_cb.stateChanged.connect(
+            lambda: self.app.update_skill_setting_exclusive(
+                self.skill_id, "loop", loop_cb
+            )
+        )
+        r2.addWidget(loop_cb)
+        self.app.loop_vars[self.skill_id] = loop_cb
+
+        # 提醒 Checkbox
+        alert_cb = QCheckBox("提醒")
+        alert_cb.setChecked(self.app.skill_alert_enabled.get(self.skill_id, False))
+        alert_cb.setStyleSheet(
+            _CB_STYLE +
+            f"QCheckBox::indicator:checked {{"
+            f" background: {AppTheme.ACCENT_ORANGE}; border-color: {AppTheme.ACCENT_ORANGE}; }}"
+        )
+        alert_cb.stateChanged.connect(
+            lambda: self.app.update_alert_setting(self.skill_id, alert_cb)
+        )
+        r2.addWidget(alert_cb)
+        self.app.alert_enabled_vars[self.skill_id] = alert_cb
+
+        # 提前提示秒數按鈕
+        alert_seconds = self.app.skill_alert_seconds_overrides.get(self.skill_id, None)
         if alert_seconds is not None:
-            alert_text = f"{alert_seconds}s"
-            alert_fg = AppTheme.ACCENT_ORANGE
+            alert_text  = f"{alert_seconds}s"
+            alert_bg    = AppTheme.ACCENT_ORANGE
             alert_hover = "#e07a2a"
         else:
-            global_val = self.app.alert_before_seconds
-            alert_text = f"{global_val}s"
-            alert_fg = AppTheme.BG_TERTIARY
+            alert_text  = f"{self.app.alert_before_seconds}s"
+            alert_bg    = AppTheme.BG_TERTIARY
             alert_hover = AppTheme.BG_SECONDARY
 
-        self.alert_seconds_btn = ctk.CTkButton(
-            mid_row2,
-            text=alert_text,
-            command=lambda: self.app.edit_alert_seconds(self.skill_id),
-            width=28,
-            height=16,
-            corner_radius=3,
-            fg_color=alert_fg,
-            hover_color=alert_hover,
-            text_color=AppTheme.TEXT_PRIMARY,
-            font=AppTheme.FONT_CARD_BADGE,
+        self.alert_seconds_btn = QPushButton(alert_text)
+        self.alert_seconds_btn.setFixedSize(30, 18)
+        self.alert_seconds_btn.clicked.connect(
+            lambda: self.app.edit_alert_seconds(self.skill_id)
         )
-        self.alert_seconds_btn.pack(side="left")
+        self.app._apply_btn_style(
+            self.alert_seconds_btn, bg=alert_bg, hover=alert_hover
+        )
+        r2.addWidget(self.alert_seconds_btn)
         self.app.alert_seconds_buttons[self.skill_id] = self.alert_seconds_btn
 
-    def _build_status_dots(self, icon_frame):
-        """在圖示右上角放置狀態圓點"""
-        dot_frame = ctk.CTkFrame(icon_frame, fg_color="transparent")
-        dot_frame.place(relx=1.0, rely=0.0, anchor="ne", x=-1, y=1)
+        r2.addStretch()
+        center_layout.addWidget(row2)
 
-        is_permanent = self.app.skill_permanent.get(self.skill_id, False)
-        is_loop = self.app.skill_loop.get(self.skill_id, False)
-        is_alert = self.app.skill_alert_enabled.get(self.skill_id, False)
+        layout.addWidget(center)
 
-        dots = [
-            (is_permanent, AppTheme.STATUS_PERMANENT, AppTheme.STATUS_PERMANENT_DIM),
-            (is_loop, AppTheme.STATUS_LOOP, AppTheme.STATUS_LOOP_DIM),
-            (is_alert, AppTheme.STATUS_ALERT, AppTheme.STATUS_ALERT_DIM),
-        ]
-
-        for active, color_on, color_off in dots:
-            ctk.CTkFrame(
-                dot_frame,
-                width=5,
-                height=5,
-                corner_radius=3,
-                fg_color=color_on if active else color_off,
-            ).pack(side="left", padx=0)
-
-    # --------------------------------------------------
-    # 互動事件
-    # --------------------------------------------------
-    def _on_enter(self, event):
-        """滑鼠進入 — 金色邊框"""
-        self.configure(border_color=AppTheme.GOLD_PRIMARY)
-
-    def _on_leave(self, event):
-        """滑鼠離開 — 恢復柔和邊框"""
-        self.configure(border_color=AppTheme.BORDER_GOLD_SUBTLE)
+        # ===== 右欄：設定按鈕（⋮）=====
+        settings_btn = QPushButton("⋮")
+        settings_btn.setFixedSize(24, 44)
+        settings_btn.setToolTip("技能詳細設定")
+        settings_btn.clicked.connect(
+            lambda: self.app.show_skill_detail(self.skill_id)
+        )
+        settings_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {AppTheme.TEXT_SECONDARY}; font-size: 16px; }}"
+            f"QPushButton:hover {{"
+            f" background: {AppTheme.BG_TERTIARY}; color: {AppTheme.GOLD_PRIMARY};"
+            f" border-radius: 4px; }}"
+        )
+        layout.addWidget(settings_btn)

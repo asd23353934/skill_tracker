@@ -32,6 +32,15 @@ if errorlevel 1 (
 )
 echo.
 
+echo 📋 Step 4: 複製資源並壓縮 ZIP
+python zip_release.py
+if errorlevel 1 (
+    echo ❌ 壓縮失敗！
+    pause
+    exit /b 1
+)
+echo.
+
 echo ========================================
 echo ✅ 發布完成！
 echo ========================================
@@ -39,8 +48,8 @@ echo.
 echo 📦 打包結果: dist\技能追蹤器\
 echo.
 echo 📋 接下來的步驟:
-echo   1. 測試: cd dist\技能追蹤器 ^&^& 技能追蹤器.exe
-echo   2. 壓縮為 ZIP
+echo   1. 測試: dist\技能追蹤器\技能追蹤器.exe
+echo   2. 上傳: dist\技能追蹤器_v*.zip 到 GitHub Release
 echo   3. 創建 GitHub Release
 echo.
 pause

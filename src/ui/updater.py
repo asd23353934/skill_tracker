@@ -94,7 +94,8 @@ class Updater:
                 # 備用：若 assets 未列出，依已知命名規則組合 URL
                 fallback_url = (
                     f"https://github.com/asd23353934/skill_tracker"
-                    f"/releases/download/{latest_tag}/default.7z"
+                    f"/releases/download/v{latest_tag}"
+                    f"/技能追蹤器_v{latest_tag}.zip"
                 )
                 self.download_url = exe_url or archive_url or fallback_url
 

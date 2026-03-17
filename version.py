@@ -4,10 +4,26 @@
 """
 
 # 當前版本
-VERSION = "2.1.5"
+VERSION = "3.0.0"
 
 # 版本歷史
 CHANGELOG = """
+v3.0.0 (2026-03-17)
+-------------------
+- 🎉 GUI 框架全面移植至 PySide6（原 customtkinter），架構重寫
+- ✨ 新增浮動圖片頁（OverlayPage）— 支援 PNG / JPG / GIF 動畫覆蓋於畫面
+- ✨ 新增底部狀態列（StatusBar）— 顯示配置名稱、版本號、拖曳縮放控制點
+- ✨ 新增左側導覽列（Sidebar）— 技能倒數 / 怪物重生 / 浮動圖片頁面切換
+- ✨ 新增 zip_release.py，打包後一鍵壓縮為發布用 ZIP
+- ✨ 發布流程強化：clean / check 腳本補上 overlays 清空與驗證
+- 🐛 修復自動更新 ZIP 解壓縮路徑錯誤（雙層目錄問題）
+- 🐛 修復自動更新 fallback URL 名稱與實際 ZIP 不符
+- 🐛 修復 overlay 頁縮圖顯示佔位符，改為讀取實際圖片
+- 🐛 修復發布前未清空 overlays 記錄，導致 dist 無法顯示圖片
+- 🐛 修復 skill_window mouseMoveEvent event.pos() PySide6 相容性錯誤
+- 🐛 修復最小化按鈕符號垂直位置偏下
+- ✨ Header / StatusBar 分隔線改為極細半透明金色
+
 v2.1.5 (2026-03-04)
 -------------------
 - 🐛 測試自動更新
