@@ -95,7 +95,7 @@ class Updater:
                 fallback_url = (
                     f"https://github.com/asd23353934/skill_tracker"
                     f"/releases/download/v{latest_tag}"
-                    f"/技能追蹤器_v{latest_tag}.zip"
+                    f"/skill_tracker_v{latest_tag}.zip"
                 )
                 self.download_url = exe_url or archive_url or fallback_url
 

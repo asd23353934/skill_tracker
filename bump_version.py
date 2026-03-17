@@ -75,8 +75,8 @@ def update_readme(new_version):
         
         # 更新下載連結中的版本
         content = re.sub(
-            r'技能追蹤器_v[0-9.]+',
-            f'技能追蹤器_v{new_version}',
+            r'skill_tracker_v[0-9.]+',
+            f'skill_tracker_v{new_version}',
             content
         )
         
@@ -214,10 +214,10 @@ def main():
     print("  2. 運行: python check_release.py")
     print("  3. 打包: pyinstaller skill_tracker.spec")
     print("  4. 壓縮: python zip_release.py")
-    print(f"  5. 測試 dist/技能追蹤器_v{new_version}.zip")
+    print(f"  5. 測試 dist/skill_tracker_v{new_version}.zip")
     print(f"  6. 創建 Git tag: git tag v{new_version}")
     print(f"  7. 推送: git push origin v{new_version}")
-    print(f"  8. 在 GitHub 創建 Release，上傳 dist/技能追蹤器_v{new_version}.zip")
+    print(f"  8. 在 GitHub 創建 Release，上傳 dist/skill_tracker_v{new_version}.zip")
     print()
     
     return 0

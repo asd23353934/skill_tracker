@@ -32,7 +32,7 @@ def zip_release() -> int:
     """
     version = get_version()
     src_dir = os.path.join("dist", "技能追蹤器")
-    zip_name = f"技能追蹤器_v{version}.zip"
+    zip_name = f"skill_tracker_v{version}.zip"
     zip_path = os.path.join("dist", zip_name)
 
     print("=" * 55)

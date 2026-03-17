@@ -150,7 +150,7 @@ class UpdateDialog(BaseDialog):
                 url = (
                     f"https://github.com/asd23353934/skill_tracker"
                     f"/releases/download/v{latest}"
-                    f"/技能追蹤器_v{latest}.zip"
+                    f"/skill_tracker_v{latest}.zip"
                 )
         if not url:
             self._set_status("找不到下載連結，請手動下載", AppTheme.ACCENT_RED)
