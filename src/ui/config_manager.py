@@ -4,7 +4,10 @@
 """
 
 import json
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
@@ -83,8 +86,27 @@ class ConfigManager:
             self.config['settings'] = {}
         self.config['settings'][key] = value
     
+    # ==================== 內部工具 ====================
+
+    @staticmethod
+    def _validate_filename(name: str) -> bool:
+        """驗證存檔名稱安全性，防止 Path Traversal 攻擊
+
+        Args:
+            name: 待驗證的名稱（不含副檔名）
+
+        Returns:
+            合法回傳 True，否則回傳 False
+        """
+        if not name:
+            return False
+        # 不允許路徑分隔符、相對路徑符號、空字串
+        if any(c in name for c in ("/", "\\", "..")):
+            return False
+        return True
+
     # ==================== 配置檔案管理 ====================
-    
+
     def list_profiles(self):
         """列出所有配置檔案"""
         if not os.path.exists(self.profiles_dir):
@@ -97,24 +119,28 @@ class ConfigManager:
     
     def save_profile(self, profile_name, skill_settings):
         """儲存配置檔案
-        
+
         Args:
-            profile_name: 配置名稱
+            profile_name:   配置名稱
             skill_settings: 技能設定字典
-        
+
         Returns:
             成功返回 True，失敗返回 False
         """
+        if not self._validate_filename(profile_name):
+            logger.warning("save_profile: 非法配置名稱 %r", profile_name)
+            return False
         profile_path = os.path.join(self.profiles_dir, f"{profile_name}.json")
         try:
             with open(profile_path, 'w', encoding='utf-8') as f:
                 json.dump(skill_settings, f, ensure_ascii=False, indent=2)
             return True
         except Exception:
+            logger.exception("save_profile: 儲存失敗 name=%r", profile_name)
             return False
 
     def load_profile(self, profile_name):
-        """載入配置檔案
+        """載入配置檔案，並補足缺少的結構欄位
 
         Args:
             profile_name: 配置名稱
@@ -122,11 +148,21 @@ class ConfigManager:
         Returns:
             成功返回設定字典，失敗返回 None
         """
+        if not self._validate_filename(profile_name):
+            logger.warning("load_profile: 非法配置名稱 %r", profile_name)
+            return None
         profile_path = os.path.join(self.profiles_dir, f"{profile_name}.json")
         try:
             with open(profile_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+            # 結構驗證：確保必要欄位存在（填入空字典預設值）
+            for key in ("hotkeys", "permanent", "loop", "alert_enabled", "cooldown_overrides"):
+                if key not in data:
+                    logger.debug("load_profile: 補足缺少欄位 %r in %r", key, profile_name)
+                    data[key] = {}
+            return data
         except Exception:
+            logger.exception("load_profile: 載入失敗 name=%r", profile_name)
             return None
 
     def delete_profile(self, profile_name):
@@ -138,11 +174,15 @@ class ConfigManager:
         Returns:
             成功返回 True，失敗返回 False
         """
+        if not self._validate_filename(profile_name):
+            logger.warning("delete_profile: 非法配置名稱 %r", profile_name)
+            return False
         profile_path = os.path.join(self.profiles_dir, f"{profile_name}.json")
         try:
             os.remove(profile_path)
             return True
         except Exception:
+            logger.exception("delete_profile: 刪除失敗 name=%r", profile_name)
             return False
 
     def rename_profile(self, old_name, new_name):
@@ -155,12 +195,16 @@ class ConfigManager:
         Returns:
             成功返回 True，失敗返回 False
         """
+        if not self._validate_filename(old_name) or not self._validate_filename(new_name):
+            logger.warning("rename_profile: 非法名稱 %r → %r", old_name, new_name)
+            return False
         old_path = os.path.join(self.profiles_dir, f"{old_name}.json")
         new_path = os.path.join(self.profiles_dir, f"{new_name}.json")
         try:
             os.rename(old_path, new_path)
             return True
         except Exception:
+            logger.exception("rename_profile: 重命名失敗 %r → %r", old_name, new_name)
             return False
     
     def get_current_profile(self):
@@ -185,8 +229,118 @@ class ConfigManager:
                 'cooldown_overrides': {}  # 使用 config.json 中的原始秒數
             }
             self.save_profile(default_name, default_settings)
-        
+
         # 如果沒有當前配置，設定為預設配置
         if not self.get_current_profile():
             self.set_current_profile(default_name)
+
+    # ==================== 練功水錢存檔管理 ====================
+
+    def _potion_saves_dir(self) -> str:
+        """建立並回傳練功水錢存檔目錄的絕對路徑"""
+        path = os.path.join(os.path.dirname(self.config_path), "potion_saves")
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+
+    def list_potion_saves(self) -> list:
+        """列出所有練功水錢存檔名稱，按修改時間倒序排列
+
+        Returns:
+            名稱列表（不含 .json，最新在前）
+        """
+        saves_dir = self._potion_saves_dir()
+        entries = []
+        for filename in os.listdir(saves_dir):
+            if filename.endswith(".json"):
+                full_path = os.path.join(saves_dir, filename)
+                mtime = os.path.getmtime(full_path)
+                entries.append((filename[:-5], mtime))
+        entries.sort(key=lambda x: x[1], reverse=True)
+        return [name for name, _ in entries]
+
+    def save_potion_record(self, name: str, data: dict) -> bool:
+        """儲存練功水錢紀錄
+
+        Args:
+            name: 存檔名稱（不含 .json）
+            data: 完整表單資料字典
+
+        Returns:
+            成功返回 True，失敗返回 False
+        """
+        if not self._validate_filename(name):
+            logger.warning("save_potion_record: 非法名稱 %r", name)
+            return False
+        path = os.path.join(self._potion_saves_dir(), f"{name}.json")
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception:
+            logger.exception("save_potion_record: 儲存失敗 name=%r", name)
+            return False
+
+    def load_potion_record(self, name: str):
+        """載入練功水錢紀錄
+
+        Args:
+            name: 存檔名稱
+
+        Returns:
+            資料字典，載入失敗返回 None
+        """
+        if not self._validate_filename(name):
+            logger.warning("load_potion_record: 非法名稱 %r", name)
+            return None
+        path = os.path.join(self._potion_saves_dir(), f"{name}.json")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            logger.exception("load_potion_record: 載入失敗 name=%r", name)
+            return None
+
+    def delete_potion_record(self, name: str) -> bool:
+        """刪除練功水錢紀錄
+
+        Args:
+            name: 存檔名稱
+
+        Returns:
+            成功返回 True，失敗返回 False
+        """
+        if not self._validate_filename(name):
+            logger.warning("delete_potion_record: 非法名稱 %r", name)
+            return False
+        path = os.path.join(self._potion_saves_dir(), f"{name}.json")
+        try:
+            os.remove(path)
+            return True
+        except Exception:
+            logger.exception("delete_potion_record: 刪除失敗 name=%r", name)
+            return False
+
+    def rename_potion_record(self, old_name: str, new_name: str) -> bool:
+        """重命名練功水錢紀錄
+
+        Args:
+            old_name: 舊名稱
+            new_name: 新名稱
+
+        Returns:
+            成功返回 True，失敗返回 False
+        """
+        if not self._validate_filename(old_name) or not self._validate_filename(new_name):
+            logger.warning("rename_potion_record: 非法名稱 %r → %r", old_name, new_name)
+            return False
+        saves_dir = self._potion_saves_dir()
+        old_path = os.path.join(saves_dir, f"{old_name}.json")
+        new_path = os.path.join(saves_dir, f"{new_name}.json")
+        try:
+            os.rename(old_path, new_path)
+            return True
+        except Exception:
+            logger.exception("rename_potion_record: 重命名失敗 %r → %r", old_name, new_name)
+            return False
 

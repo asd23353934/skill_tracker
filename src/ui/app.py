@@ -23,7 +23,7 @@ from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
 from src.ui.header import Header
 from src.ui.status_bar import StatusBar
-from src.ui.pages import SkillPage, MonsterPage, OverlayPage
+from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, RojaPage
 from src.ui.helpers import resource_path
 from src.ui.toast import ToastManager
 
@@ -307,6 +307,14 @@ class App(QMainWindow):
         self.page_stack.addWidget(self.overlay_page)
         self.pages["overlay"] = self.overlay_page
 
+        self.potion_page = PotionCostPage(self.page_stack, self)
+        self.page_stack.addWidget(self.potion_page)
+        self.pages["potion"] = self.potion_page
+
+        self.roja_page = RojaPage(self.page_stack, self)
+        self.page_stack.addWidget(self.roja_page)
+        self.pages["roja"] = self.roja_page
+
         # 預設顯示技能頁
         self._switch_page("skill")
 
@@ -314,7 +322,7 @@ class App(QMainWindow):
         """切換頁面（QStackedWidget 不銷毀/重建，無閃爍）
 
         Args:
-            page_name: 'skill' | 'monster' | 'overlay'
+            page_name: 'skill' | 'monster' | 'overlay' | 'potion'
         """
         if page_name in self.pages:
             self.page_stack.setCurrentWidget(self.pages[page_name])

@@ -199,7 +199,7 @@ class SkillWindow(QWidget):
             self._title_height = 0
         else:
             self._title_height = max(18, int(ws * 0.28)) if self.title else 0
-            self._text_height  = int(ws * 0.4)
+            self._text_height  = int(ws * 0.5)  # 與怪物視窗一致，確保圖片區域對齊
 
         self._img_y0     = self._text_height + self._title_height
         self._img_y1     = self._img_y0 + ws + bw * 2

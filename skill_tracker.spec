@@ -12,6 +12,7 @@ a = Analysis(
         ('profiles',            'profiles'),
         ('version.py',          '.'),
         ('update_launcher.bat', '.'),
+        ('update_launcher.ps1', '.'),
     ],
     hiddenimports=[
         # pynput Windows 後端

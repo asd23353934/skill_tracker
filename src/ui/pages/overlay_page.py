@@ -202,63 +202,50 @@ class OverlayPage(QWidget):
     def _build_ui(self):
         """建構頁面 UI"""
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(10, 10, 10, 10)
-        outer.setSpacing(8)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
         # ── 頂部標題列 ──
-        hdr_outer = QFrame()
-        hdr_outer.setObjectName("overlay_hdr_outer")
-        hdr_outer.setFixedHeight(56)
-        hdr_outer.setStyleSheet(
-            f"QFrame#overlay_hdr_outer {{"
-            f" background-color: {AppTheme.GOLD_PRIMARY};"
-            f" border-radius: {AppTheme.CORNER_LG}px; }}"
+        hdr = QFrame()
+        hdr.setObjectName("overlay_page_bar")
+        hdr.setStyleSheet(
+            f"QFrame#overlay_page_bar {{"
+            f" background: {AppTheme.BG_SECONDARY};"
+            f" border-bottom: 1px solid {AppTheme.GOLD_MUTED}; }}"
         )
-        hdr_outer_layout = QHBoxLayout(hdr_outer)
-        hdr_outer_layout.setContentsMargins(2, 2, 2, 2)
-
-        hdr_inner = QFrame()
-        hdr_inner.setObjectName("overlay_hdr_inner")
-        hdr_inner.setStyleSheet(
-            f"QFrame#overlay_hdr_inner {{"
-            f" background-color: {AppTheme.BG_CARD};"
-            f" border: 1px solid {AppTheme.GOLD_MUTED};"
-            f" border-radius: {AppTheme.CORNER_MD}px; }}"
-        )
-        hdr_inner_layout = QHBoxLayout(hdr_inner)
-        hdr_inner_layout.setContentsMargins(16, 6, 12, 6)
-        hdr_outer_layout.addWidget(hdr_inner)
+        hdr_layout = QHBoxLayout(hdr)
+        hdr_layout.setContentsMargins(12, 6, 12, 6)
+        hdr_layout.setSpacing(8)
 
         title_lbl = QLabel("🖼️ 畫面覆蓋圖片")
         title_lbl.setStyleSheet(
-            f"color: {AppTheme.TEXT_GOLD}; font-size: 15px; font-weight: bold;"
+            f"color: {AppTheme.GOLD_LIGHT}; font-size: 14px; font-weight: bold;"
             f" background: transparent; border: none;"
         )
-        hdr_inner_layout.addWidget(title_lbl)
+        hdr_layout.addWidget(title_lbl)
 
         hint_lbl = QLabel("支援 PNG / JPG / GIF（動畫）| 拖曳移動 | hover 顯示 X 關閉")
         hint_lbl.setStyleSheet(
             f"color: {AppTheme.TEXT_MUTED}; font-size: 11px;"
             f" background: transparent; border: none;"
         )
-        hdr_inner_layout.addWidget(hint_lbl)
+        hdr_layout.addWidget(hint_lbl)
 
-        hdr_inner_layout.addStretch()
+        hdr_layout.addStretch()
 
         add_btn = QPushButton("＋ 新增圖片")
-        add_btn.setFixedHeight(34)
+        add_btn.setFixedHeight(28)
         add_btn.clicked.connect(self._add_image)
         add_btn.setStyleSheet(
             f"QPushButton {{"
-            f" background-color: {AppTheme.GOLD_PRIMARY}; color: {AppTheme.BG_DEEP};"
-            f" border: 1px solid {AppTheme.GOLD_DARK};"
-            f" border-radius: {AppTheme.CORNER_MD}px;"
-            f" padding: 4px 14px; font-size: 12px; font-weight: bold; }}"
-            f"QPushButton:hover {{ background-color: {AppTheme.GOLD_LIGHT}; }}"
+            f" background: {AppTheme.GOLD_PRIMARY}; color: {AppTheme.BG_DEEP};"
+            f" border: none; border-radius: 4px;"
+            f" padding: 0 12px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: {AppTheme.GOLD_LIGHT}; }}"
         )
-        hdr_inner_layout.addWidget(add_btn)
+        hdr_layout.addWidget(add_btn)
 
-        outer.addWidget(hdr_outer)
+        outer.addWidget(hdr)
 
         # ── 可捲動卡片區 ──
         self._scroll = QScrollArea()
@@ -271,7 +258,7 @@ class OverlayPage(QWidget):
         self._scroll_content = QWidget()
         self._scroll_content.setStyleSheet("background: transparent;")
         self._scroll_layout = QVBoxLayout(self._scroll_content)
-        self._scroll_layout.setContentsMargins(4, 4, 4, 4)
+        self._scroll_layout.setContentsMargins(10, 10, 10, 10)
         self._scroll_layout.setSpacing(6)
         self._scroll_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._scroll.setWidget(self._scroll_content)

@@ -5,7 +5,7 @@
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QScrollArea, QHBoxLayout, QFrame,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QFrame,
     QPushButton, QCheckBox, QComboBox, QSizePolicy,
 )
 from PySide6.QtCore import Qt
@@ -400,24 +400,36 @@ class MonsterPage(QWidget):
     def _build_ui(self):
         """建構頁面 UI"""
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(10, 10, 10, 10)
-        outer.setSpacing(8)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
-        # 標題
-        title_lbl = QLabel("👾 怪物重生")
-        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_lbl.setStyleSheet(
-            f"color: {AppTheme.TEXT_GOLD}; font-size: 18px; font-weight: bold;"
-            f" background: transparent;"
+        # ── 頁首列 ──
+        hdr = QFrame()
+        hdr.setObjectName("monster_page_bar")
+        hdr.setStyleSheet(
+            f"QFrame#monster_page_bar {{"
+            f" background: {AppTheme.BG_SECONDARY};"
+            f" border-bottom: 1px solid {AppTheme.GOLD_MUTED}; }}"
         )
-        outer.addWidget(title_lbl)
+        hdr_lay = QHBoxLayout(hdr)
+        hdr_lay.setContentsMargins(12, 6, 12, 6)
+        hdr_lay.setSpacing(8)
+
+        title_lbl = QLabel("👾 怪物重生")
+        title_lbl.setStyleSheet(
+            f"color: {AppTheme.GOLD_LIGHT}; font-size: 14px; font-weight: bold;"
+            f" background: transparent; border: none;"
+        )
+        hdr_lay.addWidget(title_lbl)
 
         hint_lbl = QLabel("按下快捷鍵開始計時（從 0 數到設定時間）")
-        hint_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_lbl.setStyleSheet(
-            f"color: {AppTheme.TEXT_MUTED}; font-size: 12px; background: transparent;"
+            f"color: {AppTheme.TEXT_MUTED}; font-size: 11px;"
+            f" background: transparent; border: none;"
         )
-        outer.addWidget(hint_lbl)
+        hdr_lay.addWidget(hint_lbl)
+        hdr_lay.addStretch()
+        outer.addWidget(hdr)
 
         # 橫向捲動區域（卡牌置中）
         scroll = QScrollArea()

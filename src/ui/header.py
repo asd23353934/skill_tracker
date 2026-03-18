@@ -5,7 +5,7 @@
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QLabel, QPushButton, QFrame,
+    QWidget, QHBoxLayout, QLabel, QPushButton,
 )
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QPainter, QPen, QColor
@@ -187,49 +187,6 @@ class Header(QWidget):
         )
         layout.addWidget(profile_btn)
 
-        # ===== 全選按鈕組（高度嚴格限制，不撐高 header）=====
-        toggle_group = QFrame()
-        toggle_group.setObjectName("toggle_group")
-        toggle_group.setFixedHeight(self._BTN_H)
-        toggle_group.setStyleSheet(
-            f"QFrame#toggle_group {{"
-            f" background: {AppTheme.BG_TERTIARY};"
-            f" border: 1px solid {AppTheme.GOLD_MUTED};"
-            f" border-radius: 4px; }}"
-        )
-        tg_layout = QHBoxLayout(toggle_group)
-        tg_layout.setContentsMargins(6, 0, 6, 0)
-        tg_layout.setSpacing(2)
-
-        tg_lbl = QLabel("全選")
-        tg_lbl.setStyleSheet(
-            f"color: {AppTheme.TEXT_MUTED}; font-size: 10px;"
-            f" background: transparent; border: none;"
-        )
-        tg_layout.addWidget(tg_lbl)
-
-        toggle_defs = [
-            ("常駐",    "permanent", AppTheme.ACCENT_YELLOW, "#e5a800", "#000000"),
-            ("循環",    "loop",      AppTheme.ACCENT_GREEN,  "#0d9668", "#ffffff"),
-            ("提前提示", "alert",    AppTheme.ACCENT_ORANGE, "#e07a2a", "#ffffff"),
-        ]
-        for text, key, color, hover, fg in toggle_defs:
-            tb = QPushButton(text)
-            tb.setFixedHeight(20)
-            tb.clicked.connect(
-                lambda checked=False, k=key: self.app.toggle_all(k)
-            )
-            tb.setStyleSheet(
-                f"QPushButton {{ background: {color}; color: {fg};"
-                f" border: none; border-radius: 3px;"
-                f" padding: 0 6px; font-size: 10px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: {hover}; }}"
-            )
-            tg_layout.addWidget(tb)
-
-        layout.addWidget(toggle_group)
-        layout.addSpacing(4)
-
         # ===== 右側：視窗控制按鈕（Windows 11 風格）=====
         layout.addSpacing(8)   # 與左側操作按鈕的視覺隔離
 
@@ -254,22 +211,6 @@ class Header(QWidget):
     # --------------------------------------------------
     # 視窗控制
     # --------------------------------------------------
-
-    def _ctrl_btn_style(self, close: bool = False, font_size: int = 14) -> str:
-        """視窗控制按鈕 QSS — Windows 11 風格（Segoe UI 字型確保符號渲染清晰）
-
-        Args:
-            close:     True 表示關閉按鈕（hover 紅色）
-            font_size: 字型大小（─ 需較大以補足視覺重量）
-        """
-        hover_bg = "#c42b1c" if close else "#2d3748"
-        hover_fg = "#ffffff" if close else AppTheme.TEXT_PRIMARY
-        return (
-            f"QPushButton {{ background: transparent; color: #c8d0dc;"
-            f" border: none; border-radius: 0px;"
-            f" font-family: 'Segoe UI', 'Arial'; font-size: {font_size}px; }}"
-            f"QPushButton:hover {{ background: {hover_bg}; color: {hover_fg}; }}"
-        )
 
     def _on_minimize(self):
         self.window().showMinimized()

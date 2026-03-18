@@ -17,6 +17,8 @@ class Sidebar(QWidget):
         ("skill",   "🍁", "技能倒數"),
         ("monster", "👾", "怪物重生"),
         ("overlay", "🖼️", "覆蓋圖片"),
+        ("potion",  "💰", "練功水錢"),
+        ("roja",    "⛩", "羅茱工具"),
     ]
 
     def __init__(self, parent, on_page_change, app):

@@ -407,7 +407,7 @@
     "alert_before_seconds": 10,
     "hint_position_x": 738,
     "hint_position_y": 521,
-    "window_size": 128,
+    "window_size": 96,
     "global_sound": "alert_urgent.wav",
     "global_alert_sound": "alert_urgent.wav"
   },
@@ -419,8 +419,10 @@
       "respawn_time": 30,
       "hotkey": "",
       "alert_before": 10,
-      "alert_sound": "",
-      "loop": true
+      "alert_sound": "alert_double.wav",
+      "loop": true,
+      "permanent": false,
+      "sound": "alert_double.wav"
     }
   ],
   "overlays": [
@@ -429,10 +431,10 @@
       "name": "Snipaste_2026-03-17_11-09-58",
       "file": "d08bb4e1.png",
       "alpha": 0.9,
-      "x": 960,
-      "y": 540,
-      "width": 680,
-      "height": 167
+      "x": 116,
+      "y": 369,
+      "width": 557,
+      "height": 140
     }
   ]
 }

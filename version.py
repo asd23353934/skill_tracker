@@ -4,10 +4,20 @@
 """
 
 # 當前版本
-VERSION = "3.0.1"
+VERSION = "3.1.0"
 
 # 版本歷史
 CHANGELOG = """
+v3.1.0 (2026-03-18)
+-------------------
+- ✨ 新增練功水錢頁面（PotionCostPage）
+- ✨ 新增羅茱工具頁面（RojaPage）
+- ✨ 新增練功水錢儲存對話框（PotionSaveDialog）
+- ✨ 新增自動更新啟動腳本（update_launcher.ps1）
+- ✨ 技能頁功能增強
+- 🔧 Header 大幅重構精簡
+- 🔧 ConfigManager 擴充
+
 v3.0.1 (2026-03-17)
 -------------------
 - 🐛 更改壓縮檔案名稱

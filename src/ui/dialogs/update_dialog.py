@@ -32,6 +32,7 @@ class UpdateDialog(BaseDialog):
         self.parent_app  = parent
         self._downloading = False
         self._cancelled   = False
+        self._lock        = threading.Lock()  # 保護 _cancelled / _downloading 跨執行緒存取
 
         # 連接 signals → slots
         self._progress_signal.connect(self._update_progress)
@@ -157,8 +158,9 @@ class UpdateDialog(BaseDialog):
             return
 
         self.update_info["download_url"] = url
-        self._downloading = True
-        self._cancelled   = False
+        with self._lock:
+            self._downloading = True
+            self._cancelled   = False
         self.download_btn.setEnabled(False)
         self.download_btn.setText("下載中...")
         self._set_status("正在下載...", AppTheme.TEXT_SECONDARY)
@@ -178,7 +180,10 @@ class UpdateDialog(BaseDialog):
             progress_callback=self._on_progress,
         )
 
-        if self._cancelled:
+        with self._lock:
+            cancelled = self._cancelled
+
+        if cancelled:
             try:
                 if os.path.exists(dest_path):
                     os.remove(dest_path)
@@ -193,7 +198,9 @@ class UpdateDialog(BaseDialog):
 
     def _on_progress(self, downloaded, total):
         """下載進度回調（背景執行緒中呼叫）"""
-        if self._cancelled:
+        with self._lock:
+            cancelled = self._cancelled
+        if cancelled:
             return
         if total > 0:
             progress  = downloaded / total
@@ -248,24 +255,29 @@ class UpdateDialog(BaseDialog):
     def _launch_updater(self, downloaded_file: str):
         """啟動更新替換腳本並關閉應用"""
         try:
-            from src.ui.helpers import resource_path
             if getattr(sys, 'frozen', False):
                 app_dir = os.path.dirname(sys.executable)
             else:
                 app_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 
-            launcher = resource_path("update_launcher.bat")
+            # update_launcher.ps1 放在 exe 同層目錄，非 PyInstaller 打包資源
+            launcher = os.path.join(app_dir, "update_launcher.ps1")
             if not os.path.exists(launcher):
                 self._set_status("找不到更新腳本，請手動更新", AppTheme.ACCENT_RED)
                 return
 
-            # 隱藏 cmd 視窗，透過 cmd.exe /c 執行 bat 檔
-            si = subprocess.STARTUPINFO()
-            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            si.wShowWindow = 0  # SW_HIDE
+            # 用 PowerShell 隱藏視窗執行 ps1（完全無視窗，PS 5.0+ 皆相容）
             subprocess.Popen(
-                ['cmd.exe', '/c', launcher, downloaded_file, app_dir, sys.executable],
-                startupinfo=si,
+                [
+                    'powershell.exe',
+                    '-NoProfile',
+                    '-WindowStyle', 'Hidden',
+                    '-ExecutionPolicy', 'Bypass',
+                    '-File', launcher,
+                    '-DownloadFile', downloaded_file,
+                    '-AppDir', app_dir,
+                    '-AppExe', sys.executable,
+                ],
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
             )
 
@@ -290,9 +302,11 @@ class UpdateDialog(BaseDialog):
 
     def _on_cancel(self):
         """取消下載或關閉對話框"""
-        if self._downloading:
+        with self._lock:
+            was_downloading   = self._downloading
             self._cancelled   = True
             self._downloading = False
+        if was_downloading:
             self._set_status("已取消下載", AppTheme.TEXT_MUTED)
             self.download_btn.setEnabled(True)
             self.download_btn.setText("⬇ 重新下載")
@@ -308,6 +322,7 @@ class UpdateDialog(BaseDialog):
 
     def close(self):
         """關閉對話框"""
-        if self._downloading:
-            self._cancelled = True
+        with self._lock:
+            if self._downloading:
+                self._cancelled = True
         super().close()
