@@ -68,10 +68,10 @@ else {
 
 # [4/4] 重新啟動應用程式
 if (Test-Path $oldExe) {
-    Start-Process -LiteralPath $oldExe
+    Start-Process -FilePath $oldExe
 }
 elseif ($AppExe -and (Test-Path $AppExe)) {
-    Start-Process -LiteralPath $AppExe
+    Start-Process -FilePath $AppExe
 }
 
 exit 0

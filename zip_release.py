@@ -83,6 +83,15 @@ def zip_release() -> int:
             print(f"  🔊  sounds/ 不存在，已在 dist 生成內建音效（{len(BUILTIN_SOUNDS)} 個）")
         except Exception as e:
             print(f"  ⚠️  無法生成內建音效: {e}，已建立空目錄")
+    # ── update_launcher：複製到 exe 同層（程式去 exe 旁找，不在 _internal/）──
+    for launcher_name in ("update_launcher.ps1", "update_launcher.bat"):
+        src_launcher = launcher_name
+        dest_launcher = os.path.join(src_dir, launcher_name)
+        if os.path.exists(src_launcher):
+            shutil.copy2(src_launcher, dest_launcher)
+            print(f"  🔧  已複製 {launcher_name} → {dest_launcher}")
+        else:
+            print(f"  ⚠️  找不到 {launcher_name}，跳過")
     print()
 
     # 若舊 ZIP 存在先刪除

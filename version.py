@@ -4,10 +4,15 @@
 """
 
 # 當前版本
-VERSION = "3.1.0"
+VERSION = "3.1.1"
 
 # 版本歷史
 CHANGELOG = """
+v3.1.1 (2026-03-18)
+-------------------
+- 🐛 修復自動更新腳本路徑錯誤（PS1/BAT 未放於 exe 同層，導致找不到更新腳本）
+- 🐛 修復 update_launcher.ps1 使用 Start-Process -LiteralPath（PS 5.1 不支援，改為 -FilePath）
+
 v3.1.0 (2026-03-18)
 -------------------
 - ✨ 新增練功水錢頁面（PotionCostPage）
