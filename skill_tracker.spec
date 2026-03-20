@@ -1,12 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PySide6 移植版 spec 檔案
 
+import os
+
+def collect_images():
+    """收集 images/ 下所有圖片，排除 mapleworld 子目錄"""
+    result = []
+    for root, dirs, files in os.walk('images'):
+        dirs[:] = [d for d in dirs if not (os.path.normpath(root) == 'images' and d == 'mapleworld')]
+        for f in files:
+            src = os.path.join(root, f)
+            result.append((src, root))
+    return result
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('images',              'images'),
+        *collect_images(),          # images/ 排除 mapleworld
         ('config.json',         '.'),
         ('icon.ico',            '.'),
         ('profiles',            'profiles'),
@@ -28,6 +40,8 @@ a = Analysis(
         'PIL.Image',
         'PIL.ImageDraw',
         'PIL.ImageFilter',
+        'PIL.PngImagePlugin',
+        'PIL.WebPImagePlugin',
     ],
     hookspath=[],
     hooksconfig={},

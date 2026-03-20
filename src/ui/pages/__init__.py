@@ -8,5 +8,5 @@ from src.ui.pages.monster_page import MonsterPage
 from src.ui.pages.overlay_page import OverlayPage
 from src.ui.pages.potion_cost_page import PotionCostPage
 from src.ui.pages.roja_page import RojaPage
-
-__all__ = ["SkillPage", "MonsterPage", "OverlayPage", "PotionCostPage", "RojaPage"]
+from src.ui.pages.mapleworld_page import MapleWorldPage
+__all__ = ["SkillPage", "MonsterPage", "OverlayPage", "PotionCostPage", "RojaPage", "MapleWorldPage"]

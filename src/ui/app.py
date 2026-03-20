@@ -23,7 +23,7 @@ from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
 from src.ui.header import Header
 from src.ui.status_bar import StatusBar
-from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, RojaPage
+from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, RojaPage, MapleWorldPage
 from src.ui.helpers import resource_path
 from src.ui.toast import ToastManager
 
@@ -314,6 +314,10 @@ class App(QMainWindow):
         self.roja_page = RojaPage(self.page_stack, self)
         self.page_stack.addWidget(self.roja_page)
         self.pages["roja"] = self.roja_page
+
+        self.mapleworld_page = MapleWorldPage(self.page_stack, self)
+        self.page_stack.addWidget(self.mapleworld_page)
+        self.pages["mapleworld"] = self.mapleworld_page
 
         # 預設顯示技能頁
         self._switch_page("skill")
@@ -914,7 +918,7 @@ class App(QMainWindow):
             "global_sound":       self.global_sound,
             "global_alert_sound": self.global_alert_sound,
             "sound_manager":      self.sound_manager,
-        })
+        }, app=self)
 
         dialog.exec()
         result = dialog.result
@@ -1031,6 +1035,11 @@ class App(QMainWindow):
     def _apply_profile(self, profile_data):
         """套用配置（切換配置後呼叫）
 
+        執行順序（先重置後套用，確保無舊配置殘留）：
+          1. 所有技能 hotkey 清空、cooldown 還原為原始值
+          2. 套用 profile 的 hotkeys / cooldown_overrides
+          3. 套用 profile 的 permanent / loop / alert_enabled 與各 override
+
         Args:
             profile_data: 配置字典
         """
@@ -1109,8 +1118,7 @@ class App(QMainWindow):
                 self.window_manager.active_windows[skill_id].close()
 
     def _save_config(self):
-        """保存配置到檔案"""
-        self.config_manager.set_settings("skill_permanent", self.skill_permanent)
+        """保存配置到檔案（全域設定；skill_permanent 屬配置可變區，由 auto_save_current_profile 持久化）"""
         self.config_manager.save()
 
     def _check_for_updates(self):

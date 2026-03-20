@@ -1,0 +1,87 @@
+# 資料格式
+
+## 資料分區原則
+
+| 分區 | 位置 | 性質 | 說明 |
+|------|------|------|------|
+| 靜態區 | `config.json` → `skills` / `items` | **唯讀** | 技能/道具元資料，程式不可覆寫 |
+| 全域可變區 | `config.json` → `settings` / `monsters` / `overlays` | 可變 | 跨配置共用的設定 |
+| 配置可變區 | `profiles/{name}.json` | 可變 | 每個配置獨立的使用者狀態 |
+
+### 靜態區允許的欄位（skills / items）
+
+靜態區只存放**不因使用者操作而改變**的元資料：
+
+```
+id, name, icon, cooldown, category, subcategory
+```
+
+> **禁止**在靜態區存放任何使用者狀態（快捷鍵、開關、覆寫值等）。
+
+### 配置可變區存放的欄位（profiles）
+
+所有**因使用者、因配置而異**的狀態，一律存到 `profiles/{name}.json`：
+
+```
+hotkeys, permanent, loop, alert_enabled,
+cooldown_overrides, alert_seconds_overrides,
+sound_overrides, alert_sound_overrides
+```
+
+---
+
+## config.json 結構
+
+```json
+{
+  "skills": [
+    { "id": "", "name": "", "icon": "", "cooldown": 0, "category": "", "subcategory": "" }
+  ],
+  "items": [
+    { "id": "", "name": "", "icon": "", "cooldown": 0, "category": "item", "subcategory": "" }
+  ],
+  "settings": { "player_name": "", "skill_start_x": 0, "skill_start_y": 0, "current_profile": "" },
+  "monsters": [
+    { "id": "", "name": "", "icon": "", "respawn_time": 0, "hotkey": "", "alert_before": 0, "loop": false, "permanent": false }
+  ],
+  "overlays": [
+    { "id": "", "name": "", "file": "", "alpha": 1.0, "x": 0, "y": 0, "width": 0, "height": 0 }
+  ]
+}
+```
+
+- `skills` / `items`：唯讀，`ConfigManager` 以初始快照覆寫以防意外修改
+- `settings`：僅存跨配置的全域設定（視窗位置、音效開關、current_profile 等）
+- `monsters` / `overlays`：各自的狀態完整存於此，不拆到 profiles
+
+## profiles/{name}.json 結構
+
+```json
+{
+  "hotkeys": {},
+  "permanent": {},
+  "loop": {},
+  "alert_enabled": {},
+  "cooldown_overrides": {},
+  "alert_seconds_overrides": {},
+  "sound_overrides": {},
+  "alert_sound_overrides": {}
+}
+```
+
+---
+
+## 已知問題（待修正）
+
+### 1. `skills` / `items` 內殘留 `hotkey` 欄位
+
+config.json 的靜態區每筆 skill/item 都有 `"hotkey": ""` 欄位，但實際快捷鍵**只從 `profiles.hotkeys` 讀取**，此欄位從未被使用。
+
+**規範**：`hotkey` 不屬於靜態元資料，不應出現在 `skills` / `items`。
+新增技能時不要加此欄位；現有欄位可在下次整理時移除。
+
+### 2. `settings.skill_permanent` 與 `profiles.permanent` 重複
+
+`config.json` 的 `settings` 內有 `skill_permanent` 物件（94 個布林值），與 `profiles/{name}.json` 的 `permanent` 完全重複。執行時只讀 profile，settings 版本被忽略。
+
+**規範**：`permanent`（以及 `loop`、`alert_enabled`）屬於配置狀態，**只能存在 profiles**，不應出現在 `settings`。

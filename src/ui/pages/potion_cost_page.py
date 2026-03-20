@@ -9,6 +9,7 @@ import datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QLineEdit, QSpinBox, QSizePolicy,
+    QApplication,
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIntValidator
@@ -421,6 +422,188 @@ class _PotionSection(QFrame):
 
 
 # ──────────────────────────────────────────────────────────
+# _QuantityCalcSection：練功水數量計算機
+# ──────────────────────────────────────────────────────────
+
+class _QuantityCalcSection(QFrame):
+    """練功水數量計算機 — 組數 × 3000 + 剩餘"""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setFixedWidth(210)
+        self.setStyleSheet(
+            f"QFrame {{"
+            f" background-color: {AppTheme.BG_CARD};"
+            f" border: 2px solid {AppTheme.BORDER_GOLD_SUBTLE};"
+            f" border-radius: {AppTheme.CORNER_MD}px; }}"
+        )
+        self._build_ui()
+
+    def _build_ui(self):
+        """建構計算機 UI"""
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(6)
+
+        # ── 標題列 ──
+        title_row = QWidget()
+        title_row.setStyleSheet("background: transparent;")
+        title_lay = QHBoxLayout(title_row)
+        title_lay.setContentsMargins(0, 0, 0, 0)
+        title_lay.setSpacing(4)
+
+        title_lbl = QLabel("🧮 數量計算機")
+        title_lbl.setStyleSheet(
+            f"color: {AppTheme.TEXT_GOLD}; font-size: 12px; font-weight: bold;"
+            f" background: transparent; border: none;"
+        )
+        title_lay.addWidget(title_lbl)
+        title_lay.addStretch()
+
+        reset_btn = QPushButton("重置")
+        reset_btn.setFixedHeight(22)
+        reset_btn.setFixedWidth(44)
+        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_btn.setStyleSheet(
+            f"QPushButton {{"
+            f" background: {AppTheme.BG_TERTIARY}; color: {AppTheme.TEXT_SECONDARY};"
+            f" border: 1px solid {AppTheme.GOLD_MUTED}; border-radius: 3px;"
+            f" font-size: 10px; }}"
+            f"QPushButton:hover {{"
+            f" border-color: {AppTheme.GOLD_PRIMARY}; color: {AppTheme.TEXT_GOLD}; }}"
+        )
+        reset_btn.clicked.connect(self._on_reset)
+        title_lay.addWidget(reset_btn)
+
+        lay.addWidget(title_row)
+
+        # ── 分隔線 ──
+        sep0 = QFrame()
+        sep0.setFixedHeight(1)
+        sep0.setStyleSheet(f"background: {AppTheme.GOLD_MUTED}; border: none;")
+        lay.addWidget(sep0)
+
+        _lbl_style = (
+            f"color: {AppTheme.TEXT_SECONDARY}; font-size: 11px;"
+            f" background: transparent; border: none;"
+        )
+        _hint_style = (
+            f"color: {AppTheme.TEXT_MUTED}; font-size: 10px;"
+            f" background: transparent; border: none;"
+        )
+
+        # ── 組數輸入 ──
+        row1 = QWidget()
+        row1.setStyleSheet("background: transparent;")
+        r1_lay = QHBoxLayout(row1)
+        r1_lay.setContentsMargins(0, 0, 0, 0)
+        r1_lay.setSpacing(4)
+
+        lbl1 = QLabel("組數")
+        lbl1.setStyleSheet(_lbl_style)
+        lbl1.setFixedWidth(30)
+        r1_lay.addWidget(lbl1)
+
+        self._sets_edit = _make_int_edit("0", _INT_VALIDATOR_LARGE, 64)
+        r1_lay.addWidget(self._sets_edit)
+
+        hint1 = QLabel("× 3000")
+        hint1.setStyleSheet(_hint_style)
+        r1_lay.addWidget(hint1)
+        r1_lay.addStretch()
+
+        lay.addWidget(row1)
+
+        # ── 剩餘輸入 ──
+        row2 = QWidget()
+        row2.setStyleSheet("background: transparent;")
+        r2_lay = QHBoxLayout(row2)
+        r2_lay.setContentsMargins(0, 0, 0, 0)
+        r2_lay.setSpacing(4)
+
+        lbl2 = QLabel("剩餘")
+        lbl2.setStyleSheet(_lbl_style)
+        lbl2.setFixedWidth(30)
+        r2_lay.addWidget(lbl2)
+
+        self._rem_edit = _make_int_edit("0", _INT_VALIDATOR_LARGE, 64)
+        r2_lay.addWidget(self._rem_edit)
+
+        hint2 = QLabel("個")
+        hint2.setStyleSheet(_hint_style)
+        r2_lay.addWidget(hint2)
+        r2_lay.addStretch()
+
+        lay.addWidget(row2)
+
+        # ── 分隔線 ──
+        sep1 = QFrame()
+        sep1.setFixedHeight(1)
+        sep1.setStyleSheet(f"background: {AppTheme.GOLD_MUTED}; border: none;")
+        lay.addWidget(sep1)
+
+        # ── 總計列 ──
+        total_row = QWidget()
+        total_row.setStyleSheet("background: transparent;")
+        t_lay = QHBoxLayout(total_row)
+        t_lay.setContentsMargins(0, 0, 0, 0)
+        t_lay.setSpacing(4)
+
+        total_lbl = QLabel("總計")
+        total_lbl.setStyleSheet(_lbl_style)
+        total_lbl.setFixedWidth(30)
+        t_lay.addWidget(total_lbl)
+
+        self._total_lbl = QLabel("0 個")
+        self._total_lbl.setStyleSheet(
+            f"color: {AppTheme.GOLD_LIGHT}; font-size: 12px; font-weight: bold;"
+            f" background: transparent; border: none;"
+        )
+        t_lay.addWidget(self._total_lbl)
+        t_lay.addStretch()
+
+        copy_btn = QPushButton("📋 複製")
+        copy_btn.setFixedHeight(22)
+        copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        copy_btn.setStyleSheet(
+            f"QPushButton {{"
+            f" background: {AppTheme.BG_TERTIARY}; color: {AppTheme.TEXT_SECONDARY};"
+            f" border: 1px solid {AppTheme.GOLD_MUTED}; border-radius: 3px;"
+            f" font-size: 10px; padding: 0 6px; }}"
+            f"QPushButton:hover {{"
+            f" border-color: {AppTheme.GOLD_PRIMARY}; color: {AppTheme.TEXT_GOLD}; }}"
+        )
+        copy_btn.clicked.connect(self._on_copy)
+        t_lay.addWidget(copy_btn)
+
+        lay.addWidget(total_row)
+
+        # 連接訊號
+        self._sets_edit.textChanged.connect(self._recalc)
+        self._rem_edit.textChanged.connect(self._recalc)
+
+    def _recalc(self):
+        """重新計算總計"""
+        sets = _parse_int(self._sets_edit.text())
+        rem  = _parse_int(self._rem_edit.text())
+        total = sets * 3000 + rem
+        self._total_lbl.setText(f"{total:,} 個")
+
+    def _on_copy(self):
+        """複製總計數字到剪貼簿"""
+        sets  = _parse_int(self._sets_edit.text())
+        rem   = _parse_int(self._rem_edit.text())
+        total = sets * 3000 + rem
+        QApplication.clipboard().setText(str(total))
+
+    def _on_reset(self):
+        """重置兩個輸入欄位"""
+        self._sets_edit.clear()
+        self._rem_edit.clear()
+        self._total_lbl.setText("0 個")
+
+
+# ──────────────────────────────────────────────────────────
 # _SummaryPanel：右側只讀摘要面板
 # ──────────────────────────────────────────────────────────
 
@@ -714,9 +897,22 @@ class PotionCostPage(QWidget):
         scroll.setWidget(form_widget)
         body_lay.addWidget(scroll)
 
-        # ── 右側: 摘要面板 ──
-        self._summary_panel = _SummaryPanel(body)
-        body_lay.addWidget(self._summary_panel, 0, Qt.AlignmentFlag.AlignTop)
+        # ── 右側: 摘要面板 + 計算機 ──
+        right_widget = QWidget(body)
+        right_widget.setFixedWidth(210)
+        right_widget.setStyleSheet("background: transparent;")
+        right_lay = QVBoxLayout(right_widget)
+        right_lay.setContentsMargins(0, 0, 0, 0)
+        right_lay.setSpacing(8)
+
+        self._summary_panel = _SummaryPanel(right_widget)
+        right_lay.addWidget(self._summary_panel)
+
+        self._qty_calc = _QuantityCalcSection(right_widget)
+        right_lay.addWidget(self._qty_calc)
+        right_lay.addStretch()
+
+        body_lay.addWidget(right_widget, 0, Qt.AlignmentFlag.AlignTop)
 
         outer.addWidget(body)
 
@@ -1096,13 +1292,13 @@ class PotionCostPage(QWidget):
         """開啟儲存對話框"""
         from src.ui.dialogs.potion_save_dialog import PotionSaveDialog
         data = self.get_form_data()
-        dlg = PotionSaveDialog(self, self.app.config_manager, mode="save", current_data=data)
+        dlg = PotionSaveDialog(self, self.app.config_manager, mode="save", current_data=data, app=self.app)
         dlg.exec()
 
     def _on_load(self):
         """開啟載入紀錄對話框"""
         from src.ui.dialogs.potion_save_dialog import PotionSaveDialog
-        dlg = PotionSaveDialog(self, self.app.config_manager, mode="load")
+        dlg = PotionSaveDialog(self, self.app.config_manager, mode="load", app=self.app)
         from PySide6.QtWidgets import QDialog
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.result_data:
             self.load_form_data(dlg.result_data)

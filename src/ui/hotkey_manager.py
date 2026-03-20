@@ -1,6 +1,18 @@
 """
 快捷鍵管理模組
 處理 pynput 鍵盤監聽、快捷鍵捕捉邏輯
+
+## 命名空間隔離
+
+系統維護兩個獨立快捷鍵命名空間：**技能** 與 **怪物**。
+相同按鍵可同時指定給一個技能與一個怪物，兩者互不衝突。
+衝突清除僅在同一命名空間內執行。
+
+## 執行緒安全
+
+pynput Listener 在 daemon thread 執行，所有 UI 操作
+必須透過 `app.after(0, func)` 排回 Qt 主執行緒執行。
+禁止在此模組中直接操作任何 Qt widget。
 """
 
 from pynput import keyboard
@@ -23,7 +35,18 @@ class HotkeyManager:
         listener.start()
 
     def begin_capture(self, skill_id, skill_name):
-        """開始捕捉快捷鍵"""
+        """開始捕捉快捷鍵（進入捕捉模式）
+
+        前置條件：目前不在捕捉模式（waiting_for 為 None）
+        後置效果：
+          - waiting_for 設為 skill_id（可為技能或怪物 ID）
+          - enabled 設為 False（暫停正常快捷鍵觸發）
+          - header 顯示等待提示（ACCENT_YELLOW）
+
+        Args:
+            skill_id:   目標技能或怪物的 ID
+            skill_name: 顯示名稱（用於提示訊息）
+        """
         self.waiting_for = skill_id
         self.waiting_name = skill_name
         self.enabled = False
@@ -33,7 +56,14 @@ class HotkeyManager:
         )
 
     def _on_key_press(self, key):
-        """按鍵處理"""
+        """按鍵處理（pynput daemon thread 回呼）
+
+        觸發優先順序：
+          1. 捕捉模式：waiting_for 非 None 時路由到 _capture_hotkey
+          2. 技能命名空間：skill_manager.get_skill_by_hotkey() 先查
+          3. 怪物命名空間：app.get_monster_by_hotkey() 後查
+        所有 UI 操作均透過 app.after(0, ...) 排回 Qt 主執行緒。
+        """
         if self.waiting_for is not None:
             self._capture_hotkey(key)
             return
@@ -58,8 +88,9 @@ class HotkeyManager:
                 self.app.after(
                     0, lambda mid=monster_id: self.app.window_manager.trigger_monster(mid)
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            import sys
+            print(f"[HotkeyManager] _on_hotkey error: {e}", file=sys.stderr)
 
     def _capture_hotkey(self, key):
         """捕捉按鍵並設定（支援技能與怪物）"""

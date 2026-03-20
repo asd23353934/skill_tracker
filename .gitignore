@@ -12,7 +12,7 @@ dist/
 .idea/
 
 # Claude Code
-.claude/
+.claude/settings.local.json
 
 # OS
 nul
@@ -20,4 +20,12 @@ Thumbs.db
 Desktop.ini
 
 # Misc artifacts
-=5.2.0
+.spectra/
+openspec/.vector-search.db*
+
+# Images
+images/mapleworld
+
+# User data (不應提交到版本控制)
+profiles/
+sounds/

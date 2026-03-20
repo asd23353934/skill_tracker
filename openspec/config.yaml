@@ -1,0 +1,21 @@
+schema: spec-driven
+locale: tw
+
+context: |
+  Tech stack: Python 3, PySide6 (QMainWindow/QWidget/QSS), Pillow, pynput, PyInstaller
+  Domain: Artale MapleStory skill cooldown tracker desktop app (Windows)
+  UI language: Traditional Chinese (繁體中文)
+  Code: English variable names + Chinese docstrings/comments
+  Naming: PascalCase classes, snake_case functions, UPPER_SNAKE_CASE constants, AppTheme.* for all colors/fonts
+  Architecture: App (coordinator) → Managers (config/skill/hotkey/window/overlay/sound) → UI components
+  Thread safety: pynput runs in daemon thread; all UI ops must be dispatched via app.after(0, func) → _Dispatcher
+  Data: config.json skills/items are read-only; user state lives in profiles/{name}.json
+  Packaging: PyInstaller; use helpers.resource_path() for bundled assets; user data uses exe-relative paths
+
+# Per-artifact rules (optional)
+# rules:
+#   proposal:
+#     - Keep proposals under 500 words
+#     - Always include a "Non-goals" section
+#   tasks:
+#     - Break tasks into chunks of max 2 hours

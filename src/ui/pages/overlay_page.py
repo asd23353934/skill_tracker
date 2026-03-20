@@ -304,10 +304,7 @@ class OverlayPage(QWidget):
         name = os.path.splitext(os.path.basename(path))[0]
         item = self.app.overlay_manager.add_overlay(path, name)
         if item is None:
-            QMessageBox.critical(
-                self, "上傳失敗",
-                "不支援的圖片格式或檔案複製失敗，請確認檔案格式。"
-            )
+            self.app.toast.show("上傳失敗，不支援的圖片格式或檔案複製失敗。", "error")
             return
 
         self.rebuild_cards()

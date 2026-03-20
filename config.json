@@ -5,7 +5,6 @@
       "name": "楓葉祝福",
       "icon": "mapleWarrior.png",
       "cooldown": 270,
-      "hotkey": "",
       "category": "player",
       "subcategory": "共通"
     },
@@ -14,7 +13,6 @@
       "name": "會心之眼",
       "icon": "sharpEyes.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "弓箭手"
     },
@@ -23,7 +21,6 @@
       "name": "替身術",
       "icon": "puppet.png",
       "cooldown": 60,
-      "hotkey": "",
       "category": "player",
       "subcategory": "弓箭手"
     },
@@ -32,7 +29,6 @@
       "name": "詛咒術",
       "icon": "curse.png",
       "cooldown": 45,
-      "hotkey": "",
       "category": "player",
       "subcategory": "盜賊"
     },
@@ -41,7 +37,6 @@
       "name": "速度激發",
       "icon": "booster.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "盜賊"
     },
@@ -50,7 +45,6 @@
       "name": "幸運術",
       "icon": "luckyCharm.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "盜賊"
     },
@@ -59,7 +53,6 @@
       "name": "神聖之火",
       "icon": "holyFire.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "劍士"
     },
@@ -68,7 +61,6 @@
       "name": "力量消除",
       "icon": "powerCrash.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "劍士"
     },
@@ -77,7 +69,6 @@
       "name": "激勵",
       "icon": "rage.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "劍士"
     },
@@ -86,7 +77,6 @@
       "name": "魔防消除",
       "icon": "magicCrash.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "劍士"
     },
@@ -95,7 +85,6 @@
       "name": "神聖祈禱",
       "icon": "holySymbol.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "法師"
     },
@@ -104,7 +93,6 @@
       "name": "復甦之光",
       "icon": "resurrection.png",
       "cooldown": 15,
-      "hotkey": "",
       "category": "player",
       "subcategory": "法師"
     },
@@ -113,7 +101,6 @@
       "name": "時空門",
       "icon": "mysticDoor.png",
       "cooldown": 180,
-      "hotkey": "",
       "category": "player",
       "subcategory": "法師"
     },
@@ -122,7 +109,6 @@
       "name": "炎靈地獄",
       "icon": "640323892_790011227492117_4845428350782837335_n.png",
       "cooldown": 15,
-      "hotkey": "",
       "category": "player",
       "subcategory": "法師"
     },
@@ -131,7 +117,6 @@
       "name": "寒冰地獄",
       "icon": "640910595_936145672152849_3024465995160426444_n.png",
       "cooldown": 15,
-      "hotkey": "",
       "category": "player",
       "subcategory": "法師"
     },
@@ -140,7 +125,6 @@
       "name": "精神強化",
       "icon": "638528928_1316099816995258_8677447868291309463_n.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "法師"
     },
@@ -149,7 +133,6 @@
       "name": "魔力無限",
       "icon": "638533623_3812309965739430_8944061941698520710_n.png",
       "cooldown": 423,
-      "hotkey": "",
       "category": "player",
       "subcategory": "法師"
     },
@@ -158,7 +141,6 @@
       "name": "煙幕彈",
       "icon": "smokescreen.png",
       "cooldown": 60,
-      "hotkey": "",
       "category": "player",
       "subcategory": "盜賊"
     },
@@ -167,7 +149,6 @@
       "name": "最終急速",
       "icon": "finalAttackS.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "海盜"
     },
@@ -176,7 +157,6 @@
       "name": "指定攻擊",
       "icon": "targeting.png",
       "cooldown": 20,
-      "hotkey": "",
       "category": "player",
       "subcategory": "海盜"
     },
@@ -185,7 +165,6 @@
       "name": "章魚砲台",
       "icon": "638786490_865750903134554_3154465832580138251_n.png",
       "cooldown": 10,
-      "hotkey": "",
       "category": "player",
       "subcategory": "海盜"
     },
@@ -194,7 +173,6 @@
       "name": "海盜船",
       "icon": "639728039_4179977095552643_2070940007389121938_n.png",
       "cooldown": 300,
-      "hotkey": "",
       "category": "player",
       "subcategory": "海盜"
     },
@@ -203,7 +181,6 @@
       "name": "精準砲擊",
       "icon": "preciseCannon.png",
       "cooldown": 50,
-      "hotkey": "",
       "category": "player",
       "subcategory": "海盜"
     },
@@ -212,7 +189,6 @@
       "name": "心靈控制",
       "icon": "mindControl.png",
       "cooldown": 30,
-      "hotkey": "",
       "category": "player",
       "subcategory": "海盜"
     },
@@ -221,7 +197,6 @@
       "name": "反盾",
       "icon": "20130907185517a4d.png",
       "cooldown": 80,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "普通拉圖斯"
     },
@@ -230,7 +205,6 @@
       "name": "黑水一",
       "icon": "000001_1753953383.webp",
       "cooldown": 40,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "殘暴炎魔"
     },
@@ -239,7 +213,6 @@
       "name": "黑水二",
       "icon": "000001_1753953383.webp",
       "cooldown": 50,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "殘暴炎魔"
     },
@@ -248,7 +221,6 @@
       "name": "時間魔方",
       "icon": "damage_reflect.png",
       "cooldown": 150,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "殘暴炎魔"
     },
@@ -257,7 +229,6 @@
       "name": "小怪存活",
       "icon": "Snipaste_2026-01-03_00-47-05.png",
       "cooldown": 45,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
     },
@@ -266,7 +237,6 @@
       "name": "時間",
       "icon": "638451031_939967522117347_4546616364947888515_n.png",
       "cooldown": 10,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
     },
@@ -275,7 +245,6 @@
       "name": "黑暗星",
       "icon": "642628248_1579256506702336_7756160188758334446_n.png",
       "cooldown": 14,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
     },
@@ -284,7 +253,6 @@
       "name": "消技",
       "icon": "Snipaste_2026-03-17_11-11-22.png",
       "cooldown": 30,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
     },
@@ -293,7 +261,6 @@
       "name": "黑水",
       "icon": "000001_1753953383.webp",
       "cooldown": 60,
-      "hotkey": "",
       "category": "boss",
       "subcategory": "困難拉圖斯"
     }
@@ -304,7 +271,6 @@
       "name": "飄雪結晶",
       "icon": "Snipaste_2026-01-03_00-29-33.png",
       "cooldown": 600,
-      "hotkey": "",
       "category": "item",
       "subcategory": "道具"
     },
@@ -313,7 +279,6 @@
       "name": "漫天花語",
       "icon": "Snipaste_2026-01-03_00-30-56.png",
       "cooldown": 600,
-      "hotkey": "",
       "category": "item",
       "subcategory": "道具"
     }
@@ -325,84 +290,6 @@
     "enable_sound": true,
     "skill_send": {},
     "skill_receive": {},
-    "skill_permanent": {
-      "common_maple_warrior": false,
-      "warrior_common_power_stance": false,
-      "warrior_common_iron_body": false,
-      "magician_common_magic_guard": false,
-      "magician_common_magic_armor": false,
-      "magician_common_infinity": false,
-      "magician_common_magic_reflection": false,
-      "archer_common_focus": false,
-      "archer_common_sharp_eyes": false,
-      "thief_common_haste": false,
-      "thief_common_shadow_partner": false,
-      "pirate_common_dash": false,
-      "hero_enrage": false,
-      "paladin_holy_charge": false,
-      "dark_knight_hyper_body": false,
-      "dark_knight_berserk": false,
-      "bishop_holy_symbol": false,
-      "bishop_holy_shield": false,
-      "bishop_bahamut": false,
-      "fp_archmage_ifrit": false,
-      "il_archmage_elquines": false,
-      "bowmaster_phoenix": false,
-      "bowmaster_concentrate": false,
-      "marksman_frostprey": false,
-      "nightlord_spirit_javelin": false,
-      "shadower_smokescreen": false,
-      "buccaneer_speed_infusion": false,
-      "buccaneer_time_leap": false,
-      "corsair_bullseye": false,
-      "corsair_wrath_of_the_octopi": false,
-      "boss_papulatus_bomb": false,
-      "boss_papulatus_heal": false,
-      "boss_pianus_ice": false,
-      "boss_pianus_summon": false,
-      "boss_zakum_arm1": false,
-      "boss_zakum_dispel": false,
-      "snow_crystal": false,
-      "flower_rain": false,
-      "mapleWarrior": false,
-      "sharpEyes": false,
-      "puppet": false,
-      "curse": false,
-      "booster": false,
-      "luckyCharm": false,
-      "rage": false,
-      "magicCrash": false,
-      "holySymbol": false,
-      "resurrection": false,
-      "smokescreen": false,
-      "finalAttackS": false,
-      "targeting": false,
-      "preciseCannon": false,
-      "mindControl": false,
-      "papulatus_damage_reflect": false,
-      "zakum_time_stop": false,
-      "20130907185517a4d-普通拉圖斯": false,
-      "damage_reflect": false,
-      "Snipaste_2026-01-03_00-29-33": false,
-      "Snipaste_2026-01-03_00-30-56": false,
-      "Snipaste_2026-01-03_00-47-05": false,
-      "resurrection-時間歸零": false,
-      "resurrection-黑暗星存活": false,
-      "20130907185517a4d-困難拉圖斯": false,
-      "000001_1753953383": false,
-      "holyFire": false,
-      "powerCrash": false,
-      "殘暴炎魔-黑水一": false,
-      "殘暴炎魔-黑水二": false,
-      "mysticDoor": false,
-      "炎靈地獄": false,
-      "寒冰地獄": false,
-      "精神強化": false,
-      "魔力無限": false,
-      "章魚砲台": false,
-      "海盜船": false,
-      "消技-困難拉圖斯": false
-    },
     "current_profile": "預設配置",
     "alert_before_seconds": 10,
     "hint_position_x": 738,

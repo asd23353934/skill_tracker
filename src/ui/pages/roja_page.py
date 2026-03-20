@@ -277,26 +277,39 @@ class RojaFloatWindow(QWidget):
         self._curr_lbl.setStyleSheet("font-size:10px; font-weight:bold; background:transparent;")
         curr_lay.addWidget(self._curr_lbl)
         curr_lay.addStretch()
-        copy_btn = QPushButton("📋")
-        copy_btn.setFixedWidth(28)
+        copy_btn = QPushButton("📋 複製")
+        copy_btn.setFixedHeight(22)
         copy_btn.setStyleSheet(
-            f"QPushButton {{ background:transparent; border:none; font-size:11px; }}"
-            f"QPushButton:hover {{ background:{AppTheme.BG_TERTIARY}; border-radius:3px; }}"
+            f"QPushButton {{ background:transparent; border:1px solid {AppTheme.GOLD_MUTED}44;"
+            f" border-radius:3px; font-size:10px; color:{AppTheme.TEXT_SECONDARY}; padding:0 4px; }}"
+            f"QPushButton:hover {{ background:{AppTheme.BG_TERTIARY}; border-color:{AppTheme.GOLD_MUTED}; }}"
         )
         copy_btn.clicked.connect(
             lambda: self.roja_page._copy_player(self.roja_page._selected_player)
         )
         curr_lay.addWidget(copy_btn)
-        reset_btn = QPushButton("🔄")
-        reset_btn.setFixedWidth(28)
+        reset_btn = QPushButton("🔄 重置")
+        reset_btn.setFixedHeight(22)
         reset_btn.setStyleSheet(
-            f"QPushButton {{ background:transparent; border:none; font-size:11px; }}"
-            f"QPushButton:hover {{ background:{AppTheme.ACCENT_RED}22; border-radius:3px; }}"
+            f"QPushButton {{ background:transparent; border:1px solid {AppTheme.ACCENT_RED}44;"
+            f" border-radius:3px; font-size:10px; color:{AppTheme.ACCENT_RED}; padding:0 4px; }}"
+            f"QPushButton:hover {{ background:{AppTheme.ACCENT_RED}22; border-color:{AppTheme.ACCENT_RED}; }}"
         )
         reset_btn.clicked.connect(
             lambda: self.roja_page._reset_player_idx(self.roja_page._selected_player)
         )
         curr_lay.addWidget(reset_btn)
+        reset_all_btn = QPushButton("🗑 全部")
+        reset_all_btn.setFixedHeight(22)
+        reset_all_btn.setToolTip("清除所有玩家的進度")
+        reset_all_btn.setStyleSheet(
+            f"QPushButton {{ background:{AppTheme.ACCENT_RED}22; border:1px solid {AppTheme.ACCENT_RED}88;"
+            f" border-radius:3px; font-size:10px; color:{AppTheme.ACCENT_RED}; padding:0 4px;"
+            f" font-weight:bold; }}"
+            f"QPushButton:hover {{ background:{AppTheme.ACCENT_RED}; color:#fff; }}"
+        )
+        reset_all_btn.clicked.connect(self.roja_page._reset_all)
+        curr_lay.addWidget(reset_all_btn)
         outer.addWidget(curr_bar)
 
         # ── 格子 ──
@@ -496,12 +509,18 @@ class RojaPage(QWidget):
         reset_btn.clicked.connect(lambda: self._reset_player_idx(self._selected_player))
         top_lay.addWidget(reset_btn)
 
-        top_lay.addStretch()
+        reset_all_btn = QPushButton("🗑 全部重置")
+        reset_all_btn.setToolTip("清除所有玩家的進度")
+        reset_all_btn.setStyleSheet(
+            f"QPushButton {{ background:{AppTheme.ACCENT_RED}22; color:{AppTheme.ACCENT_RED};"
+            f" border:1px solid {AppTheme.ACCENT_RED}88; border-radius:4px; padding:2px 8px;"
+            f" font-weight:bold; }}"
+            f"QPushButton:hover {{ background:{AppTheme.ACCENT_RED}; color:#fff; }}"
+        )
+        reset_all_btn.clicked.connect(self._reset_all)
+        top_lay.addWidget(reset_all_btn)
 
-        float_btn = QPushButton("🎮 浮動視窗")
-        float_btn.setToolTip("開啟 / 關閉浮動視窗（遊戲中使用）")
-        float_btn.clicked.connect(self._toggle_float)
-        top_lay.addWidget(float_btn)
+        top_lay.addStretch()
 
         root.addWidget(top_bar)
 
@@ -527,8 +546,8 @@ class RojaPage(QWidget):
 
     def _build_player_panel(self) -> QFrame:
         """建構玩家選擇面板（左側）— 固定寬度，每列含選擇 + 複製按鈕"""
-        # ▶(14) + name(72) + 選(30) + 📋(26) + gaps(5×3) + row-margins(6×2) + panel-margins(10×2)
-        _PANEL_W = 14 + 72 + 30 + 26 + 15 + 12 + 20   # = 189
+        # ▶(14) + name(90) + 選擇(52) + 複製(62) + gaps(6×3) + row-margins(8×2) + panel-margins(10×2)
+        _PANEL_W = 14 + 90 + 52 + 62 + 18 + 16 + 20   # = 272
         panel = QFrame()
         panel.setObjectName("roja_player_panel")
         panel.setFixedWidth(_PANEL_W)
@@ -541,7 +560,7 @@ class RojaPage(QWidget):
         )
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(10, 10, 10, 10)
-        lay.setSpacing(4)
+        lay.setSpacing(6)
 
         hdr = QLabel("玩 家")
         hdr.setStyleSheet(
@@ -556,12 +575,12 @@ class RojaPage(QWidget):
             self._player_rows.append(row)
 
             row_lay = QHBoxLayout(row)
-            row_lay.setContentsMargins(6, 4, 6, 4)
-            row_lay.setSpacing(5)
+            row_lay.setContentsMargins(8, 6, 8, 6)
+            row_lay.setSpacing(6)
 
             # ▶ 選中指示（純 label，不可點擊）
             sel_lbl = QLabel()
-            sel_lbl.setFixedSize(14, 22)
+            sel_lbl.setFixedSize(14, 26)
             sel_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             sel_lbl.setObjectName(f"sel_lbl_{i}")
             sel_lbl.setStyleSheet(
@@ -573,12 +592,13 @@ class RojaPage(QWidget):
             # 名稱輸入（固定寬度）
             name_edit = QLineEdit(self._player_names[i])
             name_edit.setPlaceholderText(f"玩家 {i + 1}")
-            name_edit.setFixedWidth(72)
+            name_edit.setFixedWidth(90)
+            name_edit.setFixedHeight(30)
             name_edit.setStyleSheet(
                 f"QLineEdit {{ background:{AppTheme.BG_TERTIARY};"
                 f" color:{AppTheme.PLAYER_COLORS[i]}; font-weight:bold;"
                 f" border:1px solid {AppTheme.PLAYER_COLORS[i]}44;"
-                f" border-radius:4px; padding:2px 4px; font-size:12px; }}"
+                f" border-radius:4px; padding:2px 6px; font-size:13px; }}"
                 f"QLineEdit:focus {{ border:1px solid {AppTheme.PLAYER_COLORS[i]}; }}"
             )
             name_edit.textChanged.connect(
@@ -588,8 +608,8 @@ class RojaPage(QWidget):
             row_lay.addWidget(name_edit)
 
             # 選擇按鈕
-            pick_btn = QPushButton("選")
-            pick_btn.setFixedSize(30, 26)
+            pick_btn = QPushButton("▶ 選擇")
+            pick_btn.setFixedSize(52, 30)
             pick_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             pick_btn.setToolTip(f"選擇玩家 {i + 1} 為當前操作對象")
             pick_btn.setStyleSheet(
@@ -603,16 +623,17 @@ class RojaPage(QWidget):
             row_lay.addWidget(pick_btn)
 
             # 複製按鈕
-            copy_btn = QPushButton("📋")
-            copy_btn.setFixedSize(26, 26)
+            copy_btn = QPushButton("📋 複製")
+            copy_btn.setFixedSize(62, 30)
             copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             copy_btn.setToolTip(f"複製玩家 {i + 1} 的進度")
             copy_btn.setStyleSheet(
                 f"QPushButton {{ background:transparent;"
+                f" color:{AppTheme.TEXT_SECONDARY};"
                 f" border:1px solid {AppTheme.GOLD_MUTED}44;"
-                f" border-radius:4px; font-size:12px; }}"
+                f" border-radius:4px; font-size:11px; }}"
                 f"QPushButton:hover {{ background:{AppTheme.BG_TERTIARY};"
-                f" border-color:{AppTheme.GOLD_MUTED}; }}"
+                f" border-color:{AppTheme.GOLD_MUTED}; color:{AppTheme.TEXT_PRIMARY}; }}"
             )
             copy_btn.clicked.connect(lambda _, idx=i: self._copy_player(idx))
             row_lay.addWidget(copy_btn)
@@ -639,8 +660,18 @@ class RojaPage(QWidget):
             f"}}"
         )
         ct_lay = QVBoxLayout(container)
-        ct_lay.setContentsMargins(14, 12, 14, 12)
+        ct_lay.setContentsMargins(14, 8, 14, 12)
         ct_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # 浮動視窗按鈕（右上角）
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        float_btn = QPushButton("🎮 浮動視窗")
+        float_btn.setToolTip("開啟 / 關閉浮動視窗（遊戲中使用）")
+        float_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        float_btn.clicked.connect(self._toggle_float)
+        btn_row.addWidget(float_btn)
+        ct_lay.addLayout(btn_row)
 
         gw = _make_cells_grid(
             self,
@@ -716,6 +747,13 @@ class RojaPage(QWidget):
             for ci in range(NUM_COLS):
                 if self._owner[fi][ci] == idx:
                     self._owner[fi][ci] = -1
+        self._refresh_all()
+
+    def _reset_all(self):
+        """重置所有玩家進度"""
+        for fi in range(NUM_FLOORS):
+            for ci in range(NUM_COLS):
+                self._owner[fi][ci] = -1
         self._refresh_all()
 
     def _toggle_float(self):

@@ -157,7 +157,7 @@ class ProfileManagerDialog(BaseDialog):
             return
         name = name.strip()
         if name in self.config_manager.list_profiles():
-            QMessageBox.critical(self, "錯誤", f"配置 '{name}' 已存在!")
+            self.main_app.toast.show(f"配置 '{name}' 已存在！", "error")
             return
         all_skills = self.main_app.skill_manager.get_all_skills().keys()
         initial_settings = {
@@ -174,7 +174,7 @@ class ProfileManagerDialog(BaseDialog):
         """複製配置"""
         source = self._get_selected_name()
         if not source:
-            QMessageBox.warning(self, "提示", "請先選擇要複製的配置!")
+            self.main_app.toast.show("請先選擇要複製的配置！", "info")
             return
         new_name, ok = QInputDialog.getText(
             self, "複製配置", f"輸入新配置名稱:\n(將複製自 '{source}')"
@@ -183,7 +183,7 @@ class ProfileManagerDialog(BaseDialog):
             return
         new_name = new_name.strip()
         if new_name in self.config_manager.list_profiles():
-            QMessageBox.critical(self, "錯誤", f"配置 '{new_name}' 已存在!")
+            self.main_app.toast.show(f"配置 '{new_name}' 已存在！", "error")
             return
         source_data = self.config_manager.load_profile(source)
         if source_data and self.config_manager.save_profile(new_name, source_data):
@@ -193,7 +193,7 @@ class ProfileManagerDialog(BaseDialog):
         """重命名配置"""
         old_name = self._get_selected_name()
         if not old_name:
-            QMessageBox.warning(self, "提示", "請先選擇要重命名的配置!")
+            self.main_app.toast.show("請先選擇要重命名的配置！", "info")
             return
         new_name, ok = QInputDialog.getText(
             self, "重命名配置", f"輸入新名稱:\n(當前: '{old_name}')"
@@ -202,7 +202,7 @@ class ProfileManagerDialog(BaseDialog):
             return
         new_name = new_name.strip()
         if new_name in self.config_manager.list_profiles():
-            QMessageBox.critical(self, "錯誤", f"配置 '{new_name}' 已存在!")
+            self.main_app.toast.show(f"配置 '{new_name}' 已存在！", "error")
             return
         if self.config_manager.rename_profile(old_name, new_name):
             if old_name == self.current_profile:
@@ -217,10 +217,10 @@ class ProfileManagerDialog(BaseDialog):
         """切換配置"""
         name = self._get_selected_name()
         if not name:
-            QMessageBox.warning(self, "提示", "請先選擇要切換的配置!")
+            self.main_app.toast.show("請先選擇要切換的配置！", "info")
             return
         if name == self.current_profile:
-            QMessageBox.information(self, "提示", "已經是當前配置了!")
+            self.main_app.toast.show("已經是當前配置了！", "info")
             return
         profile_data = self.config_manager.load_profile(name)
         if profile_data:
@@ -234,10 +234,10 @@ class ProfileManagerDialog(BaseDialog):
         """刪除配置"""
         name = self._get_selected_name()
         if not name:
-            QMessageBox.warning(self, "提示", "請先選擇要刪除的配置!")
+            self.main_app.toast.show("請先選擇要刪除的配置！", "info")
             return
         if name == self.current_profile:
-            QMessageBox.critical(self, "錯誤", "無法刪除當前正在使用的配置!")
+            self.main_app.toast.show("無法刪除當前正在使用的配置！", "error")
             return
         reply = QMessageBox.question(
             self, "確認刪除", f"確定要刪除配置 '{name}' 嗎？",

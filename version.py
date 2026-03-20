@@ -4,10 +4,29 @@
 """
 
 # 當前版本
-VERSION = "3.1.1"
+VERSION = "3.2.0"
 
 # 版本歷史
 CHANGELOG = """
+v3.2.0 (2026-03-20)
+-------------------
+- ✨ 新增 MapleWorld 資源瀏覽頁面（側邊欄 🍄）
+- ✨ 新增練功水數量計算機（PotionCostPage _QuantityCalcSection）
+- ✨ 羅茱工具：新增「全部重置」按鈕；按鈕加文字說明；面板加寬；浮動視窗按鈕移至右上角
+- 🔧 config.json 移除 skills 靜態區殘留 hotkey 欄位（符合 DATA_FORMAT 規範）
+- 🔧 profile_dialog、settings_dialog、overlay_page 全面改用 Toast 取代 QMessageBox
+- 🔧 settings_dialog 新增 app 參數以支援 Toast 通知
+- 🔧 skill_manager.update_hotkey() 不再直接寫入 config["skills"]（僅更新記憶體）
+- 🔧 hotkey_manager 補充命名空間與執行緒安全說明 docstring
+- 🔧 CLAUDE.md 重構為 Spectra 格式，改用 @docs/* 引用
+- 🐛 修復 mapleworld_page.py 使用相對路徑（改用 user_path() 確保 exe 打包正確）
+- 🐛 修復 skill_detail_dialog.py 提前秒數輸入錯誤時靜默失敗（改為顯示 Toast 提示）
+- 🔧 新增 AppTheme.ACCENT_RED_HOVER 常量；新增 helpers.user_path() 函數
+- 🔧 hotkey_manager.py _on_hotkey 錯誤改輸出至 stderr
+- 🔧 skill_tracker.spec 補充 PIL.PngImagePlugin / PIL.WebPImagePlugin hidden import
+- 🔧 .gitignore 移除無效 pattern，新增 profiles/ 與 sounds/ 排除
+- 📝 PROJECT.md 補充 potion_cost_page、roja_page、mapleworld_page、potion_save_dialog
+
 v3.1.1 (2026-03-18)
 -------------------
 - 🐛 修復自動更新腳本路徑錯誤（PS1/BAT 未放於 exe 同層，導致找不到更新腳本）

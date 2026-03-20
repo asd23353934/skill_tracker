@@ -7,7 +7,7 @@ RPG 金色邊框風格，音效使用下拉式選單 + 匯入按鈕
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QCheckBox, QScrollArea, QWidget, QFrame,
-    QMessageBox, QFileDialog,
+    QFileDialog,
 )
 from PySide6.QtCore import Qt
 from src.ui.dialogs.base_dialog import BaseDialog
@@ -27,8 +27,9 @@ class SettingsDialog(BaseDialog):
 
     NO_SOUND_LABEL = "無"
 
-    def __init__(self, parent, current_settings):
+    def __init__(self, parent, current_settings, app=None):
         super().__init__(parent, "設定", 480, 720)
+        self.app              = app
         self.current_settings = current_settings
         self.sound_manager    = current_settings.get("sound_manager")
         self._sound_label_map = {}
@@ -352,12 +353,11 @@ class SettingsDialog(BaseDialog):
             self.global_alert_sound_combo.addItems(new_values)
             new_label = self.sound_manager.get_sound_label(new_name)
             self.global_sound_combo.setCurrentText(new_label)
-            QMessageBox.information(self, "匯入成功", f"已成功匯入音效: {new_name}")
+            if self.app:
+                self.app.toast.show(f"已成功匯入音效: {new_name}", "success")
         else:
-            QMessageBox.critical(
-                self, "匯入失敗",
-                "無法匯入音效檔案，請確認檔案格式為 .wav 或 .mp3"
-            )
+            if self.app:
+                self.app.toast.show("無法匯入音效檔案，請確認檔案格式為 .wav 或 .mp3", "error")
 
     def _save(self):
         """儲存設定"""
@@ -366,14 +366,17 @@ class SettingsDialog(BaseDialog):
             y_val        = int(self.y_entry.text())
             alert_before = int(self.alert_entry.text())
         except ValueError:
-            QMessageBox.critical(self, "錯誤", "請輸入有效的數字！")
+            if self.app:
+                self.app.toast.show("請輸入有效的數字！", "error")
             return
 
         if x_val < 0 or y_val < 0:
-            QMessageBox.critical(self, "錯誤", "座標值不能為負數！")
+            if self.app:
+                self.app.toast.show("座標值不能為負數！", "error")
             return
         if alert_before < 0:
-            QMessageBox.critical(self, "錯誤", "提前秒數不能為負數！")
+            if self.app:
+                self.app.toast.show("提前秒數不能為負數！", "error")
             return
 
         selected_label = self.size_combo.currentText()

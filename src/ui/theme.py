@@ -39,6 +39,7 @@ class AppTheme:
     ACCENT_YELLOW       = "#fbbf24"
     ACCENT_YELLOW_HOVER = "#e5a800"
     ACCENT_RED          = "#ef4444"
+    ACCENT_RED_HOVER    = "#dc2626"
     ACCENT_ORANGE       = "#fb923c"
     ACCENT_ORANGE_HOVER = "#e07a2a"
 

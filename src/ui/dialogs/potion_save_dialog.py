@@ -33,7 +33,7 @@ class PotionSaveDialog(BaseDialog):
       mode='load' — 只顯示列表與操作按鈕
     """
 
-    def __init__(self, parent, config_manager, mode: str = "save", current_data: dict = None):
+    def __init__(self, parent, config_manager, mode: str = "save", current_data: dict = None, app=None):
         """初始化對話框
 
         Args:
@@ -41,9 +41,11 @@ class PotionSaveDialog(BaseDialog):
             config_manager: ConfigManager 實例
             mode:           'save' | 'load'
             current_data:   儲存模式時的表單資料
+            app:            App 實例（用於 toast 通知）
         """
         title = "儲存練功紀錄" if mode == "save" else "練功紀錄列表"
         super().__init__(parent, title, 620, 540)
+        self.app            = app
         self.config_manager = config_manager
         self.mode           = mode
         self.current_data   = current_data or {}
@@ -239,7 +241,7 @@ class PotionSaveDialog(BaseDialog):
             f" background: {AppTheme.ACCENT_RED}; color: #fff;"
             f" border: none; border-radius: 4px;"
             f" padding: 3px 10px; font-size: 11px; }}"
-            f"QPushButton:hover {{ background: #dc2626; }}"
+            f"QPushButton:hover {{ background: {AppTheme.ACCENT_RED_HOVER}; }}"
         )
         delete_btn.clicked.connect(self._do_delete)
         br.addWidget(delete_btn)
@@ -412,7 +414,8 @@ class PotionSaveDialog(BaseDialog):
         """執行儲存"""
         name = self._name_edit.text().strip()
         if not name:
-            QMessageBox.warning(self, "提示", "請輸入存檔名稱！")
+            if self.app:
+                self.app.toast.show("請輸入存檔名稱！", "info")
             return
 
         existing = self.config_manager.list_potion_saves()
@@ -429,28 +432,33 @@ class PotionSaveDialog(BaseDialog):
         data["name"] = name
         if self.config_manager.save_potion_record(name, data):
             self._refresh_list()
-            QMessageBox.information(self, "儲存成功", f"已儲存「{name}」")
+            if self.app:
+                self.app.toast.show(f"已儲存「{name}」", "success")
         else:
-            QMessageBox.critical(self, "錯誤", "儲存失敗，請稍後再試。")
+            if self.app:
+                self.app.toast.show("儲存失敗，請稍後再試。", "error")
 
     def _do_load(self):
         """執行載入（載入模式）"""
         name = self._get_selected_name()
         if not name:
-            QMessageBox.warning(self, "提示", "請先選擇要載入的紀錄！")
+            if self.app:
+                self.app.toast.show("請先選擇要載入的紀錄！", "info")
             return
         record = self.config_manager.load_potion_record(name)
         if record:
             self.result_data = record
             self.accept()
         else:
-            QMessageBox.critical(self, "錯誤", f"無法載入「{name}」！")
+            if self.app:
+                self.app.toast.show(f"無法載入「{name}」！", "error")
 
     def _do_rename(self):
         """重命名存檔"""
         old_name = self._get_selected_name()
         if not old_name:
-            QMessageBox.warning(self, "提示", "請先選擇要重命名的紀錄！")
+            if self.app:
+                self.app.toast.show("請先選擇要重命名的紀錄！", "info")
             return
         new_name, ok = QInputDialog.getText(
             self, "重命名", f"輸入新名稱：\n（目前：{old_name}）"
@@ -459,18 +467,21 @@ class PotionSaveDialog(BaseDialog):
             return
         new_name = new_name.strip()
         if new_name in self.config_manager.list_potion_saves():
-            QMessageBox.critical(self, "錯誤", f"「{new_name}」已存在！")
+            if self.app:
+                self.app.toast.show(f"「{new_name}」已存在！", "error")
             return
         if self.config_manager.rename_potion_record(old_name, new_name):
             self._refresh_list()
         else:
-            QMessageBox.critical(self, "錯誤", "重命名失敗！")
+            if self.app:
+                self.app.toast.show("重命名失敗！", "error")
 
     def _do_delete(self):
         """刪除存檔"""
         name = self._get_selected_name()
         if not name:
-            QMessageBox.warning(self, "提示", "請先選擇要刪除的紀錄！")
+            if self.app:
+                self.app.toast.show("請先選擇要刪除的紀錄！", "info")
             return
         reply = QMessageBox.question(
             self, "確認刪除",
@@ -483,4 +494,5 @@ class PotionSaveDialog(BaseDialog):
                 self._update_detail(None)
                 self._refresh_list()
             else:
-                QMessageBox.critical(self, "錯誤", "刪除失敗！")
+                if self.app:
+                    self.app.toast.show("刪除失敗！", "error")

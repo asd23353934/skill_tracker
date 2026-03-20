@@ -6,7 +6,7 @@
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QCheckBox, QScrollArea, QWidget, QFrame,
-    QMessageBox, QFileDialog,
+    QFileDialog,
 )
 from PySide6.QtCore import Qt
 from src.ui.dialogs.base_dialog import BaseDialog
@@ -348,12 +348,9 @@ class SkillDetailDialog(BaseDialog):
             self.alert_sound_combo.addItems(new_values)
             new_label = self.app.sound_manager.get_sound_label(new_name)
             self.sound_combo.setCurrentText(new_label)
-            QMessageBox.information(self, "匯入成功", f"已成功匯入音效: {new_name}")
+            self.app.toast.show(f"已成功匯入音效: {new_name}", "success")
         else:
-            QMessageBox.critical(
-                self, "匯入失敗",
-                "無法匯入音效檔案，請確認檔案格式為 .wav 或 .mp3"
-            )
+            self.app.toast.show("無法匯入音效檔案，請確認檔案格式為 .wav 或 .mp3", "error")
 
     def _on_toggle_global_alert(self):
         """切換全域提示設定時更新 entry 狀態"""
@@ -450,4 +447,4 @@ class SkillDetailDialog(BaseDialog):
             self.accept()
 
         except ValueError:
-            pass
+            self.app.toast.show("請輸入有效的數字！", "error")

@@ -140,7 +140,9 @@ class SkillManager:
         return self.skill_categories
 
     def update_hotkey(self, skill_id: str, hotkey: str) -> bool:
-        """更新技能快捷鍵
+        """更新技能快捷鍵（僅更新記憶體內狀態，不寫入靜態區）
+
+        持久化由呼叫端透過 auto_save_current_profile() 負責。
 
         Args:
             skill_id: 技能 ID
@@ -152,10 +154,6 @@ class SkillManager:
         if skill_id not in self.skills:
             return False
         self.skills[skill_id]["hotkey"] = hotkey
-        for i, skill_data in enumerate(self.config_manager.config["skills"]):
-            if skill_data["id"] == skill_id:
-                self.config_manager.config["skills"][i]["hotkey"] = hotkey
-                break
         return True
 
     def clear_all_hotkeys(self):
