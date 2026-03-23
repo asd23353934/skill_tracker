@@ -9,7 +9,7 @@ import datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QLineEdit, QSpinBox, QSizePolicy,
-    QApplication,
+    QApplication, QComboBox,
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIntValidator
@@ -107,7 +107,7 @@ class _PotionRow(QFrame):
 
     ROW_H = 34
 
-    def __init__(self, parent, potion_type: str, default_data: dict, on_change):
+    def __init__(self, parent, potion_type: str, default_data: dict, on_change, on_remove=None):
         """初始化藥水列
 
         Args:
@@ -115,9 +115,11 @@ class _PotionRow(QFrame):
             potion_type:  'hp' | 'mp' | 'combined'
             default_data: {"name", "price"}
             on_change:    頁面重算回呼 callable()
+            on_remove:    刪除本列回呼 callable(row)
         """
         super().__init__(parent)
         self._on_change = on_change
+        self._on_remove = on_remove
         self._potion_type = potion_type
         self.setFixedHeight(self.ROW_H)
         self.setStyleSheet(
@@ -205,6 +207,21 @@ class _PotionRow(QFrame):
         )
         lay.addWidget(self.cost_lbl)
         lay.addStretch()
+
+        # ── 刪除按鈕 ──
+        del_btn = QPushButton("✕")
+        del_btn.setFixedSize(22, 22)
+        del_btn.setToolTip("刪除此藥水")
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        del_btn.setStyleSheet(
+            f"QPushButton {{"
+            f" background: {AppTheme.ACCENT_RED}; color: #fff;"
+            f" border: none; border-radius: 3px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: {AppTheme.ACCENT_RED_HOVER}; }}"
+        )
+        if self._on_remove:
+            del_btn.clicked.connect(lambda: self._on_remove(self))
+        lay.addWidget(del_btn)
 
         # 連接信號
         self.price_edit.textChanged.connect(self._recalc)
@@ -321,19 +338,33 @@ class _PotionSection(QFrame):
         sep.setStyleSheet(f"color: {AppTheme.GOLD_MUTED}; background: {AppTheme.GOLD_MUTED};")
         hdr_lay.addWidget(sep)
 
-        # 新增按鈕
-        add_btn = QPushButton("＋")
-        add_btn.setFixedSize(26, 22)
-        add_btn.setToolTip("新增一列")
-        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_btn.setStyleSheet(
+        # 新增藥水下拉選單
+        self._add_combo = QComboBox()
+        self._add_combo.setPlaceholderText("＋ 新增藥水")
+        self._add_combo.setFixedHeight(22)
+        self._add_combo.setFixedWidth(130)
+        self._add_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        defaults = _POTION_DEFAULTS.get(self._potion_type, [])
+        for d in defaults:
+            self._add_combo.addItem(f"{d['name']} (${d['price']:,})")
+        self._add_combo.addItem("自訂（空白）")
+        self._add_combo.setCurrentIndex(-1)
+        self._add_combo.activated.connect(self._on_combo_select)
+        hdr_lay.addWidget(self._add_combo)
+
+        # 全部清除按鈕
+        clear_all_btn = QPushButton("清除所有")
+        clear_all_btn.setFixedHeight(22)
+        clear_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        clear_all_btn.setStyleSheet(
             f"QPushButton {{"
-            f" background: {AppTheme.ACCENT_GREEN}; color: #fff;"
-            f" border: none; border-radius: 3px; font-size: 13px; font-weight: bold; }}"
-            f"QPushButton:hover {{ background: {AppTheme.ACCENT_GREEN_HOVER}; }}"
+            f" background: {AppTheme.ACCENT_RED}; color: #fff;"
+            f" border: none; border-radius: 3px; padding: 0 8px;"
+            f" font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: {AppTheme.ACCENT_RED_HOVER}; }}"
         )
-        add_btn.clicked.connect(self._add_empty_row)
-        hdr_lay.addWidget(add_btn)
+        clear_all_btn.clicked.connect(self._clear_all_rows)
+        hdr_lay.addWidget(clear_all_btn)
 
         # 小計
         subtotal_lbl = QLabel("合計:")
@@ -361,17 +392,52 @@ class _PotionSection(QFrame):
         self._rows_layout.setSpacing(1)
         self._outer.addWidget(self._rows_widget)
 
-    def _add_empty_row(self):
-        """新增空白列"""
-        row = _PotionRow(self._rows_widget, self._potion_type, {}, self._on_row_change)
+    def _add_row(self, default_data: dict):
+        """新增一列藥水
+
+        Args:
+            default_data: {"name", "price"} 或空字典
+        """
+        row = _PotionRow(
+            self._rows_widget, self._potion_type, default_data,
+            self._on_row_change, self._remove_row,
+        )
         self._rows_layout.addWidget(row)
         self._rows.append(row)
+        self._on_row_change()
+
+    def _on_combo_select(self, index: int):
+        """下拉選單選擇後新增藥水列"""
+        defaults = _POTION_DEFAULTS.get(self._potion_type, [])
+        if index < len(defaults):
+            self._add_row(defaults[index])
+        else:
+            self._add_row({})
+        self._add_combo.setCurrentIndex(-1)
+
+    def _remove_row(self, row: _PotionRow):
+        """移除單一藥水列"""
+        if row in self._rows:
+            self._rows.remove(row)
+            self._rows_layout.removeWidget(row)
+            row.deleteLater()
+            self._on_row_change()
+
+    def _clear_all_rows(self):
+        """移除所有藥水列"""
+        for row in self._rows:
+            self._rows_layout.removeWidget(row)
+            row.deleteLater()
+        self._rows.clear()
         self._on_row_change()
 
     def _load_defaults(self):
         """載入預設藥水列"""
         for default in _POTION_DEFAULTS.get(self._potion_type, []):
-            row = _PotionRow(self._rows_widget, self._potion_type, default, self._on_row_change)
+            row = _PotionRow(
+                self._rows_widget, self._potion_type, default,
+                self._on_row_change, self._remove_row,
+            )
             self._rows_layout.addWidget(row)
             self._rows.append(row)
 
@@ -399,19 +465,16 @@ class _PotionSection(QFrame):
         Args:
             data_list: 列資料字典列表
         """
-        # 還原列：若列數不足則補充，多餘的清空
-        for i, row_data in enumerate(data_list):
-            if i < len(self._rows):
-                self._rows[i].load_data(row_data)
-            else:
-                row = _PotionRow(self._rows_widget, self._potion_type, {}, self._on_row_change)
-                self._rows_layout.addWidget(row)
-                self._rows.append(row)
-                row.load_data(row_data)
-        # 若存檔列少於預設列，清空多餘的
-        for i in range(len(data_list), len(self._rows)):
-            self._rows[i].load_data({"name": self._rows[i].name_edit.text(), "price": 0})
-            self._rows[i].clear_values()
+        # 清除現有列後依存檔重建
+        self._clear_all_rows()
+        for row_data in data_list:
+            row = _PotionRow(
+                self._rows_widget, self._potion_type, {},
+                self._on_row_change, self._remove_row,
+            )
+            self._rows_layout.addWidget(row)
+            self._rows.append(row)
+            row.load_data(row_data)
         self._on_row_change()
 
     def clear_rows(self):

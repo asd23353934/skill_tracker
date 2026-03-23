@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 打包後壓縮腳本
-將 dist/技能追蹤器/ 壓縮為 ZIP 發布檔案
+將 dist/skill_tracker/ 壓縮為 ZIP 發布檔案
 """
 
 import os
@@ -25,18 +25,18 @@ def get_version() -> str:
 
 
 def zip_release() -> int:
-    """壓縮 dist/技能追蹤器/ 為 ZIP
+    """壓縮 dist/skill_tracker/ 為 ZIP
 
     Returns:
         0 成功, 1 失敗
     """
     version = get_version()
-    src_dir = os.path.join("dist", "技能追蹤器")
+    src_dir = os.path.join("dist", "skill_tracker")
     zip_name = f"skill_tracker_v{version}.zip"
     zip_path = os.path.join("dist", zip_name)
 
     print("=" * 55)
-    print("📦 技能追蹤器 - 壓縮發布")
+    print("📦 skill_tracker - 壓縮發布")
     print("=" * 55)
     print()
     print(f"  版本:   v{version}")
@@ -108,7 +108,7 @@ def zip_release() -> int:
         for root, _dirs, files in os.walk(src_dir):
             for filename in sorted(files):
                 full_path = os.path.join(root, filename)
-                # arcname 保留 "技能追蹤器/..." 結構（相對於 dist/）
+                # arcname 保留 "skill_tracker/..." 結構（相對於 dist/）
                 arcname = os.path.relpath(full_path, "dist")
                 zf.write(full_path, arcname)
                 compressed += 1

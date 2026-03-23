@@ -18,7 +18,6 @@ class Sidebar(QWidget):
         ("monster", "👾", "怪物重生"),
         ("overlay", "🖼️", "覆蓋圖片"),
         ("potion",  "💰", "練功水錢"),
-        ("roja",       "⛩", "羅茱工具"),
         ("mapleworld", "🍄", "MapleWorld 資源"),
     ]
 

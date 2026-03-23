@@ -260,26 +260,48 @@ class UpdateDialog(BaseDialog):
             else:
                 app_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 
-            # update_launcher.ps1 放在 exe 同層目錄，非 PyInstaller 打包資源
-            launcher = os.path.join(app_dir, "update_launcher.ps1")
-            if not os.path.exists(launcher):
+            pid = str(os.getpid())
+            launched = False
+
+            # 優先用 PowerShell 執行 ps1
+            ps1_launcher = os.path.join(app_dir, "update_launcher.ps1")
+            if os.path.exists(ps1_launcher):
+                try:
+                    subprocess.Popen(
+                        [
+                            'powershell.exe',
+                            '-NoProfile',
+                            '-WindowStyle', 'Hidden',
+                            '-ExecutionPolicy', 'Bypass',
+                            '-File', ps1_launcher,
+                            '-DownloadFile', downloaded_file,
+                            '-AppDir', app_dir,
+                            '-AppExe', sys.executable,
+                            '-AppPid', pid,
+                        ],
+                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+                    )
+                    launched = True
+                except Exception as e:
+                    print(f"[update] ps1 launch failed: {e}", flush=True)
+
+            # Fallback: .bat
+            if not launched:
+                bat_launcher = os.path.join(app_dir, "update_launcher.bat")
+                if os.path.exists(bat_launcher):
+                    try:
+                        subprocess.Popen(
+                            [bat_launcher, downloaded_file, app_dir,
+                             sys.executable, pid],
+                            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+                        )
+                        launched = True
+                    except Exception as e:
+                        print(f"[update] bat launch failed: {e}", flush=True)
+
+            if not launched:
                 self._set_status("找不到更新腳本，請手動更新", AppTheme.ACCENT_RED)
                 return
-
-            # 用 PowerShell 隱藏視窗執行 ps1（完全無視窗，PS 5.0+ 皆相容）
-            subprocess.Popen(
-                [
-                    'powershell.exe',
-                    '-NoProfile',
-                    '-WindowStyle', 'Hidden',
-                    '-ExecutionPolicy', 'Bypass',
-                    '-File', launcher,
-                    '-DownloadFile', downloaded_file,
-                    '-AppDir', app_dir,
-                    '-AppExe', sys.executable,
-                ],
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
-            )
 
             self.status_label.setText("應用程式即將關閉...")
             QTimer.singleShot(500, self._shutdown_app)

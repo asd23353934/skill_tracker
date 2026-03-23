@@ -1,0 +1,20 @@
+{
+  "saved_at": "2026-03-23T14:24:12",
+  "duration_minutes": 60,
+  "hp_potions": [],
+  "mp_potions": [],
+  "combined_potions": [],
+  "mesos_start": 0,
+  "mesos_end": 0,
+  "shop_before": 0,
+  "shop_after": 0,
+  "exp_start": 0,
+  "exp_end": 0,
+  "summary": {
+    "total_income": 0,
+    "total_expense": 0,
+    "net": 0,
+    "exp_gained": 0
+  },
+  "name": "20260323_練功紀錄"
+}

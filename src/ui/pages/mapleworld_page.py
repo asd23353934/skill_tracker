@@ -456,8 +456,15 @@ class MapleWorldPage(QWidget):
         self._assets: list[dict] = []        # 目前顯示的資產清單
         self._asset_paths: set[str] = set()  # 已加入的 path 集合（去重用）
         self._scanning = False
+        self._cache_loaded = False
+        self._cache_loading = False          # 背景載入中旗標
         self._build_ui()
-        self._load_cached_images()           # 顯示已快取的圖片
+
+    def showEvent(self, event):  # noqa: N802
+        super().showEvent(event)
+        if not self._cache_loaded:
+            self._cache_loaded = True
+            self._load_cached_images()
 
     # ──────────────────────────────────────────
     # UI 建構
@@ -869,8 +876,12 @@ class MapleWorldPage(QWidget):
         asset = self._assets[idx]
         pil_img = asset.get("_pil_img")
         if pil_img is None:
-            self.app.toast.show("圖片資料已釋放，請重新掃描。", "info")
-            return
+            from PIL import Image as PILImage
+            try:
+                pil_img = PILImage.open(asset["path"]).convert("RGBA")
+            except Exception:
+                self.app.toast.show("圖片檔案無法讀取。", "info")
+                return
 
         dlg = _PreviewDialog(pil_img, asset["name"], self)
         dlg.show()
@@ -879,16 +890,18 @@ class MapleWorldPage(QWidget):
     # 快取圖片載入（頁面開啟時）
     # ──────────────────────────────────────────
 
+    _CACHE_BATCH = 20  # 每批處理張數
+
     def _load_cached_images(self):
-        """讀取 images/mapleworld/ 資料夾，依檔名前綴分流至對應 grid
+        """讀取 images/mapleworld/ 資料夾，背景執行緒分批載入
 
         - web_ / cdn_ 前綴 → WebView grid
         - 其他               → Unity grid
         """
         if not os.path.isdir(_MAPLEWORLD_DIR):
             return
-
-        from PIL import Image as PILImage
+        if self._cache_loading:
+            return
 
         self._unity_grid.clear()
         self._web_grid.clear()
@@ -896,8 +909,25 @@ class MapleWorldPage(QWidget):
         self._asset_paths.clear()
 
         files = sorted(f for f in os.listdir(_MAPLEWORLD_DIR) if f.lower().endswith(".png"))
-        unity_cnt = web_cnt = 0
-        for fname in files:
+        if not files:
+            return
+
+        self._cache_loading = True
+        self._status_lbl.setText(f"正在載入快取圖片 (0/{len(files)})…")
+
+        t = threading.Thread(
+            target=self._cache_load_worker, args=(files,), daemon=True
+        )
+        t.start()
+
+    def _cache_load_worker(self, files: list[str]):
+        """背景執行緒：分批處理 PIL 開檔 / 分類（不建立 QPixmap）"""
+        from PIL import Image as PILImage
+
+        batch: list[tuple] = []
+        total = len(files)
+
+        for i, fname in enumerate(files):
             fp = os.path.join(_MAPLEWORLD_DIR, fname)
             try:
                 img = PILImage.open(fp).convert("RGBA")
@@ -905,34 +935,68 @@ class MapleWorldPage(QWidget):
                 continue
             name = os.path.splitext(fname)[0]
             is_web = fname.startswith("web_") or fname.startswith("cdn_")
-            if is_web:
-                self._add_web_item(img, name, fp, "快取-web")
-                web_cnt += 1
-            else:
-                self._add_unity_item(img, name, fp, "快取-unity")
-                unity_cnt += 1
+            size_cat, content_cat = self._classify_image(img)
 
-        if files:
-            self._unity_filter_bar.refresh()
-            self._web_filter_bar.refresh()
+            # 預先縮圖並轉為 bytes，避免在背景執行緒建立 QPixmap
+            thumb = img.copy()
+            thumb.thumbnail((_THUMB, _THUMB))
+            thumb_data = (thumb.tobytes("raw", "RGBA"), thumb.size[0], thumb.size[1])
+
+            batch.append((img, name, fp, is_web, thumb_data, size_cat, content_cat))
+
+            if len(batch) >= self._CACHE_BATCH or i == total - 1:
+                items = list(batch)
+                loaded = i + 1
+                batch.clear()
+                self.app.after(0, lambda b=items, n=loaded, t=total: self._add_cache_batch(b, n, t))
+
+        self.app.after(0, self._on_cache_load_done)
+
+    def _add_cache_batch(self, batch, loaded: int, total: int):
+        """主執行緒：將一批處理好的項目加入 grid"""
+        for img, name, fp, is_web, thumb_data, size_cat, content_cat in batch:
+            # 在主執行緒建立 QPixmap / QIcon（執行緒安全）
+            raw, tw, th = thumb_data
+            qimg = QImage(raw, tw, th, QImage.Format.Format_RGBA8888)
+            icon = QIcon(QPixmap.fromImage(qimg))
+            if is_web:
+                self._add_web_item(img, name, fp, "快取-web",
+                                   precomputed=(icon, size_cat, content_cat))
+            else:
+                self._add_unity_item(img, name, fp, "快取-unity",
+                                     precomputed=(icon, size_cat, content_cat))
+        self._status_lbl.setText(f"正在載入快取圖片 ({loaded}/{total})…")
+
+    def _on_cache_load_done(self):
+        """快取載入完成"""
+        self._cache_loading = False
+        unity_cnt = sum(1 for a in self._assets if not a["type"].endswith("-web"))
+        web_cnt = sum(1 for a in self._assets if a["type"].endswith("-web"))
+        self._unity_filter_bar.refresh()
+        self._web_filter_bar.refresh()
+        if self._assets:
             self._status_lbl.setText(
                 f"快取圖片：Unity {unity_cnt} 張 ／ WebView {web_cnt} 張（可重新掃描更新）"
             )
             self._extract_btn.setEnabled(True)
+        else:
+            self._status_lbl.setText("尚無快取圖片。請使用掃描功能。")
 
     # ──────────────────────────────────────────
     # 縮圖清單輔助
     # ──────────────────────────────────────────
 
-    def _add_unity_item(self, img, name: str, source_path: str, res_type: str):
+    def _add_unity_item(self, img, name: str, source_path: str, res_type: str,
+                        precomputed=None):
         """新增縮圖到 Unity 手風琴 grid"""
         self._add_to(img, name, source_path, res_type, self._unity_grid,
-                     self._unity_filter_bar)
+                     self._unity_filter_bar, precomputed=precomputed)
 
-    def _add_web_item(self, img, name: str, source_path: str, res_type: str):
+    def _add_web_item(self, img, name: str, source_path: str, res_type: str,
+                      precomputed=None):
         """新增縮圖到 WebView 手風琴 grid"""
         self._add_to(img, name, source_path, res_type, self._web_grid,
-                     self._web_filter_bar)
+                     self._web_filter_bar, precomputed=precomputed)
 
     @staticmethod
     def _classify_image(img) -> tuple[str, str]:
@@ -970,15 +1034,25 @@ class MapleWorldPage(QWidget):
         return size_cat, content_cat
 
     def _add_to(self, img, name: str, source_path: str, res_type: str,
-                grid: "_FluidGrid", filter_bar: "_FilterBar | None" = None):
-        """新增一個縮圖項目到指定 grid（path 相同則跳過，避免重複）"""
+                grid: "_FluidGrid", filter_bar: "_FilterBar | None" = None,
+                precomputed=None):
+        """新增一個縮圖項目到指定 grid（path 相同則跳過，避免重複）
+
+        Args:
+            precomputed: 可選 (icon, size_cat, content_cat)，
+                         由背景執行緒預先計算以避免主執行緒阻塞
+        """
         abs_path = os.path.abspath(source_path)
         if abs_path in self._asset_paths:
             return
         self._asset_paths.add(abs_path)
 
-        # 分類標籤
-        size_cat, content_cat = self._classify_image(img)
+        # 分類標籤（使用預計算結果或即時計算）
+        if precomputed is not None:
+            icon, size_cat, content_cat = precomputed
+        else:
+            icon = _pil_to_icon(img)
+            size_cat, content_cat = self._classify_image(img)
         top_src = res_type.split("/")[0]          # 第一層來源：msw / ugc / web-cache / 快取-unity …
         tags = frozenset({size_cat, content_cat, top_src})
 
@@ -990,7 +1064,7 @@ class MapleWorldPage(QWidget):
             "width":    img.width,
             "height":   img.height,
             "tags":     tags,
-            "_pil_img": img,
+            "_pil_img": None,
         })
 
         # 通知篩選列新增來源 chip（幂等操作）
@@ -999,7 +1073,7 @@ class MapleWorldPage(QWidget):
 
         # 顯示名稱截斷（避免長度不一造成格子高度異）
         short = name if len(name) <= 11 else name[:10] + "…"
-        item = QListWidgetItem(_pil_to_icon(img), short)
+        item = QListWidgetItem(icon, short)
         item.setData(Qt.ItemDataRole.UserRole, idx)
         item.setData(Qt.ItemDataRole.UserRole + 1, tags)
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)

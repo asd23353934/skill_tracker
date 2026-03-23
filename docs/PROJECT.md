@@ -48,7 +48,6 @@ src/ui/
     monster_page.py      # 怪物重生頁面
     overlay_page.py      # 浮動圖片頁面
     potion_cost_page.py  # 藥水費用計算頁面
-    roja_page.py         # 羅茱工具頁面
     mapleworld_page.py   # MapleStory Worlds 本機資源瀏覽頁面
   dialogs/               # 對話框
     base_dialog.py       # BaseDialog 基底類別

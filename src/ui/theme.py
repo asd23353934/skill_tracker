@@ -87,19 +87,6 @@ class AppTheme:
     STATUS_LOOP_DIM      = "#0a7553"
     STATUS_ALERT_DIM     = "#9b5a1e"
 
-    # ===== 玩家顏色（羅茱工具）=====
-    PLAYER_COLORS = ["#3b82f6", "#10b981", "#fb923c", "#8b5cf6"]  # 藍/綠/橙/紫（對應 ACCENT_BLUE/GREEN/ORANGE/PURPLE）
-    PLAYER_DARK   = ["#1d4ed8", "#059669", "#ea7216", "#7c3aed"]  # 深色版（hover / active 用）
-
-    # ===== 羅茱工具格子（_Cell）繪製色 =====
-    ROJA_CELL_BG             = "#181830"   # 空格背景
-    ROJA_CELL_BG_HOVER       = "#22223a"   # 空格 hover 背景
-    ROJA_CELL_BORDER         = "#2e2e50"   # 空格邊框
-    ROJA_CELL_TEXT           = "#3a3a5c"   # 空格數字色
-    ROJA_CELL_TEXT_HOVER     = "#5a5a7c"   # 空格數字 hover 色
-    ROJA_PLAYER_ROW_SEL_BG   = "#1a2535"   # 玩家列選中背景
-    ROJA_CURR_BAR_BORDER     = "#1e1e3a"   # 當前玩家列底線
-
     # ===== 倒數遮罩 (SkillWindow PIL 合成用) =====
     OVERLAY_COLOR = (0, 0, 0, 140)
 

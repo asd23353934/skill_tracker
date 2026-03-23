@@ -23,7 +23,7 @@ from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
 from src.ui.header import Header
 from src.ui.status_bar import StatusBar
-from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, RojaPage, MapleWorldPage
+from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, MapleWorldPage
 from src.ui.helpers import resource_path
 from src.ui.toast import ToastManager
 
@@ -53,7 +53,7 @@ class _Dispatcher(QObject):
 class App(QMainWindow):
     """主應用程式 — PySide6 QMainWindow"""
 
-    _RESIZE_MARGIN = 8   # 邊框 resize 感應距離（像素）
+    _RESIZE_MARGIN = 4   # 邊框 resize 感應距離（像素）
 
     def __init__(self):
         super().__init__()
@@ -310,10 +310,6 @@ class App(QMainWindow):
         self.potion_page = PotionCostPage(self.page_stack, self)
         self.page_stack.addWidget(self.potion_page)
         self.pages["potion"] = self.potion_page
-
-        self.roja_page = RojaPage(self.page_stack, self)
-        self.page_stack.addWidget(self.roja_page)
-        self.pages["roja"] = self.roja_page
 
         self.mapleworld_page = MapleWorldPage(self.page_stack, self)
         self.page_stack.addWidget(self.mapleworld_page)

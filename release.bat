@@ -45,11 +45,11 @@ echo ========================================
 echo ✅ 發布完成！
 echo ========================================
 echo.
-echo 📦 打包結果: dist\技能追蹤器\
+echo 📦 打包結果: dist\skill_tracker\
 echo.
 echo 📋 接下來的步驟:
-echo   1. 測試: dist\技能追蹤器\技能追蹤器.exe
-echo   2. 上傳: dist\技能追蹤器_v*.zip 到 GitHub Release
+echo   1. 測試: dist\skill_tracker\skill_tracker.exe
+echo   2. 上傳: dist\skill_tracker_v*.zip 到 GitHub Release
 echo   3. 創建 GitHub Release
 echo.
 pause

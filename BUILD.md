@@ -31,7 +31,7 @@ pyinstaller skill_tracker.spec
 
 #### 方法 2：直接打包（目錄模式）
 ```bash
-pyinstaller --name=技能追蹤器 ^
+pyinstaller --name=skill_tracker ^
     --onedir ^
     --windowed ^
     --icon=icon.ico ^
@@ -45,8 +45,8 @@ pyinstaller --name=技能追蹤器 ^
 
 ### Step 2: 測試
 ```bash
-cd dist/技能追蹤器
-技能追蹤器.exe
+cd dist/skill_tracker
+skill_tracker.exe
 ```
 
 **測試項目：**
@@ -58,13 +58,13 @@ cd dist/技能追蹤器
 ### Step 3: 壓縮發布
 ```bash
 # 壓縮整個資料夾
-dist/技能追蹤器/ → 技能追蹤器_v1.0.1.zip
+dist/skill_tracker/ → skill_tracker_v1.0.1.zip
 ```
 
 ## 打包後文件結構
 ```
-dist/技能追蹤器/
-├── 技能追蹤器.exe        ← 主程式
+dist/skill_tracker/
+├── skill_tracker.exe        ← 主程式
 ├── config.json           ← 技能初始值（可編輯）
 ├── images/               ← 技能圖示資料夾
 │   ├── bishop_holy_symbol.png

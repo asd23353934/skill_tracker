@@ -4,10 +4,19 @@
 """
 
 # 當前版本
-VERSION = "3.2.0"
+VERSION = "3.3.0"
 
 # 版本歷史
 CHANGELOG = """
+v3.3.0 (2026-03-23)
+-------------------
+- ✨ 練功水錢頁面：新增藥水下拉選單、單列刪除按鈕、全部清除按鈕
+- ✨ MapleWorld 頁面：快取圖片改為延遲載入（showEvent）+ 背景執行緒分批載入
+- ✨ 自動更新系統：ps1 → bat fallback 機制；PID 偵測取代程序名偵測；新增 update_log.txt 日誌
+- 🔧 打包名稱由「技能追蹤器」改為「skill_tracker」（spec / release.bat / zip_release.py / BUILD.md）
+- 🔧 移除羅茱工具頁面（roja_page.py）及相關主題常量
+- 🔧 主視窗 resize 感應距離由 8px 縮為 4px
+
 v3.2.0 (2026-03-20)
 -------------------
 - ✨ 新增 MapleWorld 資源瀏覽頁面（側邊欄 🍄）
