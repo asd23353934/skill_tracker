@@ -1,5 +1,4 @@
 schema: spec-driven
-locale: tw
 
 context: |
   Tech stack: Python 3, PySide6 (QMainWindow/QWidget/QSS), Pillow, pynput, PyInstaller

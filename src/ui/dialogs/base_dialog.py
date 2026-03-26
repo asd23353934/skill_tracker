@@ -1,6 +1,6 @@
 """
 基礎對話框 — PySide6 版本
-QDialog 基礎類別 — RPG 金色邊框風格
+QDialog 基礎類別
 """
 
 import os
@@ -12,7 +12,7 @@ from src.ui.helpers import resource_path
 
 
 class BaseDialog(QDialog):
-    """基礎對話框 — RPG 金色邊框"""
+    """基礎對話框"""
 
     def __init__(self, parent, title: str, width: int = 400, height: int = 300):
         super().__init__(parent)
@@ -39,14 +39,12 @@ class BaseDialog(QDialog):
 
         self.result = None
 
-        # ===== RPG 金色邊框效果 =====
-        # 外層 QDialog 背景為金色，3px padding 產生金色邊框效果
         self.setStyleSheet(
-            f"QDialog {{ background-color: {AppTheme.GOLD_DARK}; }}"
+            f"QDialog {{ background-color: {AppTheme.BG_DEEP}; }}"
         )
 
         outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(3, 3, 3, 3)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
 
         self.inner = QFrame()
@@ -54,7 +52,6 @@ class BaseDialog(QDialog):
         self.inner.setStyleSheet(
             f"QFrame#dialog_inner {{"
             f" background-color: {AppTheme.BG_DEEP};"
-            f" border: 1px solid {AppTheme.GOLD_MUTED};"
             f" border-radius: {AppTheme.CORNER_MD}px; }}"
         )
         outer_layout.addWidget(self.inner)

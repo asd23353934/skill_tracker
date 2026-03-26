@@ -19,6 +19,7 @@ class Sidebar(QWidget):
         ("overlay", "🖼️", "覆蓋圖片"),
         ("potion",  "💰", "練功水錢"),
         ("mapleworld", "🍄", "MapleWorld 資源"),
+        ("broadcast", "📡", "頻道廣播"),
     ]
 
     def __init__(self, parent, on_page_change, app):

@@ -296,7 +296,12 @@
     "hint_position_y": 521,
     "window_size": 96,
     "global_sound": "alert_urgent.wav",
-    "global_alert_sound": "alert_urgent.wav"
+    "global_alert_sound": "alert_urgent.wav",
+    "broadcast_auto_start": false,
+    "broadcast_blacklist": [],
+    "broadcast_keywords": [],
+    "broadcast_max_messages": 200,
+    "broadcast_disclaimer_accepted": true
   },
   "monsters": [
     {

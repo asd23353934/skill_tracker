@@ -913,6 +913,7 @@ class MapleWorldPage(QWidget):
             return
 
         self._cache_loading = True
+        self._cache_stop = False
         self._status_lbl.setText(f"正在載入快取圖片 (0/{len(files)})…")
 
         t = threading.Thread(
@@ -928,6 +929,8 @@ class MapleWorldPage(QWidget):
         total = len(files)
 
         for i, fname in enumerate(files):
+            if self._cache_stop:
+                return
             fp = os.path.join(_MAPLEWORLD_DIR, fname)
             try:
                 img = PILImage.open(fp).convert("RGBA")
@@ -948,9 +951,15 @@ class MapleWorldPage(QWidget):
                 items = list(batch)
                 loaded = i + 1
                 batch.clear()
-                self.app.after(0, lambda b=items, n=loaded, t=total: self._add_cache_batch(b, n, t))
+                try:
+                    self.app.after(0, lambda b=items, n=loaded, t=total: self._add_cache_batch(b, n, t))
+                except RuntimeError:
+                    return
 
-        self.app.after(0, self._on_cache_load_done)
+        try:
+            self.app.after(0, self._on_cache_load_done)
+        except RuntimeError:
+            pass
 
     def _add_cache_batch(self, batch, loaded: int, total: int):
         """主執行緒：將一批處理好的項目加入 grid"""
