@@ -12,7 +12,7 @@ import struct
 import math
 import threading
 import ctypes
-from src.ui.overlay_manager import _user_path
+from src.infrastructure.helpers import user_data_path
 
 try:
     import winsound
@@ -157,7 +157,7 @@ class SoundManager:
 
     def __init__(self):
         """初始化音效管理器"""
-        self.sounds_dir = _user_path("sounds")
+        self.sounds_dir = user_data_path("sounds")
 
         # 確保音效目錄存在
         if not os.path.exists(self.sounds_dir):

@@ -16,7 +16,7 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-def user_path(relative_path):
+def user_data_path(relative_path):
     """取得使用者可寫入的資料路徑（支援 PyInstaller 打包）
 
     打包模式使用 exe 所在目錄；開發模式使用專案根目錄。

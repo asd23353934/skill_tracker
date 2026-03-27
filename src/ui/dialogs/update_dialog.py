@@ -169,7 +169,7 @@ class UpdateDialog(BaseDialog):
 
     def _download_thread(self):
         """背景下載執行緒"""
-        from src.ui.updater import Updater
+        from src.infrastructure.updater import Updater
         updater = Updater()
         updater.download_url = self.update_info.get("download_url")
         dest_path = updater.get_update_temp_path()

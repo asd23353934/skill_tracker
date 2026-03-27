@@ -181,7 +181,7 @@ class Updater:
         Returns:
             update_launcher.bat 的完整路徑
         """
-        from src.ui.helpers import resource_path
+        from src.infrastructure.helpers import resource_path
         return resource_path("update_launcher.bat")
 
     def _compare_versions(self, latest, current):

@@ -218,31 +218,46 @@ code:
 ---
 ### Requirement: Repositories have zero Qt dependency
 
-All repository classes SHALL be defined in `src/domain/repositories.py` and SHALL NOT import any PySide6 or Qt modules. They SHALL depend only on `ConfigManager` and domain models.
+All repository classes SHALL be defined in `src/infrastructure/repositories.py` and SHALL NOT import any PySide6 or Qt modules. They SHALL depend only on `ConfigManager` (from `src.infrastructure.config_manager`) and domain models (from `src.domain.models`). The `ConfigManager` type hint SHALL use a direct import, not a TYPE_CHECKING guard referencing `src.ui`.
 
 #### Scenario: Import repositories without Qt installed
 
-- **WHEN** `src/domain/repositories.py` is imported with `ConfigManager` available but PySide6 not installed
+- **WHEN** `src/infrastructure/repositories.py` is imported with `ConfigManager` available but PySide6 not installed
 - **THEN** the import succeeds without errors
 
+#### Scenario: Repositories import ConfigManager from infrastructure
+
+- **WHEN** `src/infrastructure/repositories.py` is inspected for import statements
+- **THEN** the `ConfigManager` reference resolves to `src.infrastructure.config_manager`, not `src.ui.config_manager`
+
 <!-- @trace
-source: clean-architecture-phase-1-2
-updated: 2026-03-26
+source: clean-architecture-phase-5
+updated: 2026-03-27
 code:
-  - src/ui/pages/broadcast_page.py
-  - src/ui/pages/mapleworld_page.py
-  - src/domain/models.py
-  - src/ui/dialogs/base_dialog.py
-  - src/ui/pages/__init__.py
-  - src/ui/app.py
   - src/domain/__init__.py
-  - src/ui/dialogs/broadcast_disclaimer_dialog.py
-  - requirements.txt
+  - src/infrastructure/updater.py
+  - src/infrastructure/sound_manager.py
+  - src/ui/sound_manager.py
+  - src/ui/dialogs/base_dialog.py
+  - src/infrastructure/skill_loader.py
+  - src/ui/skill_manager.py
+  - src/infrastructure/config_manager.py
+  - src/infrastructure/__init__.py
+  - src/ui/app.py
   - src/ui/broadcast_manager.py
-  - src/ui/sidebar.py
+  - src/ui/helpers.py
+  - src/ui/pages/mapleworld_page.py
+  - src/domain/services.py
+  - src/ui/window_manager.py
   - src/domain/repositories.py
-  - skill_tracker.spec
-  - config.json
-  - .spectra.yaml
-  - src/ui/dialogs/broadcast_blacklist_dialog.py
+  - src/ui/pages/monster_page.py
+  - src/infrastructure/broadcast_manager.py
+  - src/infrastructure/repositories.py
+  - src/ui/config_manager.py
+  - src/infrastructure/helpers.py
+  - src/ui/dialogs/update_dialog.py
+  - src/ui/pages/overlay_page.py
+  - src/ui/overlay_manager.py
+  - src/ui/skill_pixmap_cache.py
+  - src/ui/updater.py
 -->

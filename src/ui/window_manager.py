@@ -6,7 +6,7 @@ Phase 4 將完整重寫為 PySide6 SkillWindow
 
 import os
 
-from src.ui.helpers import resource_path
+from src.infrastructure.helpers import resource_path
 
 
 def _get_skill_window_cls():

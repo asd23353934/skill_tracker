@@ -4,27 +4,10 @@
 """
 
 import os
-import sys
 import shutil
 import uuid
 
-
-def _user_path(relative: str) -> str:
-    """取得使用者可寫入的資料路徑（支援 PyInstaller 打包）
-
-    打包模式使用 exe 所在目錄；開發模式使用專案根目錄
-
-    Args:
-        relative: 相對路徑
-
-    Returns:
-        絕對路徑字串
-    """
-    if getattr(sys, "frozen", False):
-        base = os.path.dirname(sys.executable)
-    else:
-        base = os.path.abspath(".")
-    return os.path.join(base, relative)
+from src.infrastructure.helpers import user_data_path
 
 
 class OverlayManager:
@@ -40,7 +23,7 @@ class OverlayManager:
         self.active_windows: dict = {}   # overlay_id → OverlayWindow
 
         # 確保 overlays 目錄存在
-        os.makedirs(_user_path(self._OVERLAYS_DIR), exist_ok=True)
+        os.makedirs(user_data_path(self._OVERLAYS_DIR), exist_ok=True)
 
         # 確保 config 有 "overlays" key
         if "overlays" not in app.config_manager.config:
@@ -65,7 +48,7 @@ class OverlayManager:
         if not data:
             return
 
-        image_path = _user_path(f"{self._OVERLAYS_DIR}/{data['file']}")
+        image_path = user_data_path(f"{self._OVERLAYS_DIR}/{data['file']}")
         if not os.path.exists(image_path):
             return
 
@@ -176,7 +159,7 @@ class OverlayManager:
 
         # 以 uuid 命名避免衝突
         filename = f"{uuid.uuid4().hex[:8]}{ext}"
-        dest = _user_path(f"{self._OVERLAYS_DIR}/{filename}")
+        dest = user_data_path(f"{self._OVERLAYS_DIR}/{filename}")
         try:
             shutil.copy2(src_path, dest)
         except Exception:
@@ -230,7 +213,7 @@ class OverlayManager:
         data = self._get_data(overlay_id)
         if data and delete_file:
             try:
-                file_path = _user_path(f"{self._OVERLAYS_DIR}/{data['file']}")
+                file_path = user_data_path(f"{self._OVERLAYS_DIR}/{data['file']}")
                 if os.path.exists(file_path):
                     os.remove(file_path)
             except Exception:

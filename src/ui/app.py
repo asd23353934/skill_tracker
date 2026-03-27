@@ -16,21 +16,23 @@ from PySide6.QtCore import Qt, QEvent, QTimer, QObject, Signal
 from PySide6.QtGui import QIcon
 
 from src.ui.theme import AppTheme
-from src.ui.config_manager import ConfigManager
-from src.ui.skill_manager import SkillManager
+from src.infrastructure.config_manager import ConfigManager
+from src.infrastructure.skill_loader import SkillLoader
+from src.infrastructure.broadcast_manager import BroadcastManager
+from src.infrastructure.helpers import resource_path
+from src.infrastructure.repositories import (
+    SkillRepository, ProfileRepository, MonsterRepository,
+    OverlayRepository, SettingsRepository,
+)
+from src.ui.skill_pixmap_cache import SkillPixmapCache
 from src.ui.hotkey_manager import HotkeyManager
 from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
 from src.ui.header import Header
 from src.ui.status_bar import StatusBar
 from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, MapleWorldPage, BroadcastPage
-from src.ui.broadcast_manager import BroadcastManager
-from src.ui.helpers import resource_path
 from src.ui.toast import ToastManager
-from src.domain.repositories import (
-    SkillRepository, ProfileRepository, MonsterRepository,
-    OverlayRepository, SettingsRepository,
-)
+from src.domain.services import SkillService, MonsterService
 
 
 class _Dispatcher(QObject):
@@ -59,6 +61,64 @@ class App(QMainWindow):
     """主應用程式 — PySide6 QMainWindow"""
 
     _RESIZE_MARGIN = 4   # 邊框 resize 感應距離（像素）
+
+    # --------------------------------------------------
+    # Property 委派：向後相容，實際狀態由 SkillService 持有
+    # --------------------------------------------------
+
+    @property
+    def skill_permanent(self):
+        """委派到 SkillService._permanent"""
+        return self.skill_service._permanent
+
+    @skill_permanent.setter
+    def skill_permanent(self, value):
+        self.skill_service._permanent = value
+
+    @property
+    def skill_loop(self):
+        """委派到 SkillService._loop"""
+        return self.skill_service._loop
+
+    @skill_loop.setter
+    def skill_loop(self, value):
+        self.skill_service._loop = value
+
+    @property
+    def skill_alert_enabled(self):
+        """委派到 SkillService._alert_enabled"""
+        return self.skill_service._alert_enabled
+
+    @skill_alert_enabled.setter
+    def skill_alert_enabled(self, value):
+        self.skill_service._alert_enabled = value
+
+    @property
+    def skill_alert_seconds_overrides(self):
+        """委派到 SkillService._alert_seconds_overrides"""
+        return self.skill_service._alert_seconds_overrides
+
+    @skill_alert_seconds_overrides.setter
+    def skill_alert_seconds_overrides(self, value):
+        self.skill_service._alert_seconds_overrides = value
+
+    @property
+    def skill_sound_overrides(self):
+        """委派到 SkillService._sound_overrides"""
+        return self.skill_service._sound_overrides
+
+    @skill_sound_overrides.setter
+    def skill_sound_overrides(self, value):
+        self.skill_service._sound_overrides = value
+
+    @property
+    def skill_alert_sound_overrides(self):
+        """委派到 SkillService._alert_sound_overrides"""
+        return self.skill_service._alert_sound_overrides
+
+    @skill_alert_sound_overrides.setter
+    def skill_alert_sound_overrides(self, value):
+        self.skill_service._alert_sound_overrides = value
 
     def __init__(self):
         super().__init__()
@@ -97,7 +157,8 @@ class App(QMainWindow):
         # 初始化管理器
         try:
             self.config_manager = ConfigManager(resource_path("config.json"))
-            self.skill_manager = SkillManager(self.config_manager)
+            self.skill_loader = SkillLoader(self.config_manager)
+            self.skill_manager = SkillPixmapCache(self.skill_loader)
         except Exception as e:
             QMessageBox.critical(None, "錯誤", f"初始化失敗: {e}")
             sys.exit(1)
@@ -110,8 +171,15 @@ class App(QMainWindow):
         self.settings_repo = SettingsRepository(self.config_manager)
 
         # 音效管理器
-        from src.ui.sound_manager import SoundManager
+        from src.infrastructure.sound_manager import SoundManager
         self.sound_manager = SoundManager()
+
+        # Service 層（整潔架構 Phase 3-4，業務邏輯集中）
+        self.skill_service = SkillService(
+            skill_repo=self.skill_repo,
+            skill_loader=self.skill_loader,
+        )
+        self.monster_service = MonsterService(self.config_manager)
 
         # 初始化狀態
         self._init_state()
@@ -197,51 +265,26 @@ class App(QMainWindow):
             settings.get("global_alert_sound", "")
         )
 
-        # 技能設定（從配置檔載入）
+        # 同步全域設定到 SkillService
+        self.skill_service.alert_before_seconds = self.alert_before_seconds
+        self.skill_service.global_sound = self.global_sound
+        self.skill_service.global_alert_sound = self.global_alert_sound
+
+        # 技能設定（從配置檔載入，委派到 SkillService）
         if profile_data:
-            self.skill_permanent              = profile_data.get("permanent", {})
-            self.skill_loop                   = profile_data.get("loop", {})
-            self.skill_alert_enabled          = profile_data.get("alert_enabled", {})
-            self.skill_alert_seconds_overrides= profile_data.get("alert_seconds_overrides", {})
-            self.skill_sound_overrides        = {
+            # 遷移音效檔名
+            migrated_data = dict(profile_data)
+            migrated_data["sound_overrides"] = {
                 k: self.sound_manager.migrate_sound_filename(v)
                 for k, v in profile_data.get("sound_overrides", {}).items()
             }
-            self.skill_alert_sound_overrides  = {
+            migrated_data["alert_sound_overrides"] = {
                 k: self.sound_manager.migrate_sound_filename(v)
                 for k, v in profile_data.get("alert_sound_overrides", {}).items()
             }
-
-            hotkeys = profile_data.get("hotkeys", {})
-            for skill_id, hotkey in hotkeys.items():
-                skill = self.skill_manager.get_skill(skill_id)
-                if skill:
-                    skill["hotkey"] = hotkey
-
-            cooldown_overrides = profile_data.get("cooldown_overrides", {})
-            for skill_id, cooldown in cooldown_overrides.items():
-                skill = self.skill_manager.get_skill(skill_id)
-                if skill:
-                    skill["cooldown"] = cooldown
+            self.skill_service.load_from_profile(migrated_data)
         else:
-            self.skill_permanent               = {}
-            self.skill_loop                    = {}
-            self.skill_alert_enabled           = {}
-            self.skill_alert_seconds_overrides = {}
-            self.skill_sound_overrides         = {}
-            self.skill_alert_sound_overrides   = {}
-
-        # 確保所有技能都有預設值
-        for skill_id in self.skill_manager.get_all_skills():
-            self.skill_permanent.setdefault(skill_id, False)
-            self.skill_loop.setdefault(skill_id, False)
-            self.skill_alert_enabled.setdefault(skill_id, False)
-
-        # 怪物 ID → 怪物字典快取（O(1) 查詢）
-        self._monster_index: dict = {
-            m["id"]: m
-            for m in self.config_manager.config.get("monsters", [])
-        }
+            self.skill_service.reset_all_to_defaults()
 
         # UI 元件字典（儲存 QPushButton / QCheckBox 引用）
         self.permanent_vars        = {}  # skill_id → QCheckBox
@@ -382,41 +425,24 @@ class App(QMainWindow):
     # --------------------------------------------------
 
     def get_monster(self, monster_id):
-        """根據 ID 取得怪物資料（O(1）
-
-        Args:
-            monster_id: 怪物 ID
-
-        Returns:
-            怪物字典或 None
-        """
-        return self._monster_index.get(monster_id)
+        """根據 ID 取得怪物資料（委派到 MonsterService）"""
+        return self.monster_service.get(monster_id)
 
     def get_monster_by_hotkey(self, key_name):
-        """根據按鍵名稱取得怪物 ID
-
-        Args:
-            key_name: 按鍵名稱字串
-
-        Returns:
-            怪物 ID 或 None
-        """
-        key_upper = key_name.upper()
-        for m in self.config_manager.config.get("monsters", []):
-            if m.get("hotkey", "").upper() == key_upper:
-                return m["id"]
-        return None
+        """根據按鍵名稱取得怪物 ID（委派到 MonsterService）"""
+        monster = self.monster_service.get_by_hotkey(key_name)
+        return monster["id"] if monster else None
 
     def get_all_monsters(self):
-        """取得所有怪物資料"""
-        return self.config_manager.config.get("monsters", [])
+        """取得所有怪物資料（委派到 MonsterService）"""
+        return self.monster_service.get_all()
 
     def save_monsters(self):
-        """儲存怪物資料到 config.json"""
-        self.config_manager.save()
+        """儲存怪物資料到 config.json（委派到 MonsterService）"""
+        self.monster_service.save()
 
     def edit_respawn_time(self, monster_id):
-        """編輯怪物重生時間
+        """編輯怪物重生時間（委派到 MonsterService）
 
         Args:
             monster_id: 怪物 ID
@@ -426,7 +452,7 @@ class App(QMainWindow):
             return
 
         self.hotkey_manager.enabled = False
-        original = self.config_manager.get_original_respawn_time(monster_id)
+        original = self.monster_service.get_original_respawn_time(monster_id)
         current  = monster.get("respawn_time", 0)
 
         new_val, ok = QInputDialog.getInt(
@@ -437,12 +463,11 @@ class App(QMainWindow):
         self.hotkey_manager.enabled = True
 
         if ok and new_val != current:
-            monster["respawn_time"] = new_val
-            self.save_monsters()
+            is_modified = self.monster_service.set_respawn_time(monster_id, new_val)
+            self.monster_service.save()
 
             btn = self.monster_respawn_buttons.get(monster_id)
             if btn:
-                is_modified = original and new_val != original
                 btn.setText(f"{new_val}秒")
                 self._apply_btn_style(
                     btn,
@@ -451,21 +476,16 @@ class App(QMainWindow):
                 )
 
     def reset_respawn_time(self, monster_id):
-        """重置怪物重生時間為原始值
+        """重置怪物重生時間為原始值（委派到 MonsterService）
 
         Args:
             monster_id: 怪物 ID
         """
-        monster = self.get_monster(monster_id)
-        if not monster:
+        original = self.monster_service.reset_respawn_time(monster_id)
+        if original is None:
             return
 
-        original = self.config_manager.get_original_respawn_time(monster_id)
-        if not original or monster.get("respawn_time") == original:
-            return
-
-        monster["respawn_time"] = original
-        self.save_monsters()
+        self.monster_service.save()
 
         btn = self.monster_respawn_buttons.get(monster_id)
         if btn:
@@ -473,7 +493,7 @@ class App(QMainWindow):
             self._apply_btn_style(btn, bg=AppTheme.BG_TERTIARY, hover=AppTheme.BG_SECONDARY)
 
     def reset_monster_hotkey(self, monster_id):
-        """重置怪物快捷鍵
+        """重置怪物快捷鍵（委派到 MonsterService）
 
         Args:
             monster_id: 怪物 ID
@@ -481,14 +501,14 @@ class App(QMainWindow):
         monster = self.get_monster(monster_id)
         if not monster or not monster.get("hotkey"):
             return
-        monster["hotkey"] = ""
-        self.save_monsters()
+        self.monster_service.clear_hotkey(monster_id)
+        self.monster_service.save()
         card = self.monster_page.cards.get(monster_id)
         if card:
             self.after(0, lambda c=card: c.update_hotkey_display("", False))
 
     def edit_monster_alert_before(self, monster_id):
-        """編輯怪物提前提示秒數
+        """編輯怪物提前提示秒數（委派到 MonsterService）
 
         Args:
             monster_id: 怪物 ID
@@ -508,8 +528,8 @@ class App(QMainWindow):
         self.hotkey_manager.enabled = True
 
         if ok and new_val != current:
-            monster["alert_before"] = new_val
-            self.save_monsters()
+            self.monster_service.set_alert_before(monster_id, new_val)
+            self.monster_service.save()
             btn = self.monster_alert_before_buttons.get(monster_id)
             if btn:
                 btn.setText(f"{new_val}秒")
@@ -520,58 +540,46 @@ class App(QMainWindow):
                 )
 
     def update_monster_alert_sound(self, monster_id, filename: str):
-        """更新怪物提前提示聲音
+        """更新怪物提前提示聲音（委派到 MonsterService）
 
         Args:
             monster_id: 怪物 ID
             filename:   聲音檔名（空字串 = 使用全域）
         """
-        monster = self.get_monster(monster_id)
-        if not monster:
-            return
-        monster["alert_sound"] = filename
-        self.save_monsters()
+        self.monster_service.set_alert_sound(monster_id, filename)
+        self.monster_service.save()
 
     def update_monster_end_sound(self, monster_id, filename: str):
-        """更新怪物結束聲音
+        """更新怪物結束聲音（委派到 MonsterService）
 
         Args:
             monster_id: 怪物 ID
             filename:   聲音檔名（空字串 = 使用全域）
         """
-        monster = self.get_monster(monster_id)
-        if not monster:
-            return
-        monster["sound"] = filename
-        self.save_monsters()
+        self.monster_service.set_sound(monster_id, filename)
+        self.monster_service.save()
 
     def update_monster_loop(self, monster_id, loop_value):
-        """更新怪物循環設定
+        """更新怪物循環設定（委派到 MonsterService）
 
         Args:
             monster_id:  怪物 ID
             loop_value:  bool
         """
-        monster = self.get_monster(monster_id)
-        if not monster:
-            return
-        monster["loop"] = loop_value
-        self.save_monsters()
+        self.monster_service.set_loop(monster_id, loop_value)
+        self.monster_service.save()
         if monster_id in self.window_manager.active_windows:
             self.window_manager.active_windows[monster_id].is_loop = loop_value
 
     def update_monster_permanent(self, monster_id, permanent_value):
-        """更新怪物常駐設定
+        """更新怪物常駐設定（委派到 MonsterService）
 
         Args:
             monster_id:      怪物 ID
             permanent_value: bool
         """
-        monster = self.get_monster(monster_id)
-        if not monster:
-            return
-        monster["permanent"] = permanent_value
-        self.save_monsters()
+        self.monster_service.set_permanent(monster_id, permanent_value)
+        self.monster_service.save()
         if permanent_value:
             if monster_id not in self.window_manager.active_windows:
                 self.window_manager.create_permanent_monster_window(monster_id)
@@ -584,62 +592,24 @@ class App(QMainWindow):
     # --------------------------------------------------
 
     def get_original_cooldown(self, skill_id):
-        """獲取技能的原始冷卻秒數
-
-        Args:
-            skill_id: 技能 ID
-
-        Returns:
-            原始秒數或 None
-        """
-        for skill_data in self.config_manager.initial_skills:
-            if skill_data["id"] == skill_id:
-                return skill_data.get("cooldown")
-        for item_data in self.config_manager.initial_items:
-            if item_data["id"] == skill_id:
-                return item_data.get("cooldown")
-        return None
+        """獲取技能的原始冷卻秒數（委派到 SkillService）"""
+        return self.skill_service.get_original_cooldown(skill_id)
 
     def get_alert_seconds(self, skill_id):
-        """獲取技能的提前提示秒數（個別 > 全域）
-
-        Args:
-            skill_id: 技能 ID
-
-        Returns:
-            提前提示秒數
-        """
-        return self.skill_alert_seconds_overrides.get(
-            skill_id, self.alert_before_seconds
-        )
+        """獲取技能的提前提示秒數（委派到 SkillService）"""
+        return self.skill_service.get_alert_seconds(skill_id)
 
     def get_sound_for_skill(self, skill_id):
-        """獲取技能的完成音效檔名
-
-        Args:
-            skill_id: 技能 ID
-
-        Returns:
-            音效檔名（空字串 = 系統 beep）
-        """
-        override = self.skill_sound_overrides.get(skill_id)
-        return override if override else self.global_sound
+        """獲取技能的完成音效檔名（委派到 SkillService）"""
+        return self.skill_service.get_sound(skill_id)
 
     def get_alert_sound_for_skill(self, skill_id):
-        """獲取技能的提前提示音效檔名
-
-        Args:
-            skill_id: 技能 ID
-
-        Returns:
-            音效檔名
-        """
-        override = self.skill_alert_sound_overrides.get(skill_id)
-        return override if override else self.global_alert_sound
+        """獲取技能的提前提示音效檔名（委派到 SkillService）"""
+        return self.skill_service.get_alert_sound(skill_id)
 
     def auto_save_current_profile(self):
-        """自動保存當前配置到檔案"""
-        current_settings = self._get_current_settings()
+        """自動保存當前配置到檔案（委派到 SkillService）"""
+        current_settings = self.skill_service.serialize_to_dict()
         self.config_manager.save_profile(self.current_profile_name, current_settings)
 
     def update_hotkey_display(self, skill_id, key_str, has_hotkey):
@@ -661,7 +631,7 @@ class App(QMainWindow):
             )
 
     def update_skill_setting_exclusive(self, skill_id, setting_type, var):
-        """更新技能設定（常駐 / 循環互斥）
+        """更新技能設定（常駐 / 循環互斥，委派到 SkillService）
 
         Args:
             skill_id:     技能 ID
@@ -670,52 +640,48 @@ class App(QMainWindow):
         """
         new_value = var.isChecked()
 
+        # 業務邏輯委派到 SkillService（互斥規則）
+        if setting_type == "permanent":
+            result = self.skill_service.set_permanent(skill_id, new_value)
+        elif setting_type == "loop":
+            result = self.skill_service.set_loop(skill_id, new_value)
+        else:
+            return
+
+        # UI 更新：同步 checkbox 狀態
+        if not result["loop"] and skill_id in self.loop_vars:
+            self.loop_vars[skill_id].setChecked(False)
+        if not result["permanent"] and skill_id in self.permanent_vars:
+            self.permanent_vars[skill_id].setChecked(False)
+
+        # UI 更新：視窗生命週期
         if new_value:
             if setting_type == "permanent":
-                # 開常駐時取消循環
-                if self.skill_loop.get(skill_id, False):
-                    self.skill_loop[skill_id] = False
-                    if skill_id in self.loop_vars:
-                        self.loop_vars[skill_id].setChecked(False)
-                    if skill_id in self.window_manager.active_windows:
-                        self.window_manager.active_windows[skill_id].close()
-
-                self.skill_permanent[skill_id] = True
+                # 關閉可能的循環視窗
+                if skill_id in self.window_manager.active_windows:
+                    self.window_manager.active_windows[skill_id].close()
                 if skill_id not in self.window_manager.active_windows:
                     self.window_manager.create_permanent_window(skill_id)
-
             elif setting_type == "loop":
-                # 開循環時取消常駐
-                if self.skill_permanent.get(skill_id, False):
-                    self.skill_permanent[skill_id] = False
-                    if skill_id in self.permanent_vars:
-                        self.permanent_vars[skill_id].setChecked(False)
-                    if skill_id in self.window_manager.active_windows:
-                        self.window_manager.active_windows[skill_id].close()
-
-                # 循環模式：只標記狀態，等待按鍵觸發
-                self.skill_loop[skill_id] = True
+                # 關閉可能的常駐視窗
+                if skill_id in self.window_manager.active_windows:
+                    self.window_manager.active_windows[skill_id].close()
         else:
             if skill_id in self.window_manager.active_windows:
                 self.window_manager.active_windows[skill_id].close()
-
-            if setting_type == "permanent":
-                self.skill_permanent[skill_id] = False
-            elif setting_type == "loop":
-                self.skill_loop[skill_id] = False
 
         self._save_config()
         self.auto_save_current_profile()
 
     def update_alert_setting(self, skill_id, var):
-        """更新提前提示設定
+        """更新提前提示設定（委派到 SkillService）
 
         Args:
             skill_id: 技能 ID
             var:      觸發變更的 QCheckBox 實例
         """
         new_value = var.isChecked()
-        self.skill_alert_enabled[skill_id] = new_value
+        self.skill_service.set_alert_enabled(skill_id, new_value)
 
         if skill_id in self.window_manager.active_windows:
             win = self.window_manager.active_windows[skill_id]
@@ -726,15 +692,13 @@ class App(QMainWindow):
         self.auto_save_current_profile()
 
     def edit_alert_seconds(self, skill_id):
-        """編輯技能的個別提前提示秒數
+        """編輯技能的個別提前提示秒數（委派到 SkillService）
 
         Args:
             skill_id: 技能 ID
         """
         self.hotkey_manager.enabled = False
-        current = self.skill_alert_seconds_overrides.get(
-            skill_id, self.alert_before_seconds
-        )
+        current = self.skill_service.get_alert_seconds(skill_id)
 
         new_val, ok = QInputDialog.getInt(
             self, "提前提示秒數",
@@ -747,9 +711,9 @@ class App(QMainWindow):
 
         if ok:
             if new_val == -1:
-                self.skill_alert_seconds_overrides.pop(skill_id, None)
+                self.skill_service.clear_alert_seconds_override(skill_id)
             else:
-                self.skill_alert_seconds_overrides[skill_id] = new_val
+                self.skill_service.set_alert_seconds_override(skill_id, new_val)
 
             btn = self.alert_seconds_buttons.get(skill_id)
             if btn:
@@ -767,79 +731,70 @@ class App(QMainWindow):
             self.auto_save_current_profile()
 
     def toggle_all(self, setting_type):
-        """切換所有技能的設定（全開或全關）
+        """切換所有技能的設定（全開或全關，委派到 SkillService）
 
         Args:
             setting_type: 'permanent' | 'loop' | 'alert'
         """
-        all_skills = list(self.skill_manager.get_all_skills().keys())
-
         if setting_type == "permanent":
-            all_checked = all(self.skill_permanent.get(sid, False) for sid in all_skills)
-            new_val = not all_checked
+            results = self.skill_service.toggle_all_permanent()
+            new_val = next(iter(results.values()), False)
 
+            # UI 更新：loop checkbox 全關
             if new_val:
-                for sid in all_skills:
-                    if self.skill_loop.get(sid, False):
-                        self.skill_loop[sid] = False
-                        if sid in self.loop_vars:
-                            self.loop_vars[sid].setChecked(False)
-                        if sid in self.window_manager.active_windows:
-                            self.window_manager.active_windows[sid].close()
+                for sid in results:
+                    if sid in self.loop_vars:
+                        self.loop_vars[sid].setChecked(False)
+                    if sid in self.window_manager.active_windows:
+                        self.window_manager.active_windows[sid].close()
 
-            for sid in all_skills:
-                self._update_permanent_skill(sid, new_val)
-                self.skill_permanent[sid] = new_val
+            for sid, val in results.items():
+                self._update_permanent_skill(sid, val)
                 if sid in self.permanent_vars:
-                    self.permanent_vars[sid].setChecked(new_val)
+                    self.permanent_vars[sid].setChecked(val)
 
         elif setting_type == "loop":
-            all_checked = all(self.skill_loop.get(sid, False) for sid in all_skills)
-            new_val = not all_checked
+            results = self.skill_service.toggle_all_loop()
+            new_val = next(iter(results.values()), False)
 
+            # UI 更新：permanent checkbox 全關 + 關閉常駐視窗
             if new_val:
-                for sid in all_skills:
-                    if self.skill_permanent.get(sid, False):
-                        self._update_permanent_skill(sid, False)
-                        self.skill_permanent[sid] = False
-                        if sid in self.permanent_vars:
-                            self.permanent_vars[sid].setChecked(False)
+                for sid in results:
+                    if sid in self.permanent_vars:
+                        self.permanent_vars[sid].setChecked(False)
+                    if sid in self.window_manager.active_windows:
+                        self.window_manager.active_windows[sid].close()
 
-            for sid in all_skills:
-                self.skill_loop[sid] = new_val
+            for sid, val in results.items():
                 if sid in self.loop_vars:
-                    self.loop_vars[sid].setChecked(new_val)
-                if not new_val and sid in self.window_manager.active_windows:
+                    self.loop_vars[sid].setChecked(val)
+                if not val and sid in self.window_manager.active_windows:
                     self.window_manager.active_windows[sid].close()
 
         elif setting_type == "alert":
-            all_checked = all(self.skill_alert_enabled.get(sid, False) for sid in all_skills)
-            new_val = not all_checked
-
-            for sid in all_skills:
-                self.skill_alert_enabled[sid] = new_val
+            results = self.skill_service.toggle_all_alert()
+            for sid, val in results.items():
                 if sid in self.alert_enabled_vars:
-                    self.alert_enabled_vars[sid].setChecked(new_val)
+                    self.alert_enabled_vars[sid].setChecked(val)
 
         self._save_config()
         self.auto_save_current_profile()
 
     def clear_all_hotkeys(self):
-        """清空所有快捷鍵和秒數覆寫（含確認對話框）"""
+        """清空所有快捷鍵和秒數覆寫（含確認對話框，委派到 SkillService）"""
         reply = QMessageBox.question(
             self, "確認",
             "確定要清空所有技能的快捷鍵和自訂秒數嗎?\n（會恢復預設秒數）",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            for skill_id, skill in self.skill_manager.get_all_skills().items():
-                skill["hotkey"] = ""
-                original = self.get_original_cooldown(skill_id)
-                if original:
-                    skill["cooldown"] = original
+            for skill_id in self.skill_loader.get_all_skills():
+                self.skill_service.clear_hotkey(skill_id)
+                self.skill_service.clear_cooldown_override(skill_id)
 
                 self.update_hotkey_display(skill_id, "", False)
 
+                original = self.skill_service.get_original_cooldown(skill_id)
                 btn = self.cooldown_buttons.get(skill_id)
                 if btn and original:
                     btn.setText(f"{original}秒")
@@ -851,17 +806,17 @@ class App(QMainWindow):
             self.toast.show("已清空所有快捷鍵並恢復預設秒數", "success")
 
     def edit_cooldown(self, skill_id):
-        """編輯技能冷卻時間
+        """編輯技能冷卻時間（委派到 SkillService）
 
         Args:
             skill_id: 技能 ID
         """
-        skill = self.skill_manager.get_skill(skill_id)
+        skill = self.skill_loader.get_skill(skill_id)
         if not skill:
             return
 
         self.hotkey_manager.enabled = False
-        original = self.get_original_cooldown(skill_id)
+        original = self.skill_service.get_original_cooldown(skill_id)
 
         new_cooldown, ok = QInputDialog.getInt(
             self, "修改冷卻時間",
@@ -871,11 +826,10 @@ class App(QMainWindow):
         self.hotkey_manager.enabled = True
 
         if ok and new_cooldown != skill["cooldown"]:
-            skill["cooldown"] = new_cooldown
+            is_modified = self.skill_service.set_cooldown_override(skill_id, new_cooldown)
 
             btn = self.cooldown_buttons.get(skill_id)
             if btn:
-                is_modified = original and new_cooldown != original
                 btn.setText(f"{new_cooldown}秒")
                 self._apply_btn_style(
                     btn,
@@ -886,20 +840,17 @@ class App(QMainWindow):
             self.auto_save_current_profile()
 
     def reset_cooldown(self, skill_id):
-        """重置技能冷卻時間為預設值
+        """重置技能冷卻時間為預設值（委派到 SkillService）
 
         Args:
             skill_id: 技能 ID
         """
-        skill = self.skill_manager.get_skill(skill_id)
-        if not skill:
+        original = self.skill_service.get_original_cooldown(skill_id)
+        skill = self.skill_loader.get_skill(skill_id)
+        if not skill or not original or skill["cooldown"] == original:
             return
 
-        original = self.get_original_cooldown(skill_id)
-        if not original or skill["cooldown"] == original:
-            return
-
-        skill["cooldown"] = original
+        self.skill_service.clear_cooldown_override(skill_id)
 
         btn = self.cooldown_buttons.get(skill_id)
         if btn:
@@ -909,16 +860,16 @@ class App(QMainWindow):
         self.auto_save_current_profile()
 
     def reset_hotkey(self, skill_id):
-        """重置技能快捷鍵
+        """重置技能快捷鍵（委派到 SkillService）
 
         Args:
             skill_id: 技能 ID
         """
-        skill = self.skill_manager.get_skill(skill_id)
+        skill = self.skill_loader.get_skill(skill_id)
         if not skill or not skill.get("hotkey"):
             return
 
-        skill["hotkey"] = ""
+        self.skill_service.clear_hotkey(skill_id)
         self.update_hotkey_display(skill_id, "", False)
         self.auto_save_current_profile()
 
@@ -952,6 +903,11 @@ class App(QMainWindow):
             self.window_size          = result["window_size"]
             self.global_sound         = result.get("global_sound", "")
             self.global_alert_sound   = result.get("global_alert_sound", "")
+
+            # 同步全域設定到 SkillService
+            self.skill_service.alert_before_seconds = self.alert_before_seconds
+            self.skill_service.global_sound = self.global_sound
+            self.skill_service.global_alert_sound = self.global_alert_sound
 
             self.config_manager.set_settings("skill_start_x",        self.skill_start_x)
             self.config_manager.set_settings("skill_start_y",        self.skill_start_y)
@@ -1025,76 +981,21 @@ class App(QMainWindow):
     # --------------------------------------------------
 
     def _get_current_settings(self):
-        """獲取當前設定（用於保存配置檔）
+        """獲取當前設定（委派到 SkillService）
 
         Returns:
             設定字典
         """
-        cooldown_overrides = {}
-        for skill_id, skill in self.skill_manager.get_all_skills().items():
-            original = self.get_original_cooldown(skill_id)
-            current  = skill.get("cooldown")
-            if original and current != original:
-                cooldown_overrides[skill_id] = current
-
-        return {
-            "hotkeys": {
-                sid: skill.get("hotkey", "")
-                for sid, skill in self.skill_manager.get_all_skills().items()
-            },
-            "permanent":              self.skill_permanent.copy(),
-            "loop":                   self.skill_loop.copy(),
-            "alert_enabled":          self.skill_alert_enabled.copy(),
-            "cooldown_overrides":     cooldown_overrides,
-            "alert_seconds_overrides":self.skill_alert_seconds_overrides.copy(),
-            "sound_overrides":        self.skill_sound_overrides.copy(),
-            "alert_sound_overrides":  self.skill_alert_sound_overrides.copy(),
-        }
+        return self.skill_service.serialize_to_dict()
 
     def _apply_profile(self, profile_data):
-        """套用配置（切換配置後呼叫）
-
-        執行順序（先重置後套用，確保無舊配置殘留）：
-          1. 所有技能 hotkey 清空、cooldown 還原為原始值
-          2. 套用 profile 的 hotkeys / cooldown_overrides
-          3. 套用 profile 的 permanent / loop / alert_enabled 與各 override
+        """套用配置（委派到 SkillService）
 
         Args:
             profile_data: 配置字典
         """
         self.current_profile_name = self.config_manager.get_current_profile()
-
-        # 重置技能資料
-        for skill_id, skill in self.skill_manager.get_all_skills().items():
-            original = self.get_original_cooldown(skill_id)
-            if original:
-                skill["cooldown"] = original
-            skill["hotkey"] = ""
-
-        hotkeys = profile_data.get("hotkeys", {})
-        for skill_id, hotkey in hotkeys.items():
-            skill = self.skill_manager.get_skill(skill_id)
-            if skill:
-                skill["hotkey"] = hotkey
-
-        cooldown_overrides = profile_data.get("cooldown_overrides", {})
-        for skill_id, cooldown in cooldown_overrides.items():
-            skill = self.skill_manager.get_skill(skill_id)
-            if skill:
-                skill["cooldown"] = cooldown
-
-        self.skill_permanent               = profile_data.get("permanent", {}).copy()
-        self.skill_loop                    = profile_data.get("loop", {}).copy()
-        self.skill_alert_enabled           = profile_data.get("alert_enabled", {}).copy()
-        self.skill_alert_seconds_overrides = profile_data.get("alert_seconds_overrides", {}).copy()
-        self.skill_sound_overrides         = profile_data.get("sound_overrides", {}).copy()
-        self.skill_alert_sound_overrides   = profile_data.get("alert_sound_overrides", {}).copy()
-
-        for skill_id in self.skill_manager.get_all_skills():
-            self.skill_permanent.setdefault(skill_id, False)
-            self.skill_loop.setdefault(skill_id, False)
-            self.skill_alert_enabled.setdefault(skill_id, False)
-
+        self.skill_service.load_from_profile(profile_data)
         self._save_config()
         self._reload_ui()
 
@@ -1144,7 +1045,7 @@ class App(QMainWindow):
         """在背景執行緒檢查更新，避免網路請求阻塞主執行緒"""
         def _worker():
             try:
-                from src.ui.updater import Updater
+                from src.infrastructure.updater import Updater
                 updater    = Updater()
                 update_info = updater.check_for_updates()
                 if update_info.get("available"):

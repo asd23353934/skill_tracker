@@ -259,31 +259,46 @@ code:
 ---
 ### Requirement: Domain models have zero Qt dependency
 
-All domain model classes (`SkillMetadata`, `SkillState`, `Profile`, `MonsterData`, `OverlayData`, `GlobalSettings`) SHALL be defined in `src/domain/models.py` and SHALL NOT import any PySide6 or Qt modules. They SHALL use only Python standard library types.
+All domain model classes (`SkillMetadata`, `SkillState`, `Profile`, `MonsterData`, `OverlayData`, `GlobalSettings`) SHALL be defined in `src/domain/models.py` and SHALL NOT import any PySide6 or Qt modules. They SHALL use only Python standard library types. No module in `src/domain/` SHALL import from `src.ui` or `src.infrastructure`, not even under `TYPE_CHECKING` blocks. The domain layer SHALL depend only on Python standard library modules.
 
 #### Scenario: Import domain models without Qt installed
 
 - **WHEN** `src/domain/models.py` is imported in an environment without PySide6
 - **THEN** the import succeeds without errors
 
+#### Scenario: Domain layer has no outward imports
+
+- **WHEN** all `.py` files in `src/domain/` are scanned for import statements
+- **THEN** no import references `src.ui` or `src.infrastructure` (including TYPE_CHECKING blocks)
+
 <!-- @trace
-source: clean-architecture-phase-1-2
-updated: 2026-03-26
+source: clean-architecture-phase-5
+updated: 2026-03-27
 code:
-  - src/ui/pages/broadcast_page.py
-  - src/ui/pages/mapleworld_page.py
-  - src/domain/models.py
-  - src/ui/dialogs/base_dialog.py
-  - src/ui/pages/__init__.py
-  - src/ui/app.py
   - src/domain/__init__.py
-  - src/ui/dialogs/broadcast_disclaimer_dialog.py
-  - requirements.txt
+  - src/infrastructure/updater.py
+  - src/infrastructure/sound_manager.py
+  - src/ui/sound_manager.py
+  - src/ui/dialogs/base_dialog.py
+  - src/infrastructure/skill_loader.py
+  - src/ui/skill_manager.py
+  - src/infrastructure/config_manager.py
+  - src/infrastructure/__init__.py
+  - src/ui/app.py
   - src/ui/broadcast_manager.py
-  - src/ui/sidebar.py
+  - src/ui/helpers.py
+  - src/ui/pages/mapleworld_page.py
+  - src/domain/services.py
+  - src/ui/window_manager.py
   - src/domain/repositories.py
-  - skill_tracker.spec
-  - config.json
-  - .spectra.yaml
-  - src/ui/dialogs/broadcast_blacklist_dialog.py
+  - src/ui/pages/monster_page.py
+  - src/infrastructure/broadcast_manager.py
+  - src/infrastructure/repositories.py
+  - src/ui/config_manager.py
+  - src/infrastructure/helpers.py
+  - src/ui/dialogs/update_dialog.py
+  - src/ui/pages/overlay_page.py
+  - src/ui/overlay_manager.py
+  - src/ui/skill_pixmap_cache.py
+  - src/ui/updater.py
 -->

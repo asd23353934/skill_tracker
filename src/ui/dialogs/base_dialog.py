@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QFrame, QApplication
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from src.ui.theme import AppTheme
-from src.ui.helpers import resource_path
+from src.infrastructure.helpers import resource_path
 
 
 class BaseDialog(QDialog):

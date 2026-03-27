@@ -20,7 +20,7 @@ from PySide6.QtCore import Qt, QSize, QRect, QEvent, Signal as _Signal
 from PySide6.QtGui import QImage, QIcon, QPixmap, QPainter, QColor
 
 from src.ui.theme import AppTheme
-from src.ui.helpers import user_path
+from src.infrastructure.helpers import user_data_path
 
 # 遊戲快取預設路徑
 _DEFAULT_GAME_PATH = os.path.normpath(
@@ -28,7 +28,7 @@ _DEFAULT_GAME_PATH = os.path.normpath(
 )
 
 # 程式內部儲存資料夾（exe 同層 images/mapleworld/）
-_MAPLEWORLD_DIR = user_path(os.path.join("images", "mapleworld"))
+_MAPLEWORLD_DIR = user_data_path(os.path.join("images", "mapleworld"))
 
 # 縮圖尺寸（px）
 _THUMB = 110

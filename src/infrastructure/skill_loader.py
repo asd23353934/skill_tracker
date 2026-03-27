@@ -1,58 +1,36 @@
 """
-技能管理模組
-處理技能的載入、分類、圖片載入等核心邏輯
-PySide6 版本：圖片改用 QPixmap 快取
+技能資料載入模組
+提供純 Python 的技能資料載入與查詢功能，不依賴 PySide6 或 PIL
 """
 
-from PIL import Image
-from PySide6.QtGui import QImage, QPixmap
-from src.ui.helpers import resource_path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.infrastructure.config_manager import ConfigManager
 
 
-def _pil_to_qpixmap(pil_img: Image.Image) -> QPixmap:
-    """PIL RGBA Image → QPixmap（一次轉換）
+class SkillLoader:
+    """技能資料載入器 — 純 Python 版本，不含圖片快取"""
 
-    Args:
-        pil_img: PIL Image（自動轉 RGBA）
-
-    Returns:
-        QPixmap 物件
-    """
-    pil_img = pil_img.convert("RGBA")
-    data = pil_img.tobytes("raw", "RGBA")
-    qimg = QImage(data, pil_img.width, pil_img.height,
-                  QImage.Format.Format_RGBA8888)
-    return QPixmap.fromImage(qimg)
-
-
-class SkillManager:
-    """技能管理器 — PySide6 版本"""
-
-    def __init__(self, config_manager):
-        """初始化技能管理器
+    def __init__(self, config_manager: ConfigManager) -> None:
+        """初始化技能資料載入器
 
         Args:
             config_manager: 配置管理器實例
         """
         self.config_manager = config_manager
-        self.skills = {}
-        self.skill_categories = {}
-        self.skill_image_paths = {}
-
-        # QPixmap 快取（多種尺寸）
-        self.qpixmaps        = {}   # 50×50 主 UI
-        self.qpixmaps_small  = {}   # 28×28 小圖示
-        self.qpixmaps_medium = {}   # 64×64 倒數視窗
-        self.qpixmaps_card   = {}   # 36×36 技能卡片
-
+        self.skills: dict[str, dict] = {}
+        self.skill_categories: dict[str, dict[str, list[str]]] = {}
         self._load_skills()
 
-    def _load_skills(self):
+    def _load_skills(self) -> None:
         """載入所有技能和道具"""
         # 載入技能
         for skill_data in self.config_manager.initial_skills:
-            skill_id    = skill_data["id"]
-            category    = skill_data.get("category", "player")
+            skill_id = skill_data["id"]
+            category = skill_data.get("category", "player")
             subcategory = skill_data.get("subcategory", "未分類")
 
             self.skills[skill_id] = skill_data.copy()
@@ -63,12 +41,10 @@ class SkillManager:
                 self.skill_categories[category][subcategory] = []
             self.skill_categories[category][subcategory].append(skill_id)
 
-            self._load_skill_image(skill_id, skill_data["icon"])
-
         # 載入道具
         for item_data in self.config_manager.initial_items:
-            item_id     = item_data["id"]
-            category    = item_data.get("category", "item")
+            item_id = item_data["id"]
+            category = item_data.get("category", "item")
             subcategory = item_data.get("subcategory", "道具")
 
             self.skills[item_id] = item_data.copy()
@@ -79,39 +55,11 @@ class SkillManager:
                 self.skill_categories[category][subcategory] = []
             self.skill_categories[category][subcategory].append(item_id)
 
-            self._load_skill_image(item_id, item_data["icon"])
-
-    def _load_skill_image(self, skill_id: str, icon_filename: str):
-        """載入技能圖片並產生多尺寸 QPixmap 快取
-
-        Args:
-            skill_id:      技能 ID
-            icon_filename: 圖示檔名
-        """
-        icon_path = resource_path(f"images/{icon_filename}")
-        self.skill_image_paths[skill_id] = icon_path
-        try:
-            img = Image.open(icon_path).convert("RGBA")
-
-            self.qpixmaps[skill_id]        = _pil_to_qpixmap(
-                img.resize((50, 50), Image.Resampling.LANCZOS))
-            self.qpixmaps_small[skill_id]  = _pil_to_qpixmap(
-                img.resize((28, 28), Image.Resampling.LANCZOS))
-            self.qpixmaps_medium[skill_id] = _pil_to_qpixmap(
-                img.resize((64, 64), Image.Resampling.LANCZOS))
-            self.qpixmaps_card[skill_id]   = _pil_to_qpixmap(
-                img.resize((36, 36), Image.Resampling.LANCZOS))
-        except Exception:
-            self.qpixmaps[skill_id]        = None
-            self.qpixmaps_small[skill_id]  = None
-            self.qpixmaps_medium[skill_id] = None
-            self.qpixmaps_card[skill_id]   = None
-
     # --------------------------------------------------
-    # 查詢 API（邏輯與原版完全相同）
+    # 查詢 API
     # --------------------------------------------------
 
-    def get_skill(self, skill_id: str):
+    def get_skill(self, skill_id: str) -> dict | None:
         """取得技能資料
 
         Args:
@@ -122,7 +70,7 @@ class SkillManager:
         """
         return self.skills.get(skill_id)
 
-    def get_all_skills(self) -> dict:
+    def get_all_skills(self) -> dict[str, dict]:
         """取得所有技能字典"""
         return self.skills
 
@@ -156,12 +104,12 @@ class SkillManager:
         self.skills[skill_id]["hotkey"] = hotkey
         return True
 
-    def clear_all_hotkeys(self):
+    def clear_all_hotkeys(self) -> None:
         """清空所有快捷鍵"""
         for skill_id in self.skills:
             self.update_hotkey(skill_id, "")
 
-    def get_skill_by_hotkey(self, hotkey: str):
+    def get_skill_by_hotkey(self, hotkey: str) -> str | None:
         """根據快捷鍵查找技能 ID
 
         Args:

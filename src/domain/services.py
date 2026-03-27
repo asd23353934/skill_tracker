@@ -7,19 +7,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from src.domain.repositories import SkillRepository
-    from src.ui.config_manager import ConfigManager
-
 
 class SkillService:
     """技能業務邏輯服務 — 狀態查詢、互斥變更、覆寫管理、配置序列化
 
     Args:
         skill_repo:           SkillRepository 實例（唯讀元資料）
-        skill_manager:        SkillManager 實例（runtime 技能 dict）
+        skill_loader:         SkillLoader 實例（runtime 技能 dict）
         alert_before_seconds: 全域提前提示秒數
         global_sound:         全域提示音檔名
         global_alert_sound:   全域提前提示音檔名
@@ -28,13 +22,13 @@ class SkillService:
     def __init__(
         self,
         skill_repo: SkillRepository,
-        skill_manager,
+        skill_loader: SkillLoader,
         alert_before_seconds: int = 0,
         global_sound: str = "",
         global_alert_sound: str = "",
     ) -> None:
         self._skill_repo = skill_repo
-        self._skill_manager = skill_manager
+        self._skill_loader = skill_loader
 
         # 全域設定（App 會同步更新）
         self.alert_before_seconds = alert_before_seconds
@@ -141,7 +135,7 @@ class SkillService:
         """
         self._cooldown_overrides[skill_id] = seconds
         # 同步 skill_manager runtime dict
-        skill = self._skill_manager.get_skill(skill_id)
+        skill = self._skill_loader.get_skill(skill_id)
         if skill:
             skill["cooldown"] = seconds
         original = self.get_original_cooldown(skill_id)
@@ -152,7 +146,7 @@ class SkillService:
         self._cooldown_overrides.pop(skill_id, None)
         original = self.get_original_cooldown(skill_id)
         if original is not None:
-            skill = self._skill_manager.get_skill(skill_id)
+            skill = self._skill_loader.get_skill(skill_id)
             if skill:
                 skill["cooldown"] = original
 
@@ -201,12 +195,12 @@ class SkillService:
                 displaced = existing
                 self._hotkeys[existing] = ""
                 # 同步 skill_manager runtime dict
-                skill = self._skill_manager.get_skill(existing)
+                skill = self._skill_loader.get_skill(existing)
                 if skill:
                     skill["hotkey"] = ""
 
         self._hotkeys[skill_id] = key_str
-        skill = self._skill_manager.get_skill(skill_id)
+        skill = self._skill_loader.get_skill(skill_id)
         if skill:
             skill["hotkey"] = key_str
 
@@ -215,12 +209,17 @@ class SkillService:
     def clear_hotkey(self, skill_id: str) -> None:
         """清除技能快捷鍵"""
         self._hotkeys[skill_id] = ""
-        skill = self._skill_manager.get_skill(skill_id)
+        skill = self._skill_loader.get_skill(skill_id)
         if skill:
             skill["hotkey"] = ""
 
     def find_by_hotkey(self, key_str: str) -> str | None:
-        """依快捷鍵查詢 skill_id（大小寫不敏感）"""
+        """依快捷鍵查詢 skill_id（大小寫不敏感）
+
+        注意：_hotkeys 僅在 load_from_profile / set_hotkey / clear_hotkey 時同步。
+        hotkey_manager 目前直接寫 skill_manager dict，不經過此處。
+        遷移 hotkey_manager 前，勿以此方法替代 skill_manager.get_skill_by_hotkey()。
+        """
         if not key_str:
             return None
         key_upper = key_str.upper()
@@ -294,23 +293,15 @@ class SkillService:
         Returns:
             profile 資料字典
         """
-        # 計算 cooldown_overrides：比對 runtime 與原始值
-        cooldown_overrides = {}
-        for skill_id, skill in self._skill_manager.get_all_skills().items():
-            original = self.get_original_cooldown(skill_id)
-            current = skill.get("cooldown")
-            if original and current != original:
-                cooldown_overrides[skill_id] = current
-
         return {
             "hotkeys": {
                 sid: skill.get("hotkey", "")
-                for sid, skill in self._skill_manager.get_all_skills().items()
+                for sid, skill in self._skill_loader.get_all_skills().items()
             },
             "permanent": self._permanent.copy(),
             "loop": self._loop.copy(),
             "alert_enabled": self._alert_enabled.copy(),
-            "cooldown_overrides": cooldown_overrides,
+            "cooldown_overrides": self._cooldown_overrides.copy(),
             "alert_seconds_overrides": self._alert_seconds_overrides.copy(),
             "sound_overrides": self._sound_overrides.copy(),
             "alert_sound_overrides": self._alert_sound_overrides.copy(),
@@ -330,35 +321,38 @@ class SkillService:
         ).copy()
 
         # 確保所有技能都有預設值
-        for skill_id in self._skill_manager.get_all_skills():
+        for skill_id in self._skill_loader.get_all_skills():
             self._permanent.setdefault(skill_id, False)
             self._loop.setdefault(skill_id, False)
             self._alert_enabled.setdefault(skill_id, False)
 
         # 同步 hotkeys 到 skill_manager
+        self._hotkeys.clear()
         hotkeys = profile_data.get("hotkeys", {})
-        for skill_id, skill in self._skill_manager.get_all_skills().items():
+        for skill_id, skill in self._skill_loader.get_all_skills().items():
             original = self.get_original_cooldown(skill_id)
             if original:
                 skill["cooldown"] = original
             skill["hotkey"] = ""
 
         for skill_id, hotkey in hotkeys.items():
-            skill = self._skill_manager.get_skill(skill_id)
+            skill = self._skill_loader.get_skill(skill_id)
             if skill:
                 skill["hotkey"] = hotkey
                 self._hotkeys[skill_id] = hotkey
 
-        # 同步 cooldown_overrides 到 skill_manager
+        # 同步 cooldown_overrides 到 skill_manager 和 _cooldown_overrides
+        self._cooldown_overrides.clear()
         cooldown_overrides = profile_data.get("cooldown_overrides", {})
         for skill_id, cooldown in cooldown_overrides.items():
-            skill = self._skill_manager.get_skill(skill_id)
+            skill = self._skill_loader.get_skill(skill_id)
             if skill:
                 skill["cooldown"] = cooldown
+                self._cooldown_overrides[skill_id] = cooldown
 
     def reset_all_to_defaults(self) -> None:
         """重置所有狀態為預設值"""
-        for skill_id in self._skill_manager.get_all_skills():
+        for skill_id in self._skill_loader.get_all_skills():
             self._permanent[skill_id] = False
             self._loop[skill_id] = False
             self._alert_enabled[skill_id] = False
@@ -370,7 +364,7 @@ class SkillService:
         self._hotkeys.clear()
 
         # 還原 skill_manager 的 runtime 值
-        for skill_id, skill in self._skill_manager.get_all_skills().items():
+        for skill_id, skill in self._skill_loader.get_all_skills().items():
             original = self.get_original_cooldown(skill_id)
             if original:
                 skill["cooldown"] = original

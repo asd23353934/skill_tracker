@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from src.ui.theme import AppTheme
-from src.ui.overlay_manager import _user_path
+from src.infrastructure.helpers import user_data_path
 
 # 支援的圖片格式過濾字串（Qt 格式）
 _SUPPORTED_FILTER = "圖片與 GIF (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;所有檔案 (*.*)"
@@ -54,7 +54,7 @@ class _OverlayCardStub(QFrame):
             f"background: {AppTheme.BG_SECONDARY};"
             f" border: 1px solid {AppTheme.GOLD_MUTED}; border-radius: 4px;"
         )
-        image_path = _user_path(f"overlays/{self.data.get('file', '')}")
+        image_path = user_data_path(f"overlays/{self.data.get('file', '')}")
         pixmap = QPixmap(image_path)
         if not pixmap.isNull():
             thumb_lbl.setPixmap(

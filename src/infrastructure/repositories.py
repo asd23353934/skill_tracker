@@ -23,7 +23,7 @@ from src.domain.models import (
 )
 
 if TYPE_CHECKING:
-    from src.ui.config_manager import ConfigManager
+    from src.infrastructure.config_manager import ConfigManager
 
 
 class SkillRepository:
@@ -193,11 +193,12 @@ class MonsterRepository:
         return None
 
     def get_by_hotkey(self, key: str) -> MonsterData | None:
-        """依快捷鍵查詢怪物"""
+        """依快捷鍵查詢怪物（大小寫不敏感）"""
         if not key:
             return None
+        key_upper = key.upper()
         for m in self._cm.config.get("monsters", []):
-            if m.get("hotkey") == key:
+            if m.get("hotkey", "").upper() == key_upper:
                 return self._dict_to_monster(m)
         return None
 

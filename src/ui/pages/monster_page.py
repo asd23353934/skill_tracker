@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QImage
 
 from src.ui.theme import AppTheme
-from src.ui.helpers import resource_path
+from src.infrastructure.helpers import resource_path
 
 
 def _load_monster_icon(icon_filename: str, size: tuple) -> QPixmap | None:
