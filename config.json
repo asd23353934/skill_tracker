@@ -263,6 +263,30 @@
       "cooldown": 60,
       "category": "boss",
       "subcategory": "困難拉圖斯"
+    },
+    {
+      "id": "暗黑龍王-鎖鏈",
+      "name": "鎖鏈",
+      "icon": "000001_1753953383.webp",
+      "cooldown": 30,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
+    },
+    {
+      "id": "暗黑龍王-右頭狂暴",
+      "name": "右頭狂暴",
+      "icon": "000001_1753953383.webp",
+      "cooldown": 80,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
+    },
+    {
+      "id": "暗黑龍王-左手消技",
+      "name": "左手消技",
+      "icon": "000001_1753953383.webp",
+      "cooldown": 90,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
     }
   ],
   "items": [
