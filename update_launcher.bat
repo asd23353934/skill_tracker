@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
 
 REM 參數: %1=下載的檔案路徑  %2=應用程式目錄  %3=應用程式exe路徑  %4=應用程式PID
@@ -74,10 +75,11 @@ if /I "%EXT%"==".exe" (
 ) else if /I "%EXT%"==".zip" (
     REM ZIP 內含頂層資料夾，解壓縮目標應為 APP_DIR 的上一層
     for %%F in ("%APP_DIR:~0,-1%") do set "PARENT_DIR=%%~dpF"
-    echo %date% %time%    Extracting ZIP to %PARENT_DIR% ... >> "%LOG_FILE%"
-    powershell -NoProfile -Command ^
-        "try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory($args[0], $args[1], $true) } catch { exit 1 }" ^
-        -- "%DOWNLOAD_FILE%" "%PARENT_DIR%"
+    echo %date% %time%    Extracting ZIP to !PARENT_DIR! ... >> "%LOG_FILE%"
+    set "PS_SRC=%DOWNLOAD_FILE%"
+    set "PS_DST=!PARENT_DIR!"
+    powershell -NoProfile -WindowStyle Hidden -Command ^
+        "try { Expand-Archive -Path $env:PS_SRC -DestinationPath $env:PS_DST -Force } catch { exit 1 }"
     if errorlevel 1 (
         echo %date% %time%    ERROR: ZIP extraction failed >> "%LOG_FILE%"
         goto :restore_and_restart
@@ -93,13 +95,13 @@ if /I "%EXT%"==".exe" (
     set "SEVENZIP="
     where 7z.exe >nul 2>&1
     if not errorlevel 1 set "SEVENZIP=7z.exe"
-    if "%SEVENZIP%"=="" if exist "%ProgramFiles%\7-Zip\7z.exe" set "SEVENZIP=%ProgramFiles%\7-Zip\7z.exe"
-    if "%SEVENZIP%"=="" if exist "%ProgramFiles(x86)%\7-Zip\7z.exe" set "SEVENZIP=%ProgramFiles(x86)%\7-Zip\7z.exe"
-    if "%SEVENZIP%"=="" (
+    if "!SEVENZIP!"=="" if exist "%ProgramFiles%\7-Zip\7z.exe" set "SEVENZIP=%ProgramFiles%\7-Zip\7z.exe"
+    if "!SEVENZIP!"=="" if exist "%ProgramFiles(x86)%\7-Zip\7z.exe" set "SEVENZIP=%ProgramFiles(x86)%\7-Zip\7z.exe"
+    if "!SEVENZIP!"=="" (
         echo %date% %time%    ERROR: 7-Zip not found >> "%LOG_FILE%"
         goto :restore_and_restart
     )
-    "%SEVENZIP%" x "%DOWNLOAD_FILE%" -o"%APP_DIR%" -y >nul 2>&1
+    "!SEVENZIP!" x "%DOWNLOAD_FILE%" -o"%APP_DIR%" -y >nul 2>&1
     if errorlevel 1 (
         echo %date% %time%    ERROR: 7z extraction failed >> "%LOG_FILE%"
         goto :restore_and_restart
@@ -126,15 +128,22 @@ if exist "%APP_DIR%\%EXE_NAME%.exe.bak" (
 :restart
 REM [4/4] 重新啟動應用程式
 echo %date% %time%  [4/4] Restarting app... >> "%LOG_FILE%"
-if exist "%APP_DIR%\%EXE_NAME%.exe" (
-    start "" "%APP_DIR%\%EXE_NAME%.exe"
-    echo %date% %time%    Started %EXE_NAME%.exe >> "%LOG_FILE%"
-) else if exist "%APP_EXE%" (
-    start "" "%APP_EXE%"
-    echo %date% %time%    Started %APP_EXE% (fallback) >> "%LOG_FILE%"
-) else (
-    echo %date% %time%    ERROR: No exe found to restart >> "%LOG_FILE%"
-)
+if exist "%APP_DIR%\%EXE_NAME%.exe" goto :restart_primary
+if exist "%APP_EXE%" goto :restart_fallback
+echo %date% %time%    ERROR: No exe found to restart >> "%LOG_FILE%"
+goto :restart_done
+
+:restart_primary
+start "" "%APP_DIR%\%EXE_NAME%.exe"
+echo %date% %time%    Started %EXE_NAME%.exe >> "%LOG_FILE%"
+goto :restart_done
+
+:restart_fallback
+start "" "%APP_EXE%"
+echo %date% %time%    Started %APP_EXE% (fallback) >> "%LOG_FILE%"
+goto :restart_done
+
+:restart_done
 
 echo %date% %time%  === Update finished (BAT) === >> "%LOG_FILE%"
 exit /b 0

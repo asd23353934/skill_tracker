@@ -4,10 +4,16 @@
 """
 
 # 當前版本
-VERSION = "3.4.1"
+VERSION = "3.4.2"
 
 # 版本歷史
 CHANGELOG = """
+v3.4.2 (2026-04-21)
+-------------------
+- 🐛 修復 update_launcher.bat 的 ZIP 解壓縮失敗（PARENT_DIR 延遲展開、PS 5.1 不支援的 ExtractToDirectory 3 參數 overload）
+- 🐛 修復 update_launcher.bat [4/4] 重啟區塊 else if 誤判雙分支都執行（改用 goto 結構）
+- 🔧 update_launcher.bat 解壓時加 -WindowStyle Hidden，消除 PowerShell 閃窗
+
 v3.4.1 (2026-04-21)
 -------------------
 - ✨ 新增暗黑龍王技能（鎖鏈 30s / 右頭狂暴 80s / 左手消技 90s）
