@@ -33,6 +33,17 @@ _mci_lock = threading.Lock()
 _mci_counter = 0
 
 
+def _apply_wave_volume(volume):
+    """設定行程層級的 WAV 輸出音量（0.0 - 1.0，左右聲道相同）"""
+    if _winmm is None:
+        return
+    try:
+        word = int(volume * 0xFFFF) & 0xFFFF
+        _winmm.waveOutSetVolume(0, (word << 16) | word)
+    except Exception:
+        pass
+
+
 def _mci_send(command):
     """發送 MCI 指令
 
@@ -49,11 +60,12 @@ def _mci_send(command):
     return err
 
 
-def _play_mp3_blocking(filepath):
+def _play_mp3_blocking(filepath, volume=1.0):
     """使用 MCI 播放 MP3（阻塞直到結束）
 
     Args:
         filepath: MP3 檔案完整路徑
+        volume: 音量 (0.0 - 1.0)
     """
     global _mci_counter
     with _mci_lock:
@@ -64,6 +76,7 @@ def _play_mp3_blocking(filepath):
         # 剝除可能破壞 MCI 指令的字元（雙引號、換行），避免指令注入
         escaped = filepath.translate({ord('"'): None, ord('\r'): None, ord('\n'): None})
         _mci_send(f'open "{escaped}" type mpegvideo alias {alias}')
+        _mci_send(f'setaudio {alias} volume to {int(volume * 1000)}')
         _mci_send(f'play {alias} wait')
         _mci_send(f'close {alias}')
     except Exception:
@@ -158,6 +171,7 @@ class SoundManager:
     def __init__(self):
         """初始化音效管理器"""
         self.sounds_dir = user_data_path("sounds")
+        self.volume = 1.0
 
         # 確保音效目錄存在
         if not os.path.exists(self.sounds_dir):
@@ -259,6 +273,14 @@ class SoundManager:
             return BUILTIN_SOUNDS[filename]["label"]
         return filename
 
+    def set_volume(self, volume):
+        """設定音量
+
+        Args:
+            volume: 音量 (0.0 - 1.0)
+        """
+        self.volume = max(0.0, min(1.0, float(volume)))
+
     def _play_async(self, filepath):
         """在背景執行緒播放音效（非阻塞，自動判斷 WAV / MP3）
 
@@ -266,12 +288,14 @@ class SoundManager:
             filepath: 音效檔案完整路徑
         """
         is_mp3 = filepath.lower().endswith('.mp3')
+        vol = self.volume
 
         def _worker():
             try:
                 if is_mp3:
-                    _play_mp3_blocking(filepath)
+                    _play_mp3_blocking(filepath, volume=vol)
                 elif HAS_WINSOUND:
+                    _apply_wave_volume(vol)
                     winsound.PlaySound(filepath, winsound.SND_FILENAME)
             except Exception:
                 pass

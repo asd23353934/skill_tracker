@@ -7,7 +7,7 @@ RPG 金色邊框風格，音效使用下拉式選單 + 匯入按鈕
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QCheckBox, QScrollArea, QWidget, QFrame,
-    QFileDialog,
+    QFileDialog, QSlider,
 )
 from PySide6.QtCore import Qt
 from src.ui.dialogs.base_dialog import BaseDialog
@@ -170,6 +170,29 @@ class SettingsDialog(BaseDialog):
         )
         cl.addWidget(self.sound_cb)
         cl.addSpacing(8)
+
+        vol_row = QWidget()
+        vol_row.setStyleSheet("background: transparent;")
+        vr = QHBoxLayout(vol_row)
+        vr.setContentsMargins(0, 4, 0, 4)
+        vr.setSpacing(8)
+        vr.addWidget(self._make_label("音量:"))
+        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(int(self.current_settings.get("sound_volume", 100)))
+        self.volume_slider.setFixedWidth(220)
+        self.volume_slider.setStyleSheet(self._slider_style())
+        vr.addWidget(self.volume_slider)
+        self.volume_value_lbl = QLabel(f"{self.volume_slider.value()}%")
+        self.volume_value_lbl.setStyleSheet(
+            f"color: {AppTheme.TEXT_PRIMARY}; font-size: 12px;"
+            f" background: transparent; border: none; min-width: 36px;"
+        )
+        vr.addWidget(self.volume_value_lbl)
+        vr.addStretch()
+        self.volume_slider.valueChanged.connect(self._on_volume_changed)
+        cl.addWidget(vol_row)
+        cl.addSpacing(4)
         self._separator(cl)
 
         # ===== 全域完成音效 =====
@@ -302,6 +325,26 @@ class SettingsDialog(BaseDialog):
             f"QPushButton:hover {{ background-color: {AppTheme.GOLD_MUTED}; }}"
         )
 
+    def _slider_style(self):
+        return (
+            f"QSlider::groove:horizontal {{ height: 4px;"
+            f" background: {AppTheme.BG_TERTIARY};"
+            f" border: 1px solid {AppTheme.GOLD_MUTED}; border-radius: 2px; }}"
+            f"QSlider::sub-page:horizontal {{ background: {AppTheme.GOLD_PRIMARY};"
+            f" border-radius: 2px; }}"
+            f"QSlider::handle:horizontal {{ width: 14px; height: 14px;"
+            f" margin: -6px 0; background: {AppTheme.GOLD_PRIMARY};"
+            f" border: 1px solid {AppTheme.GOLD_DARK};"
+            f" border-radius: 7px; }}"
+            f"QSlider::handle:horizontal:hover {{ background: {AppTheme.GOLD_LIGHT}; }}"
+        )
+
+    def _on_volume_changed(self, value):
+        # 即時套用音量讓試聽按鈕反映目前滑桿值
+        self.volume_value_lbl.setText(f"{value}%")
+        if self.sound_manager:
+            self.sound_manager.set_volume(value / 100.0)
+
     def _hint_style(self):
         return (
             f"color: {AppTheme.TEXT_MUTED}; font-size: 11px;"
@@ -396,5 +439,6 @@ class SettingsDialog(BaseDialog):
             "window_size":          window_size,
             "global_sound":         global_sound,
             "global_alert_sound":   global_alert_sound,
+            "sound_volume":         self.volume_slider.value(),
         }
         self.accept()

@@ -4,10 +4,15 @@
 """
 
 # 當前版本
-VERSION = "3.4.2"
+VERSION = "3.5.0"
 
 # 版本歷史
 CHANGELOG = """
+v3.5.0 (2026-04-21)
+-------------------
+- ✨ 新增音效音量設定（0-100% 滑桿，設定對話框即時預覽）
+- 🔧 WAV 透過 waveOutSetVolume 行程層級控制；MP3 透過 MCI setaudio 指令控制
+
 v3.4.2 (2026-04-21)
 -------------------
 - 🐛 修復 update_launcher.bat 的 ZIP 解壓縮失敗（PARENT_DIR 延遲展開、PS 5.1 不支援的 ExtractToDirectory 3 參數 overload）

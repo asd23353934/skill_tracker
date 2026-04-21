@@ -238,6 +238,8 @@ class App(QMainWindow):
         self.skill_start_x        = settings.get("skill_start_x", default_x)
         self.skill_start_y        = settings.get("skill_start_y", default_y)
         self.enable_sound         = settings.get("enable_sound", True)
+        self.sound_volume         = settings.get("sound_volume", 100)
+        self.sound_manager.set_volume(self.sound_volume / 100.0)
         self.window_alpha         = 0.95
         self.window_size          = settings.get("window_size", 64)
         self.alert_before_seconds = settings.get("alert_before_seconds", 0)
@@ -868,6 +870,7 @@ class App(QMainWindow):
             "window_size":        self.window_size,
             "global_sound":       self.global_sound,
             "global_alert_sound": self.global_alert_sound,
+            "sound_volume":       self.sound_volume,
             "sound_manager":      self.sound_manager,
         }, app=self)
 
@@ -884,6 +887,8 @@ class App(QMainWindow):
             self.window_size          = result["window_size"]
             self.global_sound         = result.get("global_sound", "")
             self.global_alert_sound   = result.get("global_alert_sound", "")
+            self.sound_volume         = result.get("sound_volume", 100)
+            self.sound_manager.set_volume(self.sound_volume / 100.0)
 
             # 同步全域設定到 SkillService
             self.skill_service.alert_before_seconds = self.alert_before_seconds
@@ -897,6 +902,7 @@ class App(QMainWindow):
             self.config_manager.set_settings("window_size",          self.window_size)
             self.config_manager.set_settings("global_sound",         self.global_sound)
             self.config_manager.set_settings("global_alert_sound",   self.global_alert_sound)
+            self.config_manager.set_settings("sound_volume",         self.sound_volume)
             self.config_manager.save()
 
             for window in self.window_manager.active_windows.values():
