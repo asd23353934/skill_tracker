@@ -33,6 +33,9 @@
     "resurrection-黑暗星存活": "",
     "消技-困難拉圖斯": "",
     "000001_1753953383": "",
+    "暗黑龍王-鎖鏈": "",
+    "暗黑龍王-右頭狂暴": "",
+    "暗黑龍王-左手消技": "",
     "Snipaste_2026-01-03_00-29-33": "",
     "Snipaste_2026-01-03_00-30-56": ""
   },
@@ -112,7 +115,10 @@
     "魔力無限": false,
     "章魚砲台": false,
     "海盜船": false,
-    "消技-困難拉圖斯": false
+    "消技-困難拉圖斯": false,
+    "暗黑龍王-鎖鏈": false,
+    "暗黑龍王-右頭狂暴": false,
+    "暗黑龍王-左手消技": false
   },
   "loop": {
     "common_maple_warrior": false,
@@ -190,7 +196,10 @@
     "魔力無限": false,
     "章魚砲台": false,
     "海盜船": false,
-    "消技-困難拉圖斯": false
+    "消技-困難拉圖斯": false,
+    "暗黑龍王-鎖鏈": false,
+    "暗黑龍王-右頭狂暴": false,
+    "暗黑龍王-左手消技": false
   },
   "alert_enabled": {
     "mapleWarrior": true,
@@ -228,7 +237,10 @@
     "魔力無限": true,
     "章魚砲台": true,
     "海盜船": true,
-    "消技-困難拉圖斯": false
+    "消技-困難拉圖斯": false,
+    "暗黑龍王-鎖鏈": false,
+    "暗黑龍王-右頭狂暴": false,
+    "暗黑龍王-左手消技": false
   },
   "cooldown_overrides": {},
   "alert_seconds_overrides": {},

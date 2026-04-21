@@ -878,7 +878,8 @@ class App(QMainWindow):
         result = dialog.result
 
         if result:
-            old_x, old_y = self.skill_start_x, self.skill_start_y
+            old_window_size = self.window_size
+            old_x, old_y    = self.skill_start_x, self.skill_start_y
 
             self.skill_start_x        = result["x"]
             self.skill_start_y        = result["y"]
@@ -905,17 +906,21 @@ class App(QMainWindow):
             self.config_manager.set_settings("sound_volume",         self.sound_volume)
             self.config_manager.save()
 
-            for window in self.window_manager.active_windows.values():
-                window.enable_sound         = self.enable_sound
-                window.alert_before_seconds = self.alert_before_seconds
-
             # 更新使用全域預設的提前秒數按鈕
             for skill_id, btn in self.alert_seconds_buttons.items():
                 if skill_id not in self.skill_alert_seconds_overrides:
                     btn.setText(f"{self.alert_before_seconds}s")
 
-            if old_x != self.skill_start_x or old_y != self.skill_start_y:
-                self.window_manager.reposition_all()
+            # window_size 變更需重建視窗（影響版面/圖片快取）；否則原地更新即可
+            if self.window_size != old_window_size:
+                self.window_manager.close_all()
+                self.window_manager.initialize_persistent_skills()
+            else:
+                for sid, win in self.window_manager.active_windows.items():
+                    win.enable_sound = self.enable_sound
+                    self.window_manager.refresh_window_sound_params(sid)
+                if (old_x, old_y) != (self.skill_start_x, self.skill_start_y):
+                    self.window_manager.reposition_all()
 
             self.toast.show("設定已保存並套用", "success")
 
@@ -989,6 +994,9 @@ class App(QMainWindow):
     def _reload_ui(self):
         """重新載入 UI（替換中央元件，等同 tkinter withdraw→rebuild→deiconify）"""
         self.hide()
+
+        # 先關閉所有技能視窗，避免前一個配置的常駐/計時視窗殘留
+        self.window_manager.close_all()
 
         # 銷毀舊的中央元件（Qt 負責清理子元件）
         old = self.centralWidget()

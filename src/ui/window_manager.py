@@ -4,9 +4,12 @@
 Phase 4 將完整重寫為 PySide6 SkillWindow
 """
 
+import logging
 import os
 
 from src.infrastructure.helpers import resource_path
+
+logger = logging.getLogger(__name__)
 
 
 def _get_skill_window_cls():
@@ -251,6 +254,25 @@ class WindowManager:
             if skill_id in self.active_windows:
                 x, y = self._calculate_position(skill_id)
                 self.active_windows[skill_id].update_position(x, y)
+
+    def close_all(self):
+        """關閉所有技能/怪物視窗（切換配置、套用新設定時使用）"""
+        for sid in list(self.active_windows.keys()):
+            try:
+                self.active_windows[sid].close()
+            except Exception:
+                logger.exception("close_all: 關閉視窗失敗 sid=%r", sid)
+        self.active_windows.clear()
+        self.window_order.clear()
+
+    def refresh_window_sound_params(self, skill_id):
+        """同步技能的音效與提前秒數至活躍視窗（細節設定/全域設定變更後呼叫）"""
+        win = self.active_windows.get(skill_id)
+        if win is None:
+            return
+        win.alert_before_seconds = self.app.get_alert_seconds(skill_id)
+        win.sound_filename       = self.app.get_sound_for_skill(skill_id)
+        win.alert_sound_filename = self.app.get_alert_sound_for_skill(skill_id)
 
     def _on_window_close(self, window, skill_id):
         """技能視窗關閉回調"""

@@ -409,9 +409,6 @@ class SkillDetailDialog(BaseDialog):
             if new_permanent and new_loop:
                 new_loop = False
 
-            old_permanent = self.app.skill_permanent.get(self.skill_id, False)
-            old_loop      = self.app.skill_loop.get(self.skill_id, False)
-
             self.app.skill_permanent[self.skill_id]     = new_permanent
             self.app.skill_loop[self.skill_id]          = new_loop
             self.app.skill_alert_enabled[self.skill_id] = new_alert
@@ -424,23 +421,18 @@ class SkillDetailDialog(BaseDialog):
             if self.skill_id in self.app.alert_enabled_vars:
                 self.app.alert_enabled_vars[self.skill_id].setChecked(new_alert)
 
-            # 處理視窗變更
-            if new_permanent and not old_permanent:
-                if self.skill_id not in self.app.window_manager.active_windows:
-                    self.app.window_manager.create_permanent_window(self.skill_id)
-            elif not new_permanent and old_permanent:
-                if self.skill_id in self.app.window_manager.active_windows:
-                    self.app.window_manager.active_windows[self.skill_id].close()
-
-            if not new_loop and old_loop:
-                if self.skill_id in self.app.window_manager.active_windows:
-                    self.app.window_manager.active_windows[self.skill_id].close()
-
-            # 更新活躍視窗參數
-            if self.skill_id in self.app.window_manager.active_windows:
-                win = self.app.window_manager.active_windows[self.skill_id]
-                win.alert_enabled        = new_alert
-                win.alert_before_seconds = self.app.get_alert_seconds(self.skill_id)
+            # 常駐開關需建立/關閉視窗；其他參數原地更新活躍視窗即可
+            wm = self.app.window_manager
+            win = wm.active_windows.get(self.skill_id)
+            if new_permanent and win is None:
+                wm.create_permanent_window(self.skill_id)
+            elif not new_permanent and win is not None and not new_loop:
+                win.close()
+            elif win is not None:
+                win.is_permanent  = new_permanent
+                win.is_loop       = new_loop
+                win.alert_enabled = new_alert
+                wm.refresh_window_sound_params(self.skill_id)
 
             self.app.auto_save_current_profile()
             self.result = True
