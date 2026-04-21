@@ -4,10 +4,16 @@
 """
 
 # 當前版本
-VERSION = "3.5.1"
+VERSION = "3.5.2"
 
 # 版本歷史
 CHANGELOG = """
+v3.5.2 (2026-04-21)
+-------------------
+- 🐛 修復關閉程式時呼叫不存在的 window_manager.close_all_windows()（方法實為 close_all()），
+  導致浮動技能視窗未正確清理（原錯誤被 except 靜默吞掉）
+- 🔧 補齊 Qt override 方法的 # noqa: N802 標註（header / overlay_window / sidebar / skill_window）
+
 v3.5.1 (2026-04-21)
 -------------------
 - 🐛 修復設定對話框/技能細節變更後參數不生效，必須手動關閉再開啟視窗才套用

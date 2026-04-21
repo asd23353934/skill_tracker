@@ -301,7 +301,7 @@ class SkillWindow(QWidget):
     # 繪製（QPainter）
     # --------------------------------------------------
 
-    def paintEvent(self, event):
+    def paintEvent(self, event):  # noqa: N802
         """繪製全部視覺元素：文字 + 圖片 + 金色邊框 + 關閉按鈕"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

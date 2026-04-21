@@ -1145,7 +1145,7 @@ class App(QMainWindow):
         except Exception:
             pass
         try:
-            self.window_manager.close_all_windows()
+            self.window_manager.close_all()
         except Exception:
             pass
         event.accept()

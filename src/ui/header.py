@@ -30,12 +30,12 @@ class _WindowCtrlBtn(QPushButton):
         self._icon_type = icon_type
         self.update()
 
-    def enterEvent(self, event):
+    def enterEvent(self, event):  # noqa: N802
         self._hovered = True
         self.update()
         super().enterEvent(event)
 
-    def leaveEvent(self, event):
+    def leaveEvent(self, event):  # noqa: N802
         self._hovered = False
         self.update()
         super().leaveEvent(event)
@@ -230,7 +230,7 @@ class Header(QWidget):
     # 拖曳移動視窗
     # --------------------------------------------------
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = (
                 event.globalPosition().toPoint()
@@ -238,7 +238,7 @@ class Header(QWidget):
             )
             event.accept()
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event):  # noqa: N802
         if (event.buttons() == Qt.MouseButton.LeftButton
                 and self._drag_pos is not None
                 and not self.window().isMaximized()):
@@ -247,10 +247,10 @@ class Header(QWidget):
             )
             event.accept()
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event):  # noqa: N802
         self._drag_pos = None
 
-    def mouseDoubleClickEvent(self, event):
+    def mouseDoubleClickEvent(self, event):  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
             self._toggle_maximize()
 

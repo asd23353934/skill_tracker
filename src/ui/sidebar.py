@@ -85,7 +85,7 @@ class Sidebar(QWidget):
         right_border.setFixedWidth(1)
         self._right_border = right_border
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event):  # noqa: N802
         """視窗縮放時將右側邊框置右"""
         super().resizeEvent(event)
         if hasattr(self, "_right_border"):

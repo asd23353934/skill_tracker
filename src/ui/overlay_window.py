@@ -179,7 +179,7 @@ class OverlayWindow(QWidget):
     # 繪製
     # --------------------------------------------------
 
-    def paintEvent(self, event):
+    def paintEvent(self, event):  # noqa: N802
         """繪製圖片 + 關閉按鈕 + 右下角縮放把手（hover 才顯示）"""
         if not self._frames:
             return
@@ -233,19 +233,19 @@ class OverlayWindow(QWidget):
         hs = self._HANDLE_SIZE
         return pos.x() >= self.img_w - hs and pos.y() >= self.img_h - hs
 
-    def enterEvent(self, event):
+    def enterEvent(self, event):  # noqa: N802
         """滑鼠進入：顯示關閉按鈕與縮放把手"""
         self._close_visible = True
         self.update()
         super().enterEvent(event)
 
-    def leaveEvent(self, event):
+    def leaveEvent(self, event):  # noqa: N802
         """滑鼠離開：隱藏關閉按鈕與縮放把手"""
         self._close_visible = False
         self.update()
         super().leaveEvent(event)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event):  # noqa: N802
         """左鍵按下：判斷關閉/縮放/拖曳"""
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.pos()
@@ -263,7 +263,7 @@ class OverlayWindow(QWidget):
                 self._resizing       = False
                 self._drag_offset    = pos
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event):  # noqa: N802
         """滑鼠移動：縮放 or 拖曳；更新游標"""
         pos = event.pos()
 
@@ -285,7 +285,7 @@ class OverlayWindow(QWidget):
             new_pos = event.globalPosition().toPoint() - self._drag_offset
             self.move(new_pos)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event):  # noqa: N802
         """左鍵釋放：關閉 / 結束縮放 / 儲存位置"""
         if event.button() != Qt.MouseButton.LeftButton:
             return
@@ -331,7 +331,7 @@ class OverlayWindow(QWidget):
         self.resize(new_w, new_h)
         self.update()
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event):  # noqa: N802
         """方向鍵調整圖片大小（↔ 寬度 / ↕ 高度，每次 10px）"""
         key  = event.key()
         step = self._RESIZE_STEP
