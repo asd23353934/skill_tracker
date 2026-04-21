@@ -137,6 +137,14 @@
       "subcategory": "法師"
     },
     {
+      "id": "holyShield",
+      "name": "神聖護鎧",
+      "icon": "holyShield.png",
+      "cooldown": 30,
+      "category": "player",
+      "subcategory": "法師"
+    },
+    {
       "id": "smokescreen",
       "name": "煙幕彈",
       "icon": "smokescreen.png",
