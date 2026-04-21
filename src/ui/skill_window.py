@@ -153,11 +153,15 @@ class SkillWindow(QWidget):
         # 載入圖片
         self._setup_image()
 
-        # 套用透明度並顯示
-        self.setWindowOpacity(self.window_alpha)
+        # 套用透明度並顯示（播放 0 → window_alpha 淡入動畫）
+        self.setWindowOpacity(0.0)
         self.resize(self._canvas_width, self._total_height)
         self.move(position[0], position[1])
         self.show()
+
+        self._enter_anim = AppTheme.make_anim(
+            self, b"windowOpacity", 0.0, self.window_alpha, duration=180)
+        self._enter_anim.start()
 
         # 計時 Timer（tick 週期 100ms，快秒切換 50ms）
         self._timer = QTimer(self)

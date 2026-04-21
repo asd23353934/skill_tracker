@@ -5,7 +5,7 @@ Active 狀態：左側 3px 金色細線 + 淡色背景
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFrame
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPropertyAnimation, QRect, QTimer
 from src.ui.theme import AppTheme
 
 
@@ -85,26 +85,41 @@ class Sidebar(QWidget):
         right_border.setFixedWidth(1)
         self._right_border = right_border
 
+        self._indicator = QFrame(self)
+        self._indicator.setObjectName("active_indicator")
+        self._indicator.setStyleSheet(
+            f"QFrame#active_indicator {{"
+            f" background: {AppTheme.GOLD_PRIMARY};"
+            f" border: none; border-radius: 1px; }}"
+        )
+        self._indicator.setFixedWidth(3)
+        self._indicator.raise_()
+        self._indicator_anim = None
+        # 延遲到首次 layout 完成後再定位指示器
+        QTimer.singleShot(0, self._snap_indicator_to_current)
+
     def resizeEvent(self, event):  # noqa: N802
-        """視窗縮放時將右側邊框置右"""
+        """視窗縮放時將右側邊框置右，並重新定位活動指示器"""
         super().resizeEvent(event)
         if hasattr(self, "_right_border"):
             self._right_border.setGeometry(
                 self.width() - 1, 0, 1, self.height()
             )
+        if hasattr(self, "_indicator"):
+            self._snap_indicator_to_current()
 
     # --------------------------------------------------
     # 樣式生成
     # --------------------------------------------------
 
     def _active_style(self) -> str:
-        """Active 頁面按鈕 QSS — 左側 3px 金色線 + 淡色背景"""
+        """Active 頁面按鈕 QSS — 金色文字 + 淡色背景（指示線由浮動指示器繪製）"""
         return (
             f"QPushButton {{"
             f" background-color: {AppTheme.SIDEBAR_HOVER_BG};"
             f" color: {AppTheme.GOLD_LIGHT};"
             f" border: none;"
-            f" border-left: 3px solid {AppTheme.GOLD_PRIMARY};"
+            f" border-left: 3px solid transparent;"
             f" border-radius: 0px;"
             f" font-size: 16px; }}"
             f"QPushButton:hover {{"
@@ -158,6 +173,43 @@ class Sidebar(QWidget):
     # --------------------------------------------------
 
     def _update_button_states(self):
-        """更新所有導航按鈕的 active / inactive 樣式"""
+        """更新所有導航按鈕的 active / inactive 樣式，並動畫指示器"""
         for name, btn in self._items.items():
             self._apply_btn_state(btn, name == self.current_page)
+        self._animate_indicator_to_current()
+
+    # --------------------------------------------------
+    # 活動指示器定位 / 動畫
+    # --------------------------------------------------
+
+    def _target_indicator_rect(self) -> QRect | None:
+        """計算目前 active 按鈕對應的指示器 QRect"""
+        btn = self._items.get(self.current_page)
+        if btn is None or not btn.isVisible():
+            return None
+        # 指示器貼左側，垂直略小於按鈕高度（上下各 6px inset 以呈現精緻感）
+        inset = 6
+        return QRect(0, btn.y() + inset, 3, btn.height() - inset * 2)
+
+    def _snap_indicator_to_current(self):
+        """無動畫直接定位到當前按鈕（初始化 / resize 用）"""
+        rect = self._target_indicator_rect()
+        if rect is not None:
+            self._indicator.setGeometry(rect)
+            self._indicator.raise_()
+
+    def _animate_indicator_to_current(self):
+        """以動畫滑動到當前按鈕位置"""
+        target = self._target_indicator_rect()
+        if target is None:
+            return
+        self._indicator.raise_()
+        if self._indicator_anim and self._indicator_anim.state() == QPropertyAnimation.State.Running:
+            self._indicator_anim.stop()
+
+        self._indicator_anim = AppTheme.make_anim(
+            self._indicator, b"geometry",
+            self._indicator.geometry(), target,
+            duration=220, parent=self,
+        )
+        self._indicator_anim.start()

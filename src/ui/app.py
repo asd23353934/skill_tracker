@@ -12,8 +12,9 @@ from PySide6.QtWidgets import (
     QStackedWidget, QMessageBox, QInputDialog, QApplication,
     QFrame,
 )
-from PySide6.QtCore import Qt, QEvent, QTimer, QObject, Signal
+from PySide6.QtCore import Qt, QEvent, QTimer, QObject, Signal, QPropertyAnimation
 from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QGraphicsOpacityEffect
 
 from src.ui.theme import AppTheme
 from src.infrastructure.config_manager import ConfigManager
@@ -373,8 +374,31 @@ class App(QMainWindow):
         Args:
             page_name: 'skill' | 'monster' | 'overlay' | 'potion'
         """
-        if page_name in self.pages:
-            self.page_stack.setCurrentWidget(self.pages[page_name])
+        if page_name not in self.pages:
+            return
+        page = self.pages[page_name]
+        self.page_stack.setCurrentWidget(page)
+        self._play_page_fade_in(page)
+
+    def _play_page_fade_in(self, page):
+        """頁面切換淡入動畫（180ms，opacity 0→1）
+
+        Args:
+            page: 目標頁面 QWidget
+        """
+        prev = getattr(self, "_page_fade_anim", None)
+        if prev is not None and prev.state() == QPropertyAnimation.State.Running:
+            prev.stop()
+
+        effect = QGraphicsOpacityEffect(page)
+        effect.setOpacity(0.0)
+        page.setGraphicsEffect(effect)
+
+        anim = AppTheme.make_anim(effect, b"opacity", 0.0, 1.0, duration=180, parent=page)
+        # 動畫結束後移除效果，避免影響子元件（例如卡片陰影）
+        anim.finished.connect(lambda: page.setGraphicsEffect(None))
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        self._page_fade_anim = anim
 
     # --------------------------------------------------
     # 靜態輔助：動態設定 QPushButton 樣式

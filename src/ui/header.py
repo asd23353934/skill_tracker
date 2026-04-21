@@ -109,8 +109,8 @@ class Header(QWidget):
         self.setObjectName("app_header")
         self.setStyleSheet(
             f"QWidget#app_header {{"
-            f" background-color: {AppTheme.BG_SECONDARY};"
-            f" border-bottom: 1px solid {AppTheme.BORDER_GOLD_HAIRLINE}; }}"
+            f" background: {AppTheme.GRADIENT_HEADER};"
+            f" border-bottom: 1px solid {AppTheme.BORDER_GOLD_SUBTLE}; }}"
         )
 
         layout = QHBoxLayout(self)
@@ -121,8 +121,13 @@ class Header(QWidget):
         title_lbl = QLabel("🍁 技能追蹤器")
         title_lbl.setStyleSheet(
             f"color: {AppTheme.GOLD_LIGHT};"
-            f" font-size: 14px; font-weight: bold;"
+            f" font-size: 15px; font-weight: bold;"
             f" background: transparent; border: none;"
+            f" letter-spacing: 1px;"
+        )
+        title_lbl.setGraphicsEffect(
+            AppTheme.make_shadow(
+                blur=18, y_offset=0, color=AppTheme.GOLD_PRIMARY, alpha=150)
         )
         layout.addWidget(title_lbl)
 
@@ -156,9 +161,10 @@ class Header(QWidget):
         self.update_btn.clicked.connect(self.app.show_update_dialog)
         self.update_btn.setStyleSheet(
             f"QPushButton {{ background: {AppTheme.ACCENT_GREEN}; color: white;"
-            f" border: none; border-radius: 4px;"
-            f" padding: 0 8px; font-size: 11px; font-weight: bold; }}"
+            f" border: 1px solid {AppTheme.ACCENT_GREEN_HOVER}; border-radius: 6px;"
+            f" padding: 0 10px; font-size: 11px; font-weight: bold; }}"
             f"QPushButton:hover {{ background: {AppTheme.ACCENT_GREEN_HOVER}; }}"
+            f"QPushButton:pressed {{ background: #0b7a55; }}"
         )
         self.update_btn.hide()
         layout.addWidget(self.update_btn)
@@ -169,9 +175,10 @@ class Header(QWidget):
         clear_btn.clicked.connect(self.app.clear_all_hotkeys)
         clear_btn.setStyleSheet(
             f"QPushButton {{ background: {AppTheme.ACCENT_RED}; color: white;"
-            f" border: none; border-radius: 4px;"
-            f" padding: 0 8px; font-size: 11px; font-weight: bold; }}"
-            f"QPushButton:hover {{ background: #dc2626; }}"
+            f" border: 1px solid {AppTheme.ACCENT_RED_HOVER}; border-radius: 6px;"
+            f" padding: 0 10px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: {AppTheme.ACCENT_RED_HOVER}; }}"
+            f"QPushButton:pressed {{ background: #991b1b; }}"
         )
         layout.addWidget(clear_btn)
 
@@ -181,9 +188,10 @@ class Header(QWidget):
         profile_btn.clicked.connect(self.app.show_profile_manager)
         profile_btn.setStyleSheet(
             f"QPushButton {{ background: {AppTheme.ACCENT_PURPLE}; color: white;"
-            f" border: none; border-radius: 4px;"
-            f" padding: 0 8px; font-size: 11px; font-weight: bold; }}"
+            f" border: 1px solid #a78bfa; border-radius: 6px;"
+            f" padding: 0 10px; font-size: 11px; font-weight: bold; }}"
             f"QPushButton:hover {{ background: #7c3aed; }}"
+            f"QPushButton:pressed {{ background: #5b21b6; }}"
         )
         layout.addWidget(profile_btn)
 

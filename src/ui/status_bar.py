@@ -30,8 +30,8 @@ class StatusBar(QWidget):
         self.setObjectName("status_bar")
         self.setStyleSheet(
             f"QWidget#status_bar {{"
-            f" background-color: {AppTheme.BG_DARKEST};"
-            f" border-top: 1px solid {AppTheme.BORDER_GOLD_HAIRLINE}; }}"
+            f" background: {AppTheme.GRADIENT_STATUSBAR};"
+            f" border-top: 1px solid {AppTheme.BORDER_GOLD_SUBTLE}; }}"
         )
 
         layout = QHBoxLayout(self)

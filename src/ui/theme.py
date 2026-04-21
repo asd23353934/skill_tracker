@@ -4,7 +4,9 @@
 RPG 遊戲風格 — 金色邊框、深色卡片、楓之谷質感
 """
 
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import QGraphicsDropShadowEffect
+from PySide6.QtCore import QPropertyAnimation, QEasingCurve
 
 
 class AppTheme:
@@ -103,6 +105,32 @@ class AppTheme:
     HEADER_BORDER_OUTER = "#d4a843"
     HEADER_BORDER_INNER = "#8b7435"
 
+    # ===== 漸層（qlineargradient 語法，供 QSS 使用）=====
+    # 主視窗深色漸層（由上至下：最深 → 次深）
+    GRADIENT_APP_BG = (
+        "qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        " stop:0 #0a0f1a, stop:1 #04070d)"
+    )
+    # Header 漸層（上淺下深，帶微金色光暈）
+    GRADIENT_HEADER = (
+        "qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        " stop:0 #111827, stop:0.5 #0d1320, stop:1 #090d17)"
+    )
+    # 卡片漸層（微微斜向）
+    GRADIENT_CARD = (
+        "qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+        " stop:0 #0c1220, stop:1 #070a12)"
+    )
+    GRADIENT_CARD_HOVER = (
+        "qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+        " stop:0 #1a2540, stop:1 #0e1527)"
+    )
+    # 狀態列漸層
+    GRADIENT_STATUSBAR = (
+        "qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        " stop:0 #05080f, stop:1 #010205)"
+    )
+
     @classmethod
     def build_stylesheet(cls) -> str:
         """回傳完整 QSS 全域樣式表字串
@@ -119,7 +147,7 @@ class AppTheme:
             font-size: 12px;
         }}
         QMainWindow {{
-            background-color: {cls.BG_PRIMARY};
+            background: {cls.GRADIENT_APP_BG};
         }}
 
         /* ===== 按鈕 ===== */
@@ -127,7 +155,7 @@ class AppTheme:
             background-color: {cls.BG_TERTIARY};
             color: {cls.TEXT_PRIMARY};
             border: 1px solid {cls.GOLD_MUTED};
-            border-radius: 4px;
+            border-radius: 5px;
             padding: 2px 8px;
             font-family: "{cls.FONT_FAMILY}";
             font-size: 11px;
@@ -141,6 +169,8 @@ class AppTheme:
         QPushButton:pressed {{
             background-color: {cls.BG_DARKEST};
             border-color: {cls.GOLD_DARK};
+            padding-top: 3px;
+            padding-bottom: 1px;
         }}
         QPushButton:disabled {{
             color: {cls.TEXT_MUTED};
@@ -389,6 +419,63 @@ class AppTheme:
             background-color: transparent;
         }}
         """
+
+    @staticmethod
+    def make_shadow(
+        blur: int = 16,
+        y_offset: int = 2,
+        color: str = "#000000",
+        alpha: int = 160,
+    ) -> QGraphicsDropShadowEffect:
+        """建立下拉陰影效果
+
+        Args:
+            blur:     模糊半徑
+            y_offset: 垂直偏移
+            color:    陰影顏色 (#RRGGBB)
+            alpha:    0-255 不透明度
+
+        Returns:
+            QGraphicsDropShadowEffect 實例（每個元件需獨立實例）
+        """
+        effect = QGraphicsDropShadowEffect()
+        effect.setBlurRadius(blur)
+        effect.setOffset(0, y_offset)
+        c = QColor(color)
+        c.setAlpha(alpha)
+        effect.setColor(c)
+        return effect
+
+    @staticmethod
+    def make_anim(
+        target,
+        prop: bytes,
+        start,
+        end,
+        duration: int = 180,
+        easing=QEasingCurve.Type.OutCubic,
+        parent=None,
+    ) -> QPropertyAnimation:
+        """建立 QPropertyAnimation 物件（共用 factory）
+
+        Args:
+            target:   動畫目標（QObject）
+            prop:     屬性名稱 (bytes，例 b"opacity")
+            start:    起始值
+            end:      結束值
+            duration: 動畫時長（毫秒）
+            easing:   緩動曲線
+            parent:   動畫擁有者（預設用 target，方便生命週期跟隨）
+
+        Returns:
+            已設定完畢但尚未 start 的 QPropertyAnimation
+        """
+        anim = QPropertyAnimation(target, prop, parent or target)
+        anim.setDuration(duration)
+        anim.setStartValue(start)
+        anim.setEndValue(end)
+        anim.setEasingCurve(easing)
+        return anim
 
     @classmethod
     def get_font(cls, size: int, bold: bool = False) -> QFont:
