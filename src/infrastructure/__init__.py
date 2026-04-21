@@ -8,7 +8,6 @@ from src.infrastructure.helpers import resource_path, user_data_path
 from src.infrastructure.skill_loader import SkillLoader
 
 __all__ = [
-    "BroadcastManager",
     "ConfigManager",
     "SkillLoader",
     "SoundManager",
@@ -22,7 +21,4 @@ def __getattr__(name: str):
     if name == "SoundManager":
         from src.infrastructure.sound_manager import SoundManager
         return SoundManager
-    if name == "BroadcastManager":
-        from src.infrastructure.broadcast_manager import BroadcastManager
-        return BroadcastManager
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

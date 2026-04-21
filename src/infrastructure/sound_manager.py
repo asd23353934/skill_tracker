@@ -61,8 +61,8 @@ def _play_mp3_blocking(filepath):
         alias = f"snd{_mci_counter}"
 
     try:
-        # 路徑需要用雙引號包裹以支援空格
-        escaped = filepath.replace('"', '')
+        # 剝除可能破壞 MCI 指令的字元（雙引號、換行），避免指令注入
+        escaped = filepath.translate({ord('"'): None, ord('\r'): None, ord('\n'): None})
         _mci_send(f'open "{escaped}" type mpegvideo alias {alias}')
         _mci_send(f'play {alias} wait')
         _mci_send(f'close {alias}')

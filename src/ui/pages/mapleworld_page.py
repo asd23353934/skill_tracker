@@ -810,10 +810,9 @@ class MapleWorldPage(QWidget):
 
     def _open_cache_folder(self):
         """用 Explorer 開啟快取資料夾"""
-        import subprocess
         folder = os.path.abspath(_MAPLEWORLD_DIR)
         os.makedirs(folder, exist_ok=True)
-        subprocess.Popen(f'explorer "{folder}"')
+        os.startfile(folder)
 
     def _delete_all_cache(self):
         """刪除 images/mapleworld/ 內所有 PNG，並清空清單"""

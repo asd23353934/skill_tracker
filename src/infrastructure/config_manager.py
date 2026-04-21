@@ -9,6 +9,13 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Windows 保留檔名（含副檔名也視為保留；含 COM0 / LPT0）
+_RESERVED_WINDOWS_NAMES = frozenset({
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(10)),
+    *(f"LPT{i}" for i in range(10)),
+})
+
 
 class ConfigManager:
     """配置管理器"""
@@ -100,8 +107,12 @@ class ConfigManager:
         """
         if not name:
             return False
-        # 不允許路徑分隔符、相對路徑符號、空字串
         if any(c in name for c in ("/", "\\", "..")):
+            return False
+        if name[-1] in (" ", "."):
+            return False
+        stem = name.split(".", 1)[0].upper()
+        if stem in _RESERVED_WINDOWS_NAMES:
             return False
         return True
 
@@ -223,10 +234,13 @@ class ConfigManager:
             # 創建預設配置（所有技能都是初始狀態）
             default_settings = {
                 'hotkeys': {},
-                'send': {},
-                'receive': {},
                 'permanent': {},
-                'cooldown_overrides': {}  # 使用 config.json 中的原始秒數
+                'loop': {},
+                'alert_enabled': {},
+                'cooldown_overrides': {},
+                'alert_seconds_overrides': {},
+                'sound_overrides': {},
+                'alert_sound_overrides': {},
             }
             self.save_profile(default_name, default_settings)
 

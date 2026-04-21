@@ -42,10 +42,6 @@ a = Analysis(
         'PIL.ImageFilter',
         'PIL.PngImagePlugin',
         'PIL.WebPImagePlugin',
-        # Scapy（頻道廣播封包監聽）
-        'scapy.all',
-        'scapy.layers.inet',
-        'scapy.arch.windows',
     ],
     hookspath=[],
     hooksconfig={},

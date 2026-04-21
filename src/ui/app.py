@@ -18,19 +18,15 @@ from PySide6.QtGui import QIcon
 from src.ui.theme import AppTheme
 from src.infrastructure.config_manager import ConfigManager
 from src.infrastructure.skill_loader import SkillLoader
-from src.infrastructure.broadcast_manager import BroadcastManager
 from src.infrastructure.helpers import resource_path
-from src.infrastructure.repositories import (
-    SkillRepository, ProfileRepository, MonsterRepository,
-    OverlayRepository, SettingsRepository,
-)
+from src.infrastructure.repositories import SkillRepository
 from src.ui.skill_pixmap_cache import SkillPixmapCache
 from src.ui.hotkey_manager import HotkeyManager
 from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
 from src.ui.header import Header
 from src.ui.status_bar import StatusBar
-from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, MapleWorldPage, BroadcastPage
+from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, MapleWorldPage
 from src.ui.toast import ToastManager
 from src.domain.services import SkillService, MonsterService
 
@@ -163,12 +159,8 @@ class App(QMainWindow):
             QMessageBox.critical(None, "錯誤", f"初始化失敗: {e}")
             sys.exit(1)
 
-        # Repository 層（整潔架構 Phase 1-2，與現有 manager 並存）
+        # Repository 層（SkillService 依賴）
         self.skill_repo = SkillRepository(self.config_manager)
-        self.profile_repo = ProfileRepository(self.config_manager)
-        self.monster_repo = MonsterRepository(self.config_manager)
-        self.overlay_repo = OverlayRepository(self.config_manager)
-        self.settings_repo = SettingsRepository(self.config_manager)
 
         # 音效管理器
         from src.infrastructure.sound_manager import SoundManager
@@ -191,22 +183,15 @@ class App(QMainWindow):
         from src.ui.overlay_manager import OverlayManager
         self.overlay_manager = OverlayManager(self)
 
-        # 頻道廣播管理器
-        self.broadcast_manager = BroadcastManager(self)
-
         # 建構 UI
         self._build_ui()
 
         # Toast 通知（需在 UI 建構後初始化）
         self.toast = ToastManager(self)
 
-        # ��動服務
+        # 啟動服務
         self.hotkey_manager.start()
         self.window_manager.initialize_persistent_skills()
-
-        # 頻道廣播：設定回呼 + 自動啟動
-        self.broadcast_manager.set_on_message(self.broadcast_page.on_new_message)
-        self.broadcast_page.auto_start_if_enabled()
 
         # 顯示視窗（稍微透明，與原版一致）
         self.setWindowOpacity(0.96)
@@ -376,10 +361,6 @@ class App(QMainWindow):
         self.mapleworld_page = MapleWorldPage(self.page_stack, self)
         self.page_stack.addWidget(self.mapleworld_page)
         self.pages["mapleworld"] = self.mapleworld_page
-
-        self.broadcast_page = BroadcastPage(self.page_stack, self)
-        self.page_stack.addWidget(self.broadcast_page)
-        self.pages["broadcast"] = self.broadcast_page
 
         # 預設顯示技能頁
         self._switch_page("skill")
@@ -1017,6 +998,7 @@ class App(QMainWindow):
         self.cooldown_buttons      = {}
         self.alert_seconds_buttons = {}
         self.monster_respawn_buttons = {}
+        self.monster_alert_before_buttons = {}
 
         self._build_ui()
         self.window_manager.initialize_persistent_skills()
@@ -1146,10 +1128,6 @@ class App(QMainWindow):
             pass
         try:
             self.hotkey_manager.stop()
-        except Exception:
-            pass
-        try:
-            self.broadcast_manager.stop()
         except Exception:
             pass
         try:
