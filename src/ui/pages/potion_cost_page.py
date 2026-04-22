@@ -307,7 +307,6 @@ class _PotionSection(QFrame):
             f" border-radius: {AppTheme.CORNER_MD}px; }}"
         )
         self._build_ui()
-        self._load_defaults()
 
     def _build_ui(self):
         """建構區塊 UI"""
@@ -423,23 +422,13 @@ class _PotionSection(QFrame):
             row.deleteLater()
             self._on_row_change()
 
-    def _clear_all_rows(self):
+    def remove_all_rows(self):
         """移除所有藥水列"""
         for row in self._rows:
             self._rows_layout.removeWidget(row)
             row.deleteLater()
         self._rows.clear()
         self._on_row_change()
-
-    def _load_defaults(self):
-        """載入預設藥水列"""
-        for default in _POTION_DEFAULTS.get(self._potion_type, []):
-            row = _PotionRow(
-                self._rows_widget, self._potion_type, default,
-                self._on_row_change, self._remove_row,
-            )
-            self._rows_layout.addWidget(row)
-            self._rows.append(row)
 
     def _on_row_change(self):
         """任意列變更時更新小計並通知頁面"""
@@ -466,7 +455,7 @@ class _PotionSection(QFrame):
             data_list: 列資料字典列表
         """
         # 清除現有列後依存檔重建
-        self._clear_all_rows()
+        self.remove_all_rows()
         for row_data in data_list:
             row = _PotionRow(
                 self._rows_widget, self._potion_type, {},
@@ -847,7 +836,15 @@ class PotionCostPage(QWidget):
         self._qt_timer.setInterval(1000)
         self._qt_timer.timeout.connect(self._on_timer_tick)
 
+        # 自動保存狀態
+        self._loading: bool = False
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setSingleShot(True)
+        self._autosave_timer.setInterval(500)
+        self._autosave_timer.timeout.connect(self._do_autosave)
+
         self._build_ui()
+        self._try_load_autosave()
 
     def _build_ui(self):
         """建構頁面 UI"""
@@ -903,6 +900,19 @@ class PotionCostPage(QWidget):
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(self._on_clear)
         hdr_lay.addWidget(clear_btn)
+
+        reset_all_btn = QPushButton("🔄 全部重置")
+        reset_all_btn.setFixedHeight(28)
+        reset_all_btn.setStyleSheet(
+            f"QPushButton {{"
+            f" background: {AppTheme.ACCENT_RED}; color: #fff;"
+            f" border: 1px solid {AppTheme.ACCENT_RED}; border-radius: 4px;"
+            f" padding: 3px 10px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background: {AppTheme.ACCENT_RED_HOVER}; }}"
+        )
+        reset_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_all_btn.clicked.connect(self._on_reset_all)
+        hdr_lay.addWidget(reset_all_btn)
 
         save_btn = QPushButton("💾 儲存")
         save_btn.setFixedHeight(28)
@@ -1347,6 +1357,90 @@ class PotionCostPage(QWidget):
             "exp_60":    int(exp_gained / minutes * 60),
         })
 
+        # 排程自動保存（載入中時略過）
+        if not self._loading:
+            self._autosave_timer.start()
+
+    # ──────────────────────────────────────────────────────
+    # 自動保存
+    # ──────────────────────────────────────────────────────
+
+    def _do_autosave(self):
+        """執行自動保存（寫入獨立的 autosave 檔）"""
+        if self._loading:
+            return
+        data = self.get_form_data()
+        data["_timer_elapsed"] = self._timer_elapsed
+        self.app.config_manager.save_potion_autosave(data)
+
+    def _try_load_autosave(self):
+        """嘗試還原上次的自動保存內容"""
+        record = self.app.config_manager.load_potion_autosave()
+        if not record:
+            return
+
+        self._loading = True
+        try:
+            self.load_form_data(record)
+            # 還原計時器秒數（不自動續跑；使用者按開始才繼續）
+            elapsed = int(record.get("_timer_elapsed", 0) or 0)
+            if elapsed > 0:
+                self._timer_elapsed = elapsed
+                self._update_timer_display()
+        finally:
+            self._loading = False
+        self._recalc_all()
+        if getattr(self.app, "toast", None):
+            self.app.toast.show("已還原上次編輯內容", "info")
+
+    def _clear_autosave(self):
+        """刪除自動保存檔"""
+        self.app.config_manager.delete_potion_autosave()
+
+    def _on_reset_all(self):
+        """全部重置 — 清空所有藥水列、所有輸入、計時器，並刪除自動保存"""
+        from PySide6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self, "確認重置",
+            "確定要重置所有資料嗎？\n（所有藥水列與輸入值都會清空，且無法復原）",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self._loading = True
+        try:
+            # 清空三個區塊所有藥水列
+            self._hp_section.remove_all_rows()
+            self._mp_section.remove_all_rows()
+            self._combined_section.remove_all_rows()
+            # 清空楓幣/商店/經驗欄位
+            for edit in [
+                self._mesos_start_edit, self._mesos_end_edit,
+                self._shop_before_edit, self._shop_after_edit,
+                self._exp_start_edit, self._exp_end_edit,
+            ]:
+                edit.clear()
+            # 重置計時器與時長
+            self._reset_timer()
+            self._duration_spin.setValue(60)
+        finally:
+            self._loading = False
+
+        # 取消任何排程中的 autosave（避免剛 delete 又被寫回空檔）
+        self._autosave_timer.stop()
+        self._clear_autosave()
+        # 直接更新摘要面板，不走 _recalc_all 以免重新排程 autosave
+        self._recalc_all_no_autosave()
+
+    def _recalc_all_no_autosave(self):
+        """重算一次摘要但不排程 autosave"""
+        self._loading = True
+        try:
+            self._recalc_all()
+        finally:
+            self._loading = False
+
     # ──────────────────────────────────────────────────────
     # 存檔 / 載入
     # ──────────────────────────────────────────────────────
@@ -1364,7 +1458,13 @@ class PotionCostPage(QWidget):
         dlg = PotionSaveDialog(self, self.app.config_manager, mode="load", app=self.app)
         from PySide6.QtWidgets import QDialog
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.result_data:
-            self.load_form_data(dlg.result_data)
+            self._loading = True
+            try:
+                self.load_form_data(dlg.result_data)
+            finally:
+                self._loading = False
+            # 載入完成後才觸發一次 autosave，覆寫成使用者明確選擇的版本
+            self._do_autosave()
 
     def _on_clear(self):
         """清空所有輸入值"""

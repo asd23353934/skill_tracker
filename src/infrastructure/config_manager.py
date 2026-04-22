@@ -335,6 +335,46 @@ class ConfigManager:
             logger.exception("delete_potion_record: 刪除失敗 name=%r", name)
             return False
 
+    # ==================== 練功水錢自動保存 ====================
+
+    def _potion_autosave_path(self) -> str:
+        """練功水錢自動保存檔案路徑（與 config.json 同層）"""
+        return os.path.join(os.path.dirname(self.config_path), "potion_autosave.json")
+
+    def save_potion_autosave(self, data: dict) -> bool:
+        """寫入練功水錢自動保存"""
+        try:
+            with open(self._potion_autosave_path(), "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception:
+            logger.exception("save_potion_autosave: 寫入失敗")
+            return False
+
+    def load_potion_autosave(self):
+        """讀取練功水錢自動保存，無檔或錯誤回傳 None"""
+        path = self._potion_autosave_path()
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            logger.exception("load_potion_autosave: 讀取失敗")
+            return None
+
+    def delete_potion_autosave(self) -> bool:
+        """刪除練功水錢自動保存"""
+        path = self._potion_autosave_path()
+        if not os.path.exists(path):
+            return True
+        try:
+            os.remove(path)
+            return True
+        except Exception:
+            logger.exception("delete_potion_autosave: 刪除失敗")
+            return False
+
     def rename_potion_record(self, old_name: str, new_name: str) -> bool:
         """重命名練功水錢紀錄
 
