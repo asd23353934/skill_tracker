@@ -362,7 +362,7 @@ class _PotionSection(QFrame):
             f" font-size: 11px; font-weight: bold; }}"
             f"QPushButton:hover {{ background: {AppTheme.ACCENT_RED_HOVER}; }}"
         )
-        clear_all_btn.clicked.connect(self._clear_all_rows)
+        clear_all_btn.clicked.connect(self.remove_all_rows)
         hdr_lay.addWidget(clear_all_btn)
 
         # 小計
