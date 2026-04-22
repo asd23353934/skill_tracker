@@ -69,8 +69,11 @@ src/ui_v2/               # V2 預覽 shell（紫色漸層 dashboard）
   components.py          # V2 共用元件
   lucide.py              # Lucide SVG 圖示載入器
   icons/                 # Lucide SVG 來源
-  pages/                 # V2 頁面（overlay/mapleworld 已接線；skill/monster/potion 為最小接線）
+  pages/                 # V2 頁面（overlay/mapleworld/potion 已接線；skill/monster 為最小接線）
+    potion_page_v2.py    # 練功水錢 V2 頁面（透過 PotionService 接線；與 V1 共用 potion_autosave.json）
   dialogs/               # V2 對話框
+    potion_save_dialog_v2.py  # V2 練功紀錄儲存對話框
+    potion_load_dialog_v2.py  # V2 練功紀錄載入對話框
 docs/DESIGN_V2.md        # V2 設計規範（顏色、間距、元件契約）
 ```
 
