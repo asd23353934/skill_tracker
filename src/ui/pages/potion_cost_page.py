@@ -4,7 +4,6 @@
 支援命名存檔、載入、刪除、重命名
 """
 
-import datetime
 from functools import lru_cache
 
 from PIL import Image
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIntValidator, QPixmap, QImage
 
+from src.domain.potion_service import PotionService
 from src.infrastructure.helpers import resource_path
 from src.ui.theme import AppTheme
 
@@ -35,36 +35,6 @@ def _load_potion_icon(name: str, size: tuple[int, int] = (20, 20)) -> QPixmap | 
     except (FileNotFoundError, OSError):
         return None
 
-
-# ===== 預設藥水資料 =====
-_POTION_DEFAULTS = {
-    "hp": [
-        {"name": "馴鹿奶",   "price": 5600},
-        {"name": "乳酪",     "price": 4500},
-        {"name": "棒冰棒",   "price": 2185},
-        {"name": "中華拉麵", "price": 1600},
-        {"name": "烤鰻魚",   "price": 1045},
-        {"name": "熱狗堡",   "price": 503},
-        {"name": "白色藥水", "price": 304},
-        {"name": "蘋果",     "price": 28},
-    ],
-    "mp": [
-        {"name": "黃昏之露", "price": 9690},
-        {"name": "清晨之露", "price": 7695},
-        {"name": "紅豆刨冰", "price": 3800},
-        {"name": "礦泉水",   "price": 1567},
-        {"name": "活力藥水", "price": 589},
-        {"name": "藍水",     "price": 190},
-    ],
-    "combined": [
-        {"name": "超級藥水", "price": 35000},
-        {"name": "特殊藥水", "price": 24000},
-        {"name": "櫻桃派",   "price": 3000},
-        {"name": "西瓜",     "price": 3034},
-        {"name": "蛋糕",     "price": 304},
-        {"name": "巧克力",   "price": 2850},
-    ],
-}
 
 _SECTION_EMOJI = {"hp": "💊", "mp": "💧", "combined": "✨"}
 _SECTION_LABEL = {"hp": "HP 藥水", "mp": "MP 藥水", "combined": "綜合藥水"}
@@ -257,29 +227,11 @@ class _PotionRow(QFrame):
             self._icon_lbl.clear()
             self._icon_lbl.setText(_SECTION_EMOJI.get(self._potion_type, "💊"))
 
-    def _recalc(self):
-        """重新計算消耗量與水錢"""
-        before   = _parse_int(self.before_edit.text())
-        after    = _parse_int(self.after_edit.text())
-        price    = _parse_int(self.price_edit.text())
-        consumed = max(0, before - after)
-        cost     = consumed * price
-        self.consumed_lbl.setText(_fmt(consumed))
-        self.cost_lbl.setText(_fmt(cost))
-        self._on_change()
-
-    def get_cost(self) -> int:
-        """回傳本列水錢"""
-        before   = _parse_int(self.before_edit.text())
-        after    = _parse_int(self.after_edit.text())
-        price    = _parse_int(self.price_edit.text())
-        return max(0, before - after) * price
-
-    def get_data(self) -> dict:
-        """序列化列資料為字典"""
-        before   = _parse_int(self.before_edit.text())
-        after    = _parse_int(self.after_edit.text())
-        price    = _parse_int(self.price_edit.text())
+    def _row_dict(self) -> dict:
+        """從目前輸入框蒐集 row dict（含 consumed / cost 衍生欄位）"""
+        before = _parse_int(self.before_edit.text())
+        after  = _parse_int(self.after_edit.text())
+        price  = _parse_int(self.price_edit.text())
         consumed = max(0, before - after)
         return {
             "name":     self.name_edit.text().strip(),
@@ -287,8 +239,21 @@ class _PotionRow(QFrame):
             "before":   before,
             "after":    after,
             "consumed": consumed,
-            "cost":     consumed * price,
+            "cost":     PotionService.calc_row_cost(
+                {"price": price, "before": before, "after": after}
+            ),
         }
+
+    def _recalc(self):
+        """重新計算消耗量與水錢"""
+        data = self._row_dict()
+        self.consumed_lbl.setText(_fmt(data["consumed"]))
+        self.cost_lbl.setText(_fmt(data["cost"]))
+        self._on_change()
+
+    def get_data(self) -> dict:
+        """序列化列資料為字典"""
+        return self._row_dict()
 
     def load_data(self, data: dict):
         """從字典還原列資料
@@ -372,7 +337,7 @@ class _PotionSection(QFrame):
         self._add_combo.setFixedHeight(22)
         self._add_combo.setFixedWidth(130)
         self._add_combo.setCursor(Qt.CursorShape.PointingHandCursor)
-        defaults = _POTION_DEFAULTS.get(self._potion_type, [])
+        defaults = PotionService.DEFAULTS.get(self._potion_type, [])
         for d in defaults:
             self._add_combo.addItem(f"{d['name']} (${d['price']:,})")
         self._add_combo.addItem("自訂（空白）")
@@ -436,7 +401,7 @@ class _PotionSection(QFrame):
 
     def _on_combo_select(self, index: int):
         """下拉選單選擇後新增藥水列"""
-        defaults = _POTION_DEFAULTS.get(self._potion_type, [])
+        defaults = PotionService.DEFAULTS.get(self._potion_type, [])
         if index < len(defaults):
             self._add_row(defaults[index])
         else:
@@ -467,7 +432,9 @@ class _PotionSection(QFrame):
 
     def get_subtotal(self) -> int:
         """回傳所有列水錢合計"""
-        return sum(r.get_cost() for r in self._rows)
+        return PotionService.calc_section_subtotal(
+            [r.get_data() for r in self._rows]
+        )
 
     def get_data(self) -> list:
         """序列化所有列資料
@@ -857,6 +824,8 @@ class PotionCostPage(QWidget):
         """
         super().__init__(parent)
         self.app = app
+        self._service = PotionService(app.config_manager)
+        self._last_summary: dict | None = None
 
         # 計時器狀態
         self._timer_running: bool = False
@@ -1346,47 +1315,37 @@ class PotionCostPage(QWidget):
 
     # ──────────────────────────────────────────────────────
 
+    def _collect_form(self) -> dict:
+        """從 widget 蒐集 form dict"""
+        return {
+            "duration_minutes": self._duration_spin.value(),
+            "hp_potions":       self._hp_section.get_data(),
+            "mp_potions":       self._mp_section.get_data(),
+            "combined_potions": self._combined_section.get_data(),
+            "mesos_start": _parse_int(self._mesos_start_edit.text()),
+            "mesos_end":   _parse_int(self._mesos_end_edit.text()),
+            "shop_before": _parse_int(self._shop_before_edit.text()),
+            "shop_after":  _parse_int(self._shop_after_edit.text()),
+            "exp_start":   _parse_int(self._exp_start_edit.text()),
+            "exp_end":     _parse_int(self._exp_end_edit.text()),
+        }
+
     def _recalc_all(self):
         """重新計算所有匯總值並更新摘要面板與自動欄位"""
-        hp_total  = self._hp_section.get_subtotal()
-        mp_total  = self._mp_section.get_subtotal()
-        cmb_total = self._combined_section.get_subtotal()
-        expense   = hp_total + mp_total + cmb_total
+        form = self._collect_form()
+        summary = PotionService.calc_summary(form)
 
-        mesos_start   = _parse_int(self._mesos_start_edit.text())
-        mesos_end     = _parse_int(self._mesos_end_edit.text())
-        mesos_pickup  = max(0, mesos_end - mesos_start)
-
-        shop_before   = _parse_int(self._shop_before_edit.text())
-        shop_after    = _parse_int(self._shop_after_edit.text())
-        shop_profit   = max(0, shop_after - shop_before)
-
-        exp_start     = _parse_int(self._exp_start_edit.text())
-        exp_end       = _parse_int(self._exp_end_edit.text())
-        exp_gained    = max(0, exp_end - exp_start)
-
-        income  = mesos_pickup + shop_profit
-        net     = income - expense
-        minutes = max(1, self._duration_spin.value())
-
-        # 更新自動欄位
+        mesos_pickup = max(0, form["mesos_end"]   - form["mesos_start"])
+        shop_profit  = max(0, form["shop_after"]  - form["shop_before"])
         self._mesos_pickup_lbl.setText(_fmt(mesos_pickup))
         self._shop_profit_lbl.setText(_fmt(shop_profit))
-        self._exp_gained_lbl.setText(_fmt(exp_gained))
+        self._exp_gained_lbl.setText(_fmt(summary["exp_total"]))
 
-        # 更新摘要面板
-        self._summary_panel.refresh({
-            "income":    income,
-            "expense":   expense,
-            "net":       net,
-            "exp_total": exp_gained,
-            "net_10":    int(net / minutes * 10),
-            "exp_10":    int(exp_gained / minutes * 10),
-            "net_60":    int(net / minutes * 60),
-            "exp_60":    int(exp_gained / minutes * 60),
-        })
+        # 無變化時略過 refresh，避免 keystroke 熱路徑重建 8 次 stylesheet
+        if summary != self._last_summary:
+            self._last_summary = summary
+            self._summary_panel.refresh(summary)
 
-        # 排程自動保存（載入中時略過）
         if not self._loading:
             self._autosave_timer.start()
 
@@ -1398,13 +1357,13 @@ class PotionCostPage(QWidget):
         """執行自動保存（寫入獨立的 autosave 檔）"""
         if self._loading:
             return
-        data = self.get_form_data()
-        data["_timer_elapsed"] = self._timer_elapsed
-        self.app.config_manager.save_potion_autosave(data)
+        self._service.save_autosave(
+            self.get_form_data(), timer_elapsed=self._timer_elapsed
+        )
 
     def _try_load_autosave(self):
         """嘗試還原上次的自動保存內容"""
-        record = self.app.config_manager.load_potion_autosave()
+        record = self._service.load_autosave()
         if not record:
             return
 
@@ -1424,7 +1383,7 @@ class PotionCostPage(QWidget):
 
     def _clear_autosave(self):
         """刪除自動保存檔"""
-        self.app.config_manager.delete_potion_autosave()
+        self._service.clear_autosave()
 
     def _on_reset_all(self):
         """全部重置 — 清空所有藥水列、所有輸入、計時器，並刪除自動保存"""
@@ -1489,7 +1448,7 @@ class PotionCostPage(QWidget):
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.result_data:
             self._loading = True
             try:
-                self.load_form_data(dlg.result_data)
+                self.load_form_data(PotionService.deserialize(dlg.result_data))
             finally:
                 self._loading = False
             # 載入完成後才觸發一次 autosave，覆寫成使用者明確選擇的版本
@@ -1515,46 +1474,8 @@ class PotionCostPage(QWidget):
     # ──────────────────────────────────────────────────────
 
     def get_form_data(self) -> dict:
-        """序列化表單為存檔字典
-
-        Returns:
-            完整資料字典
-        """
-        mesos_start  = _parse_int(self._mesos_start_edit.text())
-        mesos_end    = _parse_int(self._mesos_end_edit.text())
-        shop_before  = _parse_int(self._shop_before_edit.text())
-        shop_after   = _parse_int(self._shop_after_edit.text())
-        exp_start    = _parse_int(self._exp_start_edit.text())
-        exp_end      = _parse_int(self._exp_end_edit.text())
-        minutes      = self._duration_spin.value()
-
-        hp_total  = self._hp_section.get_subtotal()
-        mp_total  = self._mp_section.get_subtotal()
-        cmb_total = self._combined_section.get_subtotal()
-        expense   = hp_total + mp_total + cmb_total
-        income    = max(0, mesos_end - mesos_start) + max(0, shop_after - shop_before)
-        net       = income - expense
-        exp       = max(0, exp_end - exp_start)
-
-        return {
-            "saved_at":        datetime.datetime.now().isoformat(timespec="seconds"),
-            "duration_minutes": minutes,
-            "hp_potions":      self._hp_section.get_data(),
-            "mp_potions":      self._mp_section.get_data(),
-            "combined_potions": self._combined_section.get_data(),
-            "mesos_start":     mesos_start,
-            "mesos_end":       mesos_end,
-            "shop_before":     shop_before,
-            "shop_after":      shop_after,
-            "exp_start":       exp_start,
-            "exp_end":         exp_end,
-            "summary": {
-                "total_income":  income,
-                "total_expense": expense,
-                "net":           net,
-                "exp_gained":    exp,
-            },
-        }
+        """序列化表單為存檔字典"""
+        return PotionService.serialize(self._collect_form())
 
     def load_form_data(self, data: dict):
         """從存檔字典還原表單

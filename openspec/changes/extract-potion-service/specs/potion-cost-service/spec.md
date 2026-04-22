@@ -73,9 +73,9 @@ The minutes denominator SHALL use `max(1, duration_minutes)` to avoid divide-by-
 
 The system SHALL provide `PotionService(config_manager)` that wraps autosave operations. Instance methods SHALL be:
 
-- `save_autosave(form: PotionFormData) -> None`: delegates to `config_manager.save_potion_autosave(form)` without modifying form
+- `save_autosave(form: PotionFormData, *, timer_elapsed: int = 0) -> bool`: delegates to `config_manager.save_potion_autosave(...)` without modifying the input form. The `timer_elapsed` keyword is a UI-only pass-through (seconds accumulated on the page timer); the service composes a new dict with key `_timer_elapsed` before writing, so the page does NOT mutate its own form. Returns the ConfigManager write result (False when no ConfigManager is injected).
 - `load_autosave() -> PotionFormData | None`: returns the dict from `config_manager.load_potion_autosave()` (or None)
-- `clear_autosave() -> None`: delegates to `config_manager.delete_potion_autosave()`
+- `clear_autosave() -> bool`: delegates to `config_manager.delete_potion_autosave()`; returns False when no ConfigManager is injected
 
 The service MUST NOT perform throttling, dirty tracking, or call `save_autosave` automatically — those concerns SHALL remain in the page layer.
 

@@ -57,6 +57,10 @@ src/ui/
     skill_detail_dialog.py # 技能細節設定對話框
     potion_save_dialog.py  # 藥水紀錄儲存/載入對話框
     update_dialog.py     # 更新通知對話框
+src/domain/              # 純 Python 領域層（零 Qt 依賴，V1/V2 共用）
+  models.py              # 領域資料模型
+  services.py            # SkillService / MonsterService
+  potion_service.py      # 藥水費用計算、autosave、紀錄序列化
 src/ui_v2/               # V2 預覽 shell（紫色漸層 dashboard）
   theme_v2.py            # V2 主題常量 (V2Theme)
   header_v2.py           # V2 無框頂部列
