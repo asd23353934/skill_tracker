@@ -43,4 +43,4 @@
 
 - [x] 7.1 跑 `/simplify` 與 `/spectra:audit` 檢視 service + 重構後 page 無 dead code / hacky pattern
 - [x] 7.2 同步 docs/PROJECT.md：在「專案結構」章節 `src/domain/` 下補 `potion_service.py` 與一句說明
-- [ ] 7.3 commit 訊息註明：純技術重構、行為不變、為 V2 接線預留入口；本 change 不 bump version
+- [x] 7.3 commit 訊息註明：純技術重構、行為不變、為 V2 接線預留入口；本 change 不 bump version
