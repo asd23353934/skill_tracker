@@ -5,6 +5,9 @@
 """
 
 import datetime
+from functools import lru_cache
+
+from PIL import Image
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -12,9 +15,25 @@ from PySide6.QtWidgets import (
     QApplication, QComboBox,
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIntValidator
+from PySide6.QtGui import QIntValidator, QPixmap, QImage
 
+from src.infrastructure.helpers import resource_path
 from src.ui.theme import AppTheme
+
+
+@lru_cache(maxsize=128)
+def _load_potion_icon(name: str, size: tuple[int, int] = (20, 20)) -> QPixmap | None:
+    """依藥水名稱載入 images/{name}.png 圖示，找不到檔案回 None"""
+    if not name:
+        return None
+    try:
+        path = resource_path(f"images/{name}.png")
+        img  = Image.open(path).convert("RGBA").resize(size, Image.Resampling.LANCZOS)
+        data = img.tobytes("raw", "RGBA")
+        qimg = QImage(data, img.width, img.height, QImage.Format.Format_RGBA8888)
+        return QPixmap.fromImage(qimg)
+    except (FileNotFoundError, OSError):
+        return None
 
 
 # ===== 預設藥水資料 =====
@@ -26,7 +45,7 @@ _POTION_DEFAULTS = {
         {"name": "中華拉麵", "price": 1600},
         {"name": "烤鰻魚",   "price": 1045},
         {"name": "熱狗堡",   "price": 503},
-        {"name": "白水",     "price": 304},
+        {"name": "白色藥水", "price": 304},
         {"name": "蘋果",     "price": 28},
     ],
     "mp": [
@@ -136,11 +155,12 @@ class _PotionRow(QFrame):
         lay.setSpacing(6)
 
         # ── 圖示 ──
-        emoji_lbl = QLabel(_SECTION_EMOJI.get(self._potion_type, "💊"))
-        emoji_lbl.setFixedWidth(20)
-        emoji_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        emoji_lbl.setStyleSheet("background: transparent; font-size: 14px;")
-        lay.addWidget(emoji_lbl)
+        self._icon_lbl = QLabel()
+        self._icon_lbl.setFixedSize(20, 20)
+        self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._icon_lbl.setStyleSheet("background: transparent; font-size: 14px;")
+        lay.addWidget(self._icon_lbl)
+        self._refresh_icon(default_data.get("name", ""))
 
         # ── 名稱 ──
         self.name_edit = QLineEdit(default_data.get("name", ""))
@@ -227,6 +247,15 @@ class _PotionRow(QFrame):
         self.price_edit.textChanged.connect(self._recalc)
         self.before_edit.textChanged.connect(self._recalc)
         self.after_edit.textChanged.connect(self._recalc)
+        self.name_edit.textChanged.connect(self._refresh_icon)
+
+    def _refresh_icon(self, name: str):
+        pix = _load_potion_icon(name.strip()) if name else None
+        if pix is not None:
+            self._icon_lbl.setPixmap(pix)
+        else:
+            self._icon_lbl.clear()
+            self._icon_lbl.setText(_SECTION_EMOJI.get(self._potion_type, "💊"))
 
     def _recalc(self):
         """重新計算消耗量與水錢"""

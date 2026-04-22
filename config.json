@@ -313,6 +313,62 @@
       "cooldown": 600,
       "category": "item",
       "subcategory": "道具"
+    },
+    {
+      "id": "speed-pill",
+      "name": "速度藥丸",
+      "icon": "速度藥丸.png",
+      "cooldown": 600,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "sniper-pill",
+      "name": "命中藥丸",
+      "icon": "命中藥丸.png",
+      "cooldown": 600,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "dexterity-pill",
+      "name": "敏捷藥丸",
+      "icon": "敏捷藥丸.png",
+      "cooldown": 600,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "yakisoba-x2",
+      "name": "雙份日式炒麵",
+      "icon": "雙份日式炒麵.png",
+      "cooldown": 600,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "takoyaki-jumbo",
+      "name": "加量章魚燒",
+      "icon": "加量章魚燒.png",
+      "cooldown": 600,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "pain-reliever",
+      "name": "疼痛舒緩劑",
+      "icon": "疼痛舒緩劑.png",
+      "cooldown": 600,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "baby-dragon-food",
+      "name": "龍寶寶的副食品",
+      "icon": "龍寶寶的副食品.png",
+      "cooldown": 1200,
+      "category": "item",
+      "subcategory": "道具"
     }
   ],
   "settings": {
