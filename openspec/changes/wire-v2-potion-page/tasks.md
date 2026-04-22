@@ -60,9 +60,9 @@
 
 - [x] 10.1 新增 `verify_potion_page_v2.py`：instantiate 一個 dummy `PotionPageV2`（以 QApplication 在無 show 情境建立），驗證 `_collect_form()` 產出 dict 有 `hp_potions / mp_potions / combined_potions` 三個 list + `duration_minutes / mesos_start / mesos_end / shop_before / shop_after / exp_start / exp_end` 七個欄位
 - [x] 10.2 驗證 `verify_potion_page_v2.py` 內 mock `PotionService.load_autosave` 回固定 dict，確認頁面建立後欄位正確還原；並檢查 V1 autosave 檔可被 V2 `_try_load_autosave` 成功讀取（反向相容）
-- [ ] 10.3 手動回歸：`python main.py --v2` 開 V2 potion 頁 → 輸入 hp/mp/combined 各 1 筆，比對摘要數字與 V1 一致；等 500ms+ 觸發 autosave，重啟後欄位完整還原；切換手動 ↔ 計時器，60 秒後分鐘欄位自動 +1
-- [ ] 10.4 手動回歸：測試儲存紀錄 → 載入紀錄流程；V1 存的紀錄要能在 V2 載入（反之亦然）
-- [ ] 10.5 手動回歸：「清除」後 autosave 仍在、「全部重置」後 autosave 消失
+- [x] 10.3 手動回歸：`python main.py --v2` 開 V2 potion 頁 → 輸入 hp/mp/combined 各 1 筆，比對摘要數字與 V1 一致；等 500ms+ 觸發 autosave，重啟後欄位完整還原；切換手動 ↔ 計時器，60 秒後分鐘欄位自動 +1
+- [x] 10.4 手動回歸：測試儲存紀錄 → 載入紀錄流程；V1 存的紀錄要能在 V2 載入（反之亦然）
+- [x] 10.5 手動回歸：「清除」後 autosave 仍在、「全部重置」後 autosave 消失
 
 ## 11. 收尾
 
