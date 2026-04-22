@@ -17,7 +17,8 @@ Python 3 + PySide6 GUI 桌面應用，支援 PyInstaller 打包為 exe。
 ## 專案結構
 
 ```
-main.py                  # 入口點
+main.py                  # 入口點（`python main.py --v2` 進 V2 預覽 shell）
+main_v2.py               # V2 預覽入口（紫色漸層 dashboard，逐頁接線中）
 version.py               # 版本號 (VERSION = "x.y.z")
 config.json              # 技能資料 + 使用者設定
 profiles/                # 使用者配置檔 (JSON)
@@ -56,6 +57,17 @@ src/ui/
     skill_detail_dialog.py # 技能細節設定對話框
     potion_save_dialog.py  # 藥水紀錄儲存/載入對話框
     update_dialog.py     # 更新通知對話框
+src/ui_v2/               # V2 預覽 shell（紫色漸層 dashboard）
+  theme_v2.py            # V2 主題常量 (V2Theme)
+  header_v2.py           # V2 無框頂部列
+  sidebar_v2.py          # V2 左側導覽
+  status_bar_v2.py       # V2 底部狀態列
+  components.py          # V2 共用元件
+  lucide.py              # Lucide SVG 圖示載入器
+  icons/                 # Lucide SVG 來源
+  pages/                 # V2 頁面（overlay/mapleworld 已接線；skill/monster/potion 為最小接線）
+  dialogs/               # V2 對話框
+docs/DESIGN_V2.md        # V2 設計規範（顏色、間距、元件契約）
 ```
 
 ## 注意事項
