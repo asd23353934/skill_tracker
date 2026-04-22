@@ -15,7 +15,17 @@ from src.ui.theme import AppTheme
 
 
 def main():
-    """主程式"""
+    """主程式
+
+    用法：
+        python main.py        # V1 正式 UI
+        python main.py --v2   # V2 預覽 shell（目前仍為假資料，逐頁接線中）
+    """
+    if "--v2" in sys.argv:
+        from main_v2 import main as v2_main
+        v2_main()
+        return
+
     qt_app = QApplication(sys.argv)
     qt_app.setStyleSheet(AppTheme.build_stylesheet())
 

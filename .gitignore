@@ -30,3 +30,9 @@ images/mapleworld
 # User data (不應提交到版本控制)
 profiles/
 sounds/
+overlays/
+potion_autosave.json
+
+# V2 預覽截圖（開發用，不入 repo）
+_shot_*.png
+_preview_shot.png

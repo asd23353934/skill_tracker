@@ -18,7 +18,8 @@ python fix_imports.py
 
 ### 3. 運行程式
 ```bash
-python main.py
+python main.py        # 正式 UI
+python main.py --v2   # V2 預覽 shell（開發中，逐頁接線）
 ```
 
 ---

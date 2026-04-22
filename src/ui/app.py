@@ -27,7 +27,7 @@ from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
 from src.ui.header import Header
 from src.ui.status_bar import StatusBar
-from src.ui.pages import SkillPage, MonsterPage, OverlayPage, PotionCostPage, MapleWorldPage
+from src.ui.pages import SkillPage, SkillPageV2, MonsterPage, OverlayPage, PotionCostPage, MapleWorldPage
 from src.ui.toast import ToastManager
 from src.domain.services import SkillService, MonsterService
 
@@ -348,6 +348,10 @@ class App(QMainWindow):
         self.skill_page = SkillPage(self.page_stack, self)
         self.page_stack.addWidget(self.skill_page)
         self.pages["skill"] = self.skill_page
+
+        self.skill_page_v2 = SkillPageV2(self.page_stack, self)
+        self.page_stack.addWidget(self.skill_page_v2)
+        self.pages["skill_v2"] = self.skill_page_v2
 
         self.monster_page = MonsterPage(self.page_stack, self)
         self.page_stack.addWidget(self.monster_page)

@@ -15,6 +15,7 @@ class Sidebar(QWidget):
     # 頁面定義：(page_name, icon, tooltip)
     PAGES = [
         ("skill",   "🍁", "技能倒數"),
+        ("skill_v2", "🧪", "技能倒數 V2（預覽）"),
         ("monster", "👾", "怪物重生"),
         ("overlay", "🖼️", "覆蓋圖片"),
         ("potion",  "💰", "練功水錢"),
