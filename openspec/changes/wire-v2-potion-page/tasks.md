@@ -68,4 +68,4 @@
 
 - [x] 11.1 跑 `/simplify` 與 `/spectra:audit` 檢視 V2 page 與新對話框無 dead code / hacky pattern
 - [x] 11.2 docs/PROJECT.md 在 V2 頁面結構區塊補註 potion_page_v2「已接線（透過 PotionService）」、新增 `potion_save_dialog_v2.py / potion_load_dialog_v2.py`
-- [ ] 11.3 commit 訊息註明：V2 potion 頁接線完成、共用 V1 autosave、不 bump version
+- [x] 11.3 commit 訊息註明：V2 potion 頁接線完成、共用 V1 autosave、不 bump version
