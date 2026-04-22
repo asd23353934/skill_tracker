@@ -114,7 +114,9 @@ class HotkeyManager:
                 for sid, skill in self.app.skill_manager.get_all_skills().items():
                     if skill.get("hotkey") == key_str and sid != waiting_id:
                         skill["hotkey"] = ""
-                        self.app.update_hotkey_display(sid, "", False)
+                        self.app.after(
+                            0, lambda s=sid: self.app.update_hotkey_display(s, "", False)
+                        )
             elif is_monster:
                 # 僅清除其他怪物的重複快捷鍵
                 for monster in self.app.get_all_monsters():
@@ -146,12 +148,20 @@ class HotkeyManager:
                 # 設定技能快捷鍵
                 skill = self.app.skill_manager.get_skill(waiting_id)
                 skill["hotkey"] = key_str
-                self.app.update_hotkey_display(waiting_id, key_str, True)
-                self.app.auto_save_current_profile()
+                self.app.after(
+                    0,
+                    lambda wid=waiting_id, ks=key_str: (
+                        self.app.update_hotkey_display(wid, ks, True),
+                        self.app.auto_save_current_profile(),
+                    ),
+                )
 
-            self.app.header.show_hotkey_hint(
-                f"✓ '{waiting_name}' 設定為 {key_str}",
-                AppTheme.ACCENT_GREEN,
+            self.app.after(
+                0,
+                lambda wn=waiting_name, ks=key_str: self.app.header.show_hotkey_hint(
+                    f"✓ '{wn}' 設定為 {ks}",
+                    AppTheme.ACCENT_GREEN,
+                ),
             )
             self.app.after(2000, self.app.header.clear_hotkey_hint)
 
@@ -160,9 +170,12 @@ class HotkeyManager:
             self.enabled = True
 
         except Exception as e:
-            self.app.header.show_hotkey_hint(
-                f"✗ 設定失敗: {e}",
-                AppTheme.ACCENT_RED,
+            self.app.after(
+                0,
+                lambda err=e: self.app.header.show_hotkey_hint(
+                    f"✗ 設定失敗: {err}",
+                    AppTheme.ACCENT_RED,
+                ),
             )
             self.app.after(3000, self.app.header.clear_hotkey_hint)
             self.waiting_for = None

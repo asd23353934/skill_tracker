@@ -139,8 +139,8 @@
     {
       "id": "holyShield",
       "name": "神聖護鎧",
-      "icon": "holyShield.png",
-      "cooldown": 30,
+      "icon": "0c2ad4ed-d8e5-4ca5-b0d5-bfe3f4d7e703.jpg",
+      "cooldown": 120,
       "category": "player",
       "subcategory": "法師"
     },
@@ -273,26 +273,42 @@
       "subcategory": "困難拉圖斯"
     },
     {
-      "id": "暗黑龍王-鎖鏈",
-      "name": "鎖鏈",
-      "icon": "000001_1753953383.webp",
-      "cooldown": 30,
-      "category": "boss",
-      "subcategory": "暗黑龍王"
-    },
-    {
       "id": "暗黑龍王-右頭狂暴",
       "name": "右頭狂暴",
-      "icon": "000001_1753953383.webp",
+      "icon": "f06986e6-c5f2-4097-88d0-182a9f6a186a.jpg",
       "cooldown": 80,
       "category": "boss",
       "subcategory": "暗黑龍王"
     },
     {
+      "id": "暗黑龍王-輕踩",
+      "name": "輕踩",
+      "icon": "7a38508f-a3b5-47ed-9e88-c3d58d224ec8.jpg",
+      "cooldown": 10,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
+    },
+    {
       "id": "暗黑龍王-左手消技",
-      "name": "左手消技",
-      "icon": "000001_1753953383.webp",
+      "name": "消技",
+      "icon": "115c4c35-1f9c-443a-9572-369fce78f34b.jpg",
       "cooldown": 90,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
+    },
+    {
+      "id": "暗黑龍王-重踩",
+      "name": "重踩",
+      "icon": "7116e19d-1149-4629-8486-b2baa80b73d7.jpg",
+      "cooldown": 10,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
+    },
+    {
+      "id": "暗黑龍王-鎖鏈",
+      "name": "鎖鏈",
+      "icon": "98074efa-a069-4142-bb19-19795db14b51.jpg",
+      "cooldown": 30,
       "category": "boss",
       "subcategory": "暗黑龍王"
     }

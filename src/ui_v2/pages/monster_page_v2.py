@@ -50,7 +50,7 @@ from PySide6.QtGui import QPainter
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.components import IconBadge, ArrowComboBox
 from src.ui_v2.lucide import lucide_pixmap, lucide_icon
-from src.ui_v2.pages.skill_page_v2 import (
+from src.ui_v2.pages.skill_card_v2 import (
     InputChip, MoreBtn, _accent_check, _pill_btn,
 )
 

@@ -418,6 +418,11 @@ class App(QMainWindow):
             fg:    前景文字色 hex（None 使用預設）
             hover: Hover 背景色 hex（None 不設定 hover 規則）
         """
+        # V2 chip 自行管理樣式；透過 _v2_apply_accent 把 V1 色映射到 V2 accent
+        if hasattr(btn, "_v2_apply_accent"):
+            btn._v2_apply_accent(bg)
+            return
+
         _bg    = bg    or AppTheme.BG_TERTIARY
         _fg    = fg    or AppTheme.TEXT_PRIMARY
         _bdr   = AppTheme.GOLD_MUTED
