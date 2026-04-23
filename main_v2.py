@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer, QEvent
 from src.ui.dispatcher import Dispatcher
 from src.ui_v2.toast_v2 import ToastManagerV2
+from src.ui_v2.dialogs import SettingsDialogV2
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.header_v2 import HeaderV2
@@ -119,7 +120,11 @@ class PreviewWindow(QMainWindow):
         outer.setSpacing(0)
 
         # ── 側邊欄（左）──
-        self.sidebar = SidebarV2(root, self._on_page_change)
+        self.sidebar = SidebarV2(
+            root,
+            self._on_page_change,
+            on_settings_click=self._open_settings,
+        )
         outer.addWidget(self.sidebar)
 
         # ── 右側：header + content ──
@@ -162,6 +167,9 @@ class PreviewWindow(QMainWindow):
         page = self.pages.get(key)
         if page:
             self.stack.setCurrentWidget(page)
+
+    def _open_settings(self):
+        SettingsDialogV2(self, self.app_ctx).exec()
 
     # --------------------------------------------------
     # 無邊框視窗 Resize（QApplication 全域事件過濾 + startSystemResize）

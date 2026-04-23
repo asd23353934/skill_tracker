@@ -400,7 +400,8 @@
     "hint_position_y": 521,
     "window_size": 96,
     "global_sound": "alert_urgent.wav",
-    "global_alert_sound": "alert_urgent.wav"
+    "global_alert_sound": "alert_urgent.wav",
+    "sound_volume": 100
   },
   "monsters": [
     {

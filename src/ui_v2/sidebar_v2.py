@@ -54,9 +54,10 @@ class SidebarV2(QWidget):
         ("mapleworld", "globe",  "MapleWorld"),
     ]
 
-    def __init__(self, parent, on_change):
+    def __init__(self, parent, on_change, on_settings_click=None):
         super().__init__(parent)
         self.on_change = on_change
+        self._on_settings_click = on_settings_click
         self.current   = "skill"
         self._items    = {}
         self._build()
@@ -102,6 +103,9 @@ class SidebarV2(QWidget):
             f"QPushButton {{ background: transparent;"
             f" border: none; border-radius: {T.R_MD}px; padding: 0; }}"
             f"QPushButton:hover {{ background: {T.BG_SURFACE}; }}"
+        )
+        settings.clicked.connect(
+            lambda: self._on_settings_click() if self._on_settings_click else None
         )
         settings_wrap = QFrame()
         sw = QHBoxLayout(settings_wrap)

@@ -290,51 +290,7 @@ class App(QMainWindow, AppCoreMixin):
         result = dialog.result
 
         if result:
-            old_window_size = self.window_size
-            old_x, old_y    = self.skill_start_x, self.skill_start_y
-
-            self.skill_start_x        = result["x"]
-            self.skill_start_y        = result["y"]
-            self.enable_sound         = result["sound"]
-            self.alert_before_seconds = result["alert_before_seconds"]
-            self.window_size          = result["window_size"]
-            self.global_sound         = result.get("global_sound", "")
-            self.global_alert_sound   = result.get("global_alert_sound", "")
-            self.sound_volume         = result.get("sound_volume", 100)
-            self.sound_manager.set_volume(self.sound_volume / 100.0)
-
-            # 同步全域設定到 SkillService
-            self.skill_service.alert_before_seconds = self.alert_before_seconds
-            self.skill_service.global_sound = self.global_sound
-            self.skill_service.global_alert_sound = self.global_alert_sound
-
-            self.config_manager.set_settings("skill_start_x",        self.skill_start_x)
-            self.config_manager.set_settings("skill_start_y",        self.skill_start_y)
-            self.config_manager.set_settings("enable_sound",         self.enable_sound)
-            self.config_manager.set_settings("alert_before_seconds", self.alert_before_seconds)
-            self.config_manager.set_settings("window_size",          self.window_size)
-            self.config_manager.set_settings("global_sound",         self.global_sound)
-            self.config_manager.set_settings("global_alert_sound",   self.global_alert_sound)
-            self.config_manager.set_settings("sound_volume",         self.sound_volume)
-            self.config_manager.save()
-
-            # 更新使用全域預設的提前秒數按鈕
-            for skill_id, btn in self.alert_seconds_buttons.items():
-                if skill_id not in self.skill_alert_seconds_overrides:
-                    btn.setText(f"{self.alert_before_seconds}s")
-
-            # window_size 變更需重建視窗（影響版面/圖片快取）；否則原地更新即可
-            if self.window_size != old_window_size:
-                self.window_manager.close_all()
-                self.window_manager.initialize_persistent_skills()
-            else:
-                for sid, win in self.window_manager.active_windows.items():
-                    win.enable_sound = self.enable_sound
-                    self.window_manager.refresh_window_sound_params(sid)
-                if (old_x, old_y) != (self.skill_start_x, self.skill_start_y):
-                    self.window_manager.reposition_all()
-
-            self.toast.show("設定已保存並套用", "success")
+            self.apply_settings(result)
 
         self.hotkey_manager.enabled = True
 

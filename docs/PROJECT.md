@@ -26,7 +26,7 @@ images/                  # 技能圖示
 sounds/                  # 音效檔案
 src/ui/
   app.py                 # 主應用程式 (App / QMainWindow, 統一協調；繼承 AppCoreMixin)
-  app_core.py            # AppCoreMixin — V1 App 與 V2AppContext 共用 domain backing（含 12 技能 + 8 怪物 + switch_profile + 4 sound/monster delegate 方法）
+  app_core.py            # AppCoreMixin — V1 App 與 V2AppContext 共用 domain backing（含 12 技能 + 8 怪物 + switch_profile + apply_settings + 4 sound/monster delegate 方法）
   dispatcher.py          # Dispatcher — 跨執行緒安全的回呼排程器（V1/V2 共用）
   config_manager.py      # 設定檔讀寫、配置管理
   skill_manager.py       # 技能資料載入、圖片快取
@@ -75,6 +75,7 @@ src/ui_v2/               # V2 預覽 shell（紫色漸層 dashboard）
   pages/                 # V2 頁面（全部接線完成）
     potion_page_v2.py    # 練功水錢 V2 頁面（透過 PotionService 接線；與 V1 共用 potion_autosave.json）
   dialogs/               # V2 對話框
+    settings_dialog_v2.py     # V2 全域設定對話框（音量 / 視窗位置 / 全域聲音…）
     potion_save_dialog_v2.py  # V2 練功紀錄儲存對話框
     potion_load_dialog_v2.py  # V2 練功紀錄載入對話框
 docs/DESIGN_V2.md        # V2 設計規範（顏色、間距、元件契約）
