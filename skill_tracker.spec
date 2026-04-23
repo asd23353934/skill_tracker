@@ -22,7 +22,8 @@ a = Analysis(
         ('config.json',         '.'),
         ('icon.ico',            '.'),
         ('icon.png',            '.'),  # V2 sidebar logo runtime 用
-        ('profiles',            'profiles'),
+        # profiles/ 不打包：第一次啟動由 AppCoreMixin 用 factory default 自建
+        # 避免開發者個人 profile 修改流入發布版
         ('version.py',          '.'),
         ('update_launcher.bat', '.'),
         ('update_launcher.ps1', '.'),

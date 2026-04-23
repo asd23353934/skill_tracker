@@ -130,7 +130,13 @@ class AppCoreMixin:
         )
         self.monster_service = MonsterService(config_manager)
 
-        # 2. 載入當前 profile 狀態
+        # 2. 第一次啟動：用 mixin factory default 自建「預設配置」；之後都跳過
+        default_name = "預設配置"
+        if default_name not in config_manager.list_profiles():
+            config_manager.save_profile(
+                default_name, self._build_factory_default_profile_state()
+            )
+        # safety net：若仍缺（例如儲存失敗）由 ConfigManager 用空殼補
         config_manager.ensure_default_profile()
         self._load_profile_state(config_manager.get_current_profile())
 
@@ -679,8 +685,110 @@ class AppCoreMixin:
         if toast is not None:
             toast.show("設定已保存並套用", "success")
 
+    # --------------------------------------------------
+    # Profile CRUD（V1 ProfileManagerDialog / V2 ProfileManagerDialogV2 共用）
+    # --------------------------------------------------
+
+    def _refresh_skill_page_v2_profile_selector(self):
+        """變更 profile 列表後通知 V2 skill page 重整 dropdown。"""
+        page = getattr(self, "skill_page_v2", None)
+        if page is not None and hasattr(page, "refresh_profile_selector"):
+            page.refresh_profile_selector()
+
+    def _toast_or_skip(self, msg: str, kind: str = "info"):
+        toast = getattr(self, "toast", None)
+        if toast is not None:
+            toast.show(msg, kind)
+
+    def _build_factory_default_profile_state(self) -> dict:
+        """Factory default profile state（V2 新增 + 第一次啟動共用）。
+
+        - 「提前提示」boss 類秒數長不需要提前 → False；其他（player / item）秒數短 → True
+        - 其他全部初始為 False / 空
+        """
+        all_skills = self.skill_manager.get_all_skills()
+        return {
+            "hotkeys": {},
+            "permanent":     {sid: False for sid in all_skills},
+            "loop":          {sid: False for sid in all_skills},
+            "alert_enabled": {
+                sid: (meta.get("category") != "boss")
+                for sid, meta in all_skills.items()
+            },
+            "cooldown_overrides": {},
+        }
+
+    def create_profile(self, name: str) -> bool:
+        """新增 profile；name 重複 / 空字串會 toast error 並回 False。"""
+        name = (name or "").strip()
+        if not name:
+            self._toast_or_skip("配置名稱不可為空", "error")
+            return False
+        if name in self.config_manager.list_profiles():
+            self._toast_or_skip(f"配置 '{name}' 已存在！", "error")
+            return False
+        default_state = self._build_factory_default_profile_state()
+        ok = self.config_manager.save_profile(name, default_state)
+        if not ok:
+            self._toast_or_skip("新增失敗", "error")
+            return False
+        self._toast_or_skip(f"已新增配置「{name}」", "success")
+        self._refresh_skill_page_v2_profile_selector()
+        return True
+
+    def duplicate_profile(self, source: str, new_name: str) -> bool:
+        new_name = (new_name or "").strip()
+        if not new_name:
+            self._toast_or_skip("配置名稱不可為空", "error")
+            return False
+        if new_name in self.config_manager.list_profiles():
+            self._toast_or_skip(f"配置 '{new_name}' 已存在！", "error")
+            return False
+        source_data = self.config_manager.load_profile(source)
+        if source_data is None:
+            self._toast_or_skip(f"無法載入來源配置 '{source}'", "error")
+            return False
+        ok = self.config_manager.save_profile(new_name, source_data)
+        if not ok:
+            self._toast_or_skip("複製失敗", "error")
+            return False
+        self._toast_or_skip(f"已複製配置「{source}」→「{new_name}」", "success")
+        self._refresh_skill_page_v2_profile_selector()
+        return True
+
+    def rename_profile(self, old_name: str, new_name: str) -> bool:
+        new_name = (new_name or "").strip()
+        if not new_name:
+            self._toast_or_skip("配置名稱不可為空", "error")
+            return False
+        if new_name in self.config_manager.list_profiles():
+            self._toast_or_skip(f"配置 '{new_name}' 已存在！", "error")
+            return False
+        ok = self.config_manager.rename_profile(old_name, new_name)
+        if not ok:
+            self._toast_or_skip("重命名失敗", "error")
+            return False
+        if old_name == self.current_profile_name:
+            self.current_profile_name = new_name
+            self.config_manager.set_current_profile(new_name)
+        self._toast_or_skip(f"已重命名「{old_name}」→「{new_name}」", "success")
+        self._refresh_skill_page_v2_profile_selector()
+        return True
+
+    def delete_profile(self, name: str) -> bool:
+        if name == self.current_profile_name:
+            self._toast_or_skip("無法刪除當前正在使用的配置！", "error")
+            return False
+        ok = self.config_manager.delete_profile(name)
+        if not ok:
+            self._toast_or_skip("刪除失敗", "error")
+            return False
+        self._toast_or_skip(f"已刪除配置「{name}」", "success")
+        self._refresh_skill_page_v2_profile_selector()
+        return True
+
     def switch_profile(self, name: str):
-        """切換到指定 profile，重載 SkillService 並請 V2 skill 頁 rebuild。
+        """切換到指定 profile，重載 SkillService、重建常駐視窗、請 V2 skill 頁 rebuild。
 
         no-op if name == current_profile_name。
         """
@@ -689,9 +797,16 @@ class AppCoreMixin:
         self.config_manager.set_current_profile(name)
         self.config_manager.save()
         self._load_profile_state(name)
+        # 同步常駐視窗：關掉舊 profile 的所有視窗，依新 profile 重建常駐
+        self.window_manager.close_all()
+        self.window_manager.initialize_persistent_skills()
         page = getattr(self, "skill_page_v2", None)
-        if page is not None and hasattr(page, "rebuild"):
-            page.rebuild()
+        if page is not None:
+            if hasattr(page, "rebuild"):
+                page.rebuild()
+            # 同步 dropdown currentText 到新 profile
+            if hasattr(page, "refresh_profile_selector"):
+                page.refresh_profile_selector()
         # 使用者回饋
         toast = getattr(self, "toast", None)
         if toast is not None:

@@ -97,8 +97,8 @@ class SkillPageV2(QWidget):
         self._content_layout.setSpacing(T.S_MD)
         root.addLayout(self._content_layout, 1)
 
-    def _build_profile_selector(self) -> ArrowComboBox:
-        """ProfileSelector — 從 ConfigManager 取 profiles，切換呼 app.switch_profile"""
+    def _build_profile_selector(self) -> QWidget:
+        """ProfileSelector — combo + 管理小按鈕，水平包裝為一個 QWidget"""
         combo = ArrowComboBox()
         combo.setFixedHeight(30)
         combo.setMinimumWidth(140)
@@ -110,6 +110,7 @@ class SkillPageV2(QWidget):
             f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
             f"QComboBox::drop-down {{ border: none; width: 16px; }}"
         )
+        self._profile_combo = combo
         if self.app is not None and hasattr(self.app, "config_manager"):
             cm = self.app.config_manager
             combo.blockSignals(True)
@@ -121,7 +122,53 @@ class SkillPageV2(QWidget):
             combo.currentTextChanged.connect(
                 lambda name: self.app.switch_profile(name)
             )
-        return combo
+
+        # ── 管理按鈕（齒輪 icon → ProfileManagerDialogV2） ──
+        from src.ui_v2.lucide import lucide_pixmap
+        from PySide6.QtGui import QIcon
+        from PySide6.QtCore import QSize as _QSize
+        manage_btn = QPushButton()
+        manage_btn.setIcon(QIcon(lucide_pixmap("settings", T.TEXT_DIM, 14, stroke=1.6)))
+        manage_btn.setIconSize(_QSize(14, 14))
+        manage_btn.setFixedSize(28, 28)
+        manage_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        manage_btn.setToolTip("配置管理")
+        manage_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent;"
+            f" border: 1px solid {T.BORDER_SOFT};"
+            f" border-radius: {T.R_SM}px; padding: 0; }}"
+            f"QPushButton:hover {{ background: {T.BG_HOVER};"
+            f" border-color: {T.BORDER_HOVER}; }}"
+        )
+        manage_btn.clicked.connect(self._open_profile_manager)
+
+        wrap = QWidget()
+        h = QHBoxLayout(wrap)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(T.S_XS)
+        h.addWidget(combo)
+        h.addWidget(manage_btn)
+        return wrap
+
+    def refresh_profile_selector(self):
+        """CRUD 後重整 dropdown（不觸發 switch_profile）"""
+        combo = getattr(self, "_profile_combo", None)
+        if combo is None or self.app is None or not hasattr(self.app, "config_manager"):
+            return
+        cm = self.app.config_manager
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(cm.list_profiles())
+        current = cm.get_current_profile()
+        if current:
+            combo.setCurrentText(current)
+        combo.blockSignals(False)
+
+    def _open_profile_manager(self):
+        if self.app is None:
+            return
+        from src.ui_v2.dialogs import ProfileManagerDialogV2
+        ProfileManagerDialogV2(self.window(), self.app).exec()
 
     def _toggle_chip(self, label: str, color: str) -> QPushButton:
         btn = QPushButton(label)
