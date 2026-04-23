@@ -4,10 +4,40 @@
 """
 
 # 當前版本
-VERSION = "3.8.0"
+VERSION = "4.0.0"
 
 # 版本歷史
 CHANGELOG = """
+v4.0.0 (2026-04-23)
+-------------------
+🎉 重大版本：V2 介面正式預設、設定 / 配置管理 / 通知全面升級
+
+✨ V2 UI 正式預設
+  - 新介面：紫色漸層 dashboard、橘色 maple icon、Lucide 線條圖示、卡片式佈局
+  - 全 5 頁完整接線：技能倒數 / 怪物重生 / 浮動圖片 / 練功水錢 / MapleStory 資源
+  - 雙擊 exe 直接進 V2；舊版仍可用 `--v1` opt-in 保留
+✨ V2 全域設定對話框（音量 / 視窗位置 / 全域聲音 / 提前提示秒）—— sidebar 齒輪開啟
+✨ V2 配置管理對話框（切換 / 新增 / 複製 / 重命名 / 刪除）—— skill 頁旁齒輪開啟
+✨ V2 Toast 通知：右下角浮層、4 色 fade-out（success / warning / error / info）
+✨ 設按鍵後欄位 chip「N/總數」即時更新；切換 profile 自動 toast 回饋
+✨ 新 profile 預設「提前提示」boss=關 / 其他=開（配合短秒數技能需求）
+🔧 ConfigManager 分檔：static config.json 與 user config_user.json 拆開
+  - 升級覆蓋安裝不再重置音量 / 視窗位置 / 自訂 monsters / overlays
+  - release ZIP 內 config.json 已 strip 個人 settings
+🔧 單一實例 lock：第二次啟動靜默退出，防多開
+🔧 main.py 入口：V2 預設、`--v1` opt-in
+🐛 暗黑龍王輕踩 / 重踩 cooldown 10s → 20s
+🐛 V2 切換 profile 後常駐技能視窗未依新 profile 重建（已修）
+🐛 V2 monster 頁設按鍵後 column 計數未即時更新（已修）
+🔧 多項清理：BUILD.md 刪除（合併到 docs/RELEASE.md）、docs/PROJECT.md 結構樹重寫對齊
+
+⚠️ 升級提醒
+  - 從 v3.x 直接升級：升級瞬間 ZIP 會覆蓋 config.json，個人 settings /
+    monsters / overlays 會回到預設
+  - 解法：升級前手動備份 config.json，或預先 copy settings/monsters/overlays
+    區段成 config_user.json（與 config.json 同層），新版會優先讀此檔
+  - 從 v4.0.0 起此問題不再發生（後續版本不會覆蓋 user 可變區）
+
 v3.8.0 (2026-04-22)
 -------------------
 - ✨ 練功水錢頁面藥水列新增圖示顯示：依名稱載入 images/{name}.png，找不到時 fallback 到分類 emoji
