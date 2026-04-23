@@ -25,6 +25,8 @@ a = Analysis(
         ('version.py',          '.'),
         ('update_launcher.bat', '.'),
         ('update_launcher.ps1', '.'),
+        # V2 lucide SVG 圖示（src/ui_v2/lucide.py 用 __file__ 解析此路徑）
+        ('src/ui_v2/icons',     'src/ui_v2/icons'),
     ],
     hiddenimports=[
         # pynput Windows 後端

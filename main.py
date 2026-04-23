@@ -36,8 +36,8 @@ def main():
     """主程式
 
     用法：
-        python main.py        # V1 正式 UI
-        python main.py --v2   # V2 預覽 shell（目前仍為假資料，逐頁接線中）
+        python main.py        # V2 正式 UI（預設）
+        python main.py --v1   # V1 舊版 UI（保留 opt-in，未來移除）
     """
     qt_app = QApplication(sys.argv)
     # 防多開：V1 / V2 共用同一把鎖
@@ -45,14 +45,14 @@ def main():
     if _lock is None:
         sys.exit(0)
 
-    if "--v2" in sys.argv:
-        from main_v2 import main as v2_main
-        v2_main()
+    if "--v1" in sys.argv:
+        qt_app.setStyleSheet(AppTheme.build_stylesheet())
+        window = App()
+        sys.exit(qt_app.exec())
         return
 
-    qt_app.setStyleSheet(AppTheme.build_stylesheet())
-    window = App()
-    sys.exit(qt_app.exec())
+    from main_v2 import main as v2_main
+    v2_main()
 
 
 if __name__ == "__main__":
