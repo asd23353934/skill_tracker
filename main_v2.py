@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, QEvent
 from src.ui.dispatcher import Dispatcher
+from src.ui_v2.toast_v2 import ToastManagerV2
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.header_v2 import HeaderV2
@@ -45,7 +46,8 @@ class V2AppContext(AppCoreMixin):
         self._dispatcher = Dispatcher(QApplication.instance())
         self._init_domain_backing(ConfigManager(resource_path("config.json")))
         self.overlay_page = None
-        self.toast = _NoopToast()
+        # toast 在此暫設 console bridge；PreviewWindow.__init__ 末段會替換為 ToastManagerV2
+        self.toast = _ConsoleToastBridge()
         # V1 UI 元件 stub —— HotkeyManager / WindowManager 會呼叫
         self.header = _NoopHeader()
         self.monster_page = _NoopMonsterPage()
@@ -58,7 +60,8 @@ class V2AppContext(AppCoreMixin):
         self._dispatcher.schedule(ms, fn)
 
 
-class _NoopToast:
+class _ConsoleToastBridge:
+    """V2AppContext 建構期間的暫時 toast 槽；PreviewWindow 建好即替換為 ToastManagerV2。"""
     def show(self, msg, kind="info"):
         print(f"[toast/{kind}] {msg}")
 
@@ -97,6 +100,8 @@ class PreviewWindow(QMainWindow):
         self.setMinimumSize(1000, 640)
         self.app_ctx = V2AppContext()
         self._build()
+        # 替換 console bridge 為真實 ToastManagerV2（要求 PreviewWindow 已存在）
+        self.app_ctx.toast = ToastManagerV2(self)
         # 安裝全域事件過濾器：攔截邊框附近滑鼠事件以實現原生 resize
         QApplication.instance().installEventFilter(self)
 

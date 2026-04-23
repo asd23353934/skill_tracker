@@ -300,6 +300,10 @@ class AppCoreMixin:
                 fg    = "#000000"                    if has_hotkey else AppTheme.TEXT_SECONDARY,
                 hover = AppTheme.ACCENT_YELLOW_HOVER if has_hotkey else AppTheme.BG_SECONDARY,
             )
+        # V2：通知 SkillPageV2 column header 重算「已設按鍵 / 總數」chip
+        page = getattr(self, "skill_page_v2", None)
+        if page is not None and hasattr(page, "refresh_status_counts"):
+            page.refresh_status_counts()
 
     def update_skill_setting_exclusive(self, skill_id, setting_type, var):
         """更新技能設定（常駐 / 循環互斥，委派到 SkillService）"""
@@ -627,3 +631,7 @@ class AppCoreMixin:
         page = getattr(self, "skill_page_v2", None)
         if page is not None and hasattr(page, "rebuild"):
             page.rebuild()
+        # 使用者回饋
+        toast = getattr(self, "toast", None)
+        if toast is not None:
+            toast.show(f"已切換到「{name}」", "success")

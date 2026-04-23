@@ -69,9 +69,10 @@ src/ui_v2/               # V2 預覽 shell（紫色漸層 dashboard）
   sidebar_v2.py          # V2 左側導覽
   status_bar_v2.py       # V2 底部狀態列
   components.py          # V2 共用元件
+  toast_v2.py            # V2 Toast 通知系統（右下角浮層 + 自動 fade-out；ToastManagerV2 取代 V1 ToastManager）
   lucide.py              # Lucide SVG 圖示載入器
   icons/                 # Lucide SVG 來源
-  pages/                 # V2 頁面（overlay/mapleworld/potion 已接線；skill/monster 為最小接線）
+  pages/                 # V2 頁面（全部接線完成）
     potion_page_v2.py    # 練功水錢 V2 頁面（透過 PotionService 接線；與 V1 共用 potion_autosave.json）
   dialogs/               # V2 對話框
     potion_save_dialog_v2.py  # V2 練功紀錄儲存對話框

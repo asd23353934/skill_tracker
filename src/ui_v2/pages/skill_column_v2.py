@@ -33,8 +33,10 @@ class SkillColumnV2(Card):
         L.setSpacing(T.S_MD)
 
         total = sum(len(ids) for _, ids in sections)
-        all_ids = [sid for _, ids in sections for sid in ids]
-        hk_total = self._count_hotkeys_set(all_ids)
+        self._all_ids = [sid for _, ids in sections for sid in ids]
+        self._total = total
+        self._accent = accent
+        hk_total = self._count_hotkeys_set(self._all_ids)
 
         # 欄位標題（chip 顯示「已設按鍵 / 總數」）
         head = QHBoxLayout()
@@ -42,7 +44,8 @@ class SkillColumnV2(Card):
         head.addWidget(IconBadge(glyph, accent, 28))
         head.addWidget(T.make_label(title, T.FONT_CARD_TITLE))
         head.addStretch()
-        head.addWidget(StatusChip(f"{hk_total}/{total}", accent))
+        self._status_chip = StatusChip(f"{hk_total}/{total}", accent)
+        head.addWidget(self._status_chip)
         L.addLayout(head)
 
         # 滾動內容（永遠關閉橫向捲軸；只允許垂直捲動）
@@ -96,9 +99,27 @@ class SkillColumnV2(Card):
         h.addWidget(line, 1)
         return wrap
 
+    def refresh_status(self):
+        """重算 hk_count 並更新 chip 文字（被 SkillPageV2.refresh_status_counts 呼叫）"""
+        chip = getattr(self, "_status_chip", None)
+        if chip is None:
+            return
+        hk_total = self._count_hotkeys_set(self._all_ids)
+        chip.setText(f"{hk_total}/{self._total}")
+
     def _count_hotkeys_set(self, skill_ids) -> int:
-        """計算 skill_ids 內已設熱鍵的數量（不算空字串）"""
-        svc = getattr(self.app, "skill_service", None)
-        if svc is None:
+        """計算 skill_ids 內已設熱鍵的數量（不算空字串）
+
+        讀真正 source-of-truth：skill_manager.get_skill(sid)["hotkey"]。
+        SkillService._hotkeys 在 hotkey_manager 綁定後不會同步（見
+        src/domain/services.py:219 註解），所以不能讀 svc.get_hotkey。
+        """
+        sm = getattr(self.app, "skill_manager", None)
+        if sm is None:
             return 0
-        return sum(1 for sid in skill_ids if svc.get_hotkey(sid))
+        n = 0
+        for sid in skill_ids:
+            meta = sm.get_skill(sid)
+            if meta and meta.get("hotkey"):
+                n += 1
+        return n

@@ -147,6 +147,11 @@ class SkillPageV2(QWidget):
         self._populate_layout()
         self._built = True
 
+    def refresh_status_counts(self):
+        """重算所有欄位的「已設按鍵 / 總數」chip 文字（hotkey 變動後呼叫）"""
+        for col in self._columns:
+            col.refresh_status()
+
     def _clear_layout(self):
         # 清除 App dict 內的殘留 widget 註冊
         for sid in list(self._registered_ids):
