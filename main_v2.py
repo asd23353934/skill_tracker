@@ -10,7 +10,7 @@ import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QEvent
 from src.ui.dispatcher import Dispatcher
 
 from src.ui_v2.theme_v2 import V2Theme as T
@@ -88,6 +88,8 @@ PAGES = [
 class PreviewWindow(QMainWindow):
     """V2 預覽主視窗 — 無框 1240x760"""
 
+    _RESIZE_MARGIN = 4   # 邊框 resize 感應距離（像素）
+
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -95,6 +97,8 @@ class PreviewWindow(QMainWindow):
         self.setMinimumSize(1000, 640)
         self.app_ctx = V2AppContext()
         self._build()
+        # 安裝全域事件過濾器：攔截邊框附近滑鼠事件以實現原生 resize
+        QApplication.instance().installEventFilter(self)
 
     def _build(self):
         # 主背景：紫色漸層
@@ -153,6 +157,61 @@ class PreviewWindow(QMainWindow):
         page = self.pages.get(key)
         if page:
             self.stack.setCurrentWidget(page)
+
+    # --------------------------------------------------
+    # 無邊框視窗 Resize（QApplication 全域事件過濾 + startSystemResize）
+    # --------------------------------------------------
+    def eventFilter(self, obj, event):
+        if not isinstance(obj, QWidget):
+            return super().eventFilter(obj, event)
+        if obj.window() is not self:
+            return super().eventFilter(obj, event)
+
+        etype = event.type()
+        if etype == QEvent.Type.MouseMove:
+            try:
+                lp = self.mapFromGlobal(event.globalPosition().toPoint())
+                self._update_resize_cursor(lp)
+            except Exception:
+                pass
+        elif etype == QEvent.Type.MouseButtonPress:
+            try:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    lp = self.mapFromGlobal(event.globalPosition().toPoint())
+                    edges = self._compute_resize_edges(lp)
+                    if edges:
+                        self.windowHandle().startSystemResize(edges)
+                        return True
+            except Exception:
+                pass
+        return super().eventFilter(obj, event)
+
+    def _compute_resize_edges(self, local_pos):
+        px, py = local_pos.x(), local_pos.y()
+        m = self._RESIZE_MARGIN
+        w, h = self.width(), self.height()
+        left, right  = px < m, px > w - m
+        top,  bottom = py < m, py > h - m
+        if not (left or right or top or bottom):
+            return None
+        edges = Qt.Edges()
+        if left:   edges |= Qt.Edge.LeftEdge
+        if right:  edges |= Qt.Edge.RightEdge
+        if top:    edges |= Qt.Edge.TopEdge
+        if bottom: edges |= Qt.Edge.BottomEdge
+        return edges
+
+    def _update_resize_cursor(self, local_pos):
+        px, py = local_pos.x(), local_pos.y()
+        m = self._RESIZE_MARGIN
+        w, h = self.width(), self.height()
+        l, r = px < m, px > w - m
+        t, b = py < m, py > h - m
+        if   (t and l) or (b and r): self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        elif (t and r) or (b and l): self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+        elif l or r:                  self.setCursor(Qt.CursorShape.SizeHorCursor)
+        elif t or b:                  self.setCursor(Qt.CursorShape.SizeVerCursor)
+        else:                         self.unsetCursor()
 
 
 def main():

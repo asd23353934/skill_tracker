@@ -274,7 +274,7 @@ _REGISTRY_KEYS = (
 
 
 class SkillCardV2(QFrame):
-    HEIGHT = 116
+    HEIGHT = 84
 
     def __init__(self, parent, app, skill_id: str, skill_meta: dict,
                  accent: str):
@@ -304,14 +304,17 @@ class SkillCardV2(QFrame):
         outer.setSpacing(T.S_MD)
 
         # 左：icon + 名稱
-        ICON_SIZE = 44
-        NAME_W    = 64
+        ICON_SIZE = 56
+        NAME_W    = 60
         LEFT_W    = ICON_SIZE + T.S_SM + NAME_W
 
         pixmap = None
         sm = getattr(self.app, "skill_manager", None)
-        if sm is not None and hasattr(sm, "qpixmaps_card"):
-            pixmap = sm.qpixmaps_card.get(self.skill_id)
+        if sm is not None:
+            # 優先取 64×64 medium 給 V2 大圖；後備 36×36 card cache
+            cache = getattr(sm, "qpixmaps_medium", None) or getattr(sm, "qpixmaps_card", None)
+            if cache is not None:
+                pixmap = cache.get(self.skill_id)
 
         left = QHBoxLayout()
         left.setSpacing(T.S_SM)

@@ -33,20 +33,24 @@ class SkillColumnV2(Card):
         L.setSpacing(T.S_MD)
 
         total = sum(len(ids) for _, ids in sections)
+        all_ids = [sid for _, ids in sections for sid in ids]
+        hk_total = self._count_hotkeys_set(all_ids)
 
-        # 欄位標題
+        # 欄位標題（chip 顯示「已設按鍵 / 總數」）
         head = QHBoxLayout()
         head.setSpacing(T.S_SM)
         head.addWidget(IconBadge(glyph, accent, 28))
         head.addWidget(T.make_label(title, T.FONT_CARD_TITLE))
         head.addStretch()
-        head.addWidget(StatusChip(f"{total}", accent))
+        head.addWidget(StatusChip(f"{hk_total}/{total}", accent))
         L.addLayout(head)
 
-        # 滾動內容
+        # 滾動內容（永遠關閉橫向捲軸；只允許垂直捲動）
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setStyleSheet("background: transparent;")
 
         inner = QWidget()
@@ -73,7 +77,7 @@ class SkillColumnV2(Card):
         L.addWidget(scroll, 1)
 
     def _sub_header(self, name: str, count: int, accent: str) -> QWidget:
-        """子分類小標題：橫線 + 文字"""
+        """子分類小標題：name + 總數 + 橫線"""
         wrap = QWidget()
         h = QHBoxLayout(wrap)
         h.setContentsMargins(T.S_XS, T.S_XS, T.S_XS, 0)
@@ -91,3 +95,10 @@ class SkillColumnV2(Card):
         line.setStyleSheet(f"background: {T.BORDER_SOFT}; border: none;")
         h.addWidget(line, 1)
         return wrap
+
+    def _count_hotkeys_set(self, skill_ids) -> int:
+        """計算 skill_ids 內已設熱鍵的數量（不算空字串）"""
+        svc = getattr(self.app, "skill_service", None)
+        if svc is None:
+            return 0
+        return sum(1 for sid in skill_ids if svc.get_hotkey(sid))
