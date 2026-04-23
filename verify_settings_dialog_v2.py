@@ -36,7 +36,7 @@ def _build_app():
     app.skill_start_y = 250
     app.enable_sound = False
     app.alert_before_seconds = 5
-    app.window_size = 72
+    app.window_size = 64  # 中
     app.global_sound = "ding.wav"
     app.global_alert_sound = ""
     app.sound_volume = 80
@@ -56,7 +56,7 @@ def test_initial_values():
     check("y spin", dlg.y_spin.value(), 250)
     check("sound checkbox", dlg.sound_cb.isChecked(), False)
     check("alert spin", dlg.alert_spin.value(), 5)
-    check("size spin", dlg.size_spin.value(), 72)
+    check("size combo (中)", dlg.size_combo.currentText(), "中 (64 px)")
     check("end combo current=ding", dlg.end_combo.currentText(), "ding")
     check("alert combo current=— 無 —", dlg.alert_combo.currentText(), "— 無 —")
     check("volume slider", dlg.volume_slider.value(), 80)
@@ -69,7 +69,7 @@ def test_confirm_calls_apply_settings():
     dlg = SettingsDialogV2(None, app_ctx)
     dlg.volume_slider.setValue(50)
     dlg.sound_cb.setChecked(True)
-    dlg.size_spin.setValue(96)
+    dlg.size_combo.setCurrentText("大 (96 px)")
     # 不依賴 exec，直接呼 _on_confirm；accept 會關 dialog OK
     dlg._on_confirm()
     check("apply_settings call_count", app_ctx.apply_settings.call_count, 1)

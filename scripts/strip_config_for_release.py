@@ -22,19 +22,19 @@ import sys
 CONFIG = "config.json"
 BACKUP = "config.json.dev_backup"
 
-# 與 ConfigManager.DEFAULT_USER_SETTINGS 一致；避免 import （腳本不依賴 src）
+# 與 ConfigManager.DEFAULT_USER_SETTINGS 一致；避免 import（腳本不依賴 src）
 DEFAULT_SETTINGS = {
     "player_name":          "玩家1",
-    "skill_start_x":        None,
-    "skill_start_y":        None,
+    "skill_start_x":        200,
+    "skill_start_y":        200,
     "enable_sound":         True,
     "sound_volume":         100,
-    "window_size":          64,
-    "alert_before_seconds": 0,
+    "window_size":          96,                    # 大
+    "alert_before_seconds": 10,
     "hint_position_x":      0,
     "hint_position_y":      0,
-    "global_sound":         "",
-    "global_alert_sound":   "",
+    "global_sound":         "alert_urgent.wav",    # 緊急提示
+    "global_alert_sound":   "alert_urgent.wav",
     "current_profile":      "預設配置",
 }
 
@@ -55,15 +55,14 @@ def strip():
     os.replace(CONFIG, BACKUP)
     print(f"已備份 {CONFIG} → {BACKUP}")
 
-    # 寫 stripped 版本
+    # 寫 stripped 版本：只清個人 settings；monsters / overlays 視為「ship 預設內容」保留
+    # （boss 列表 / 預設浮動圖示是要給使用者用的、不是個人狀態）
     cfg["settings"] = dict(DEFAULT_SETTINGS)
-    cfg["monsters"] = []
-    cfg["overlays"] = []
     cfg["_user_data_stripped"] = True
 
     with open(CONFIG, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
-    print(f"已寫入 stripped {CONFIG}（settings 重設、monsters/overlays 清空、加 _user_data_stripped 標記）")
+    print(f"已寫入 stripped {CONFIG}（settings 重設；monsters / overlays 保留作為 ship 內容）")
     return 0
 
 

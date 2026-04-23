@@ -24,6 +24,9 @@ a = Analysis(
         ('icon.png',            '.'),  # V2 sidebar logo runtime 用
         # profiles/ 不打包：第一次啟動由 AppCoreMixin 用 factory default 自建
         # 避免開發者個人 profile 修改流入發布版
+        # overlays/ 打包：作為預設浮動圖內容（OverlayManager 找不到 user_data_path
+        # 時會 fallback 到 resource_path 載入 bundled 預設）
+        ('overlays',            'overlays'),
         ('version.py',          '.'),
         ('update_launcher.bat', '.'),
         ('update_launcher.ps1', '.'),

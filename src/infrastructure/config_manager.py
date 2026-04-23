@@ -23,16 +23,16 @@ class ConfigManager:
     # ── user 可變區預設值（_load_or_migrate_user_config + strip script 共用） ──
     DEFAULT_USER_SETTINGS = {
         "player_name":          "玩家1",
-        "skill_start_x":        None,   # AppCoreMixin._load_profile_state 有 primary_screen fallback
-        "skill_start_y":        None,
+        "skill_start_x":        200,
+        "skill_start_y":        200,
         "enable_sound":         True,
         "sound_volume":         100,
-        "window_size":          64,
-        "alert_before_seconds": 0,
+        "window_size":          96,                    # 大
+        "alert_before_seconds": 10,
         "hint_position_x":      0,
         "hint_position_y":      0,
-        "global_sound":         "",
-        "global_alert_sound":   "",
+        "global_sound":         "alert_urgent.wav",    # 緊急提示
+        "global_alert_sound":   "alert_urgent.wav",
         "current_profile":      "預設配置",
     }
 
@@ -95,10 +95,11 @@ class ConfigManager:
 
         # 第一次跑：判斷 config.json 來源
         if self.config.get('_user_data_stripped') is True:
-            # 升級的 fresh install：config.json 已被 strip，user data 不可信
+            # fresh install：settings 的個人欄位不可信，改用 default；
+            # 但 monsters / overlays 是 ship 預設內容（boss 列表 / 預設浮動圖），
+            # 直接沿用 config.json 內的值作為新 user 檔初值
             self.config['settings'] = dict(self.DEFAULT_USER_SETTINGS)
-            self.config['monsters'] = []
-            self.config['overlays'] = []
+            # monsters / overlays 維持 config.json 帶進來的內容
         # else: pre-split 版本升上來，self.config 內 settings/monsters/overlays
         # 即為 user data，直接持有；接著寫成 user 檔保留下來
         self._write_user_config()

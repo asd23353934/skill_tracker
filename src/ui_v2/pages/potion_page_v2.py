@@ -31,7 +31,7 @@
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
-    QScrollArea, QLineEdit, QSpinBox, QMessageBox, QDialog,
+    QScrollArea, QLineEdit, QSpinBox, QMessageBox, QDialog, QComboBox,
 )
 from PySide6.QtCore import Qt, QSize, QTimer
 
@@ -232,19 +232,23 @@ class _PotionRowV2(QFrame):
 
         L.addWidget(IconBadge("droplet", accent, 26))
 
+        # 名稱欄改為唯讀（透過下拉新增；僅顯示，避免使用者改成不存在的藥水名）
         self.name_edit = _input(str(data.get("name", "")), w=96,
                                 align_right=False, color=T.TEXT_HI)
+        self.name_edit.setReadOnly(True)
+        self.name_edit.setStyleSheet(self.name_edit.styleSheet() +
+            " QLineEdit { background: transparent; border: none; }")
         L.addWidget(self.name_edit)
 
         L.addWidget(self._caption("單價"))
         self.price_edit = _input(self._init_int(data.get("price")), w=78)
         L.addWidget(self.price_edit)
 
-        L.addWidget(self._caption("練功前"))
+        L.addWidget(self._caption("前"))
         self.before_edit = _input(self._init_int(data.get("before")), w=60)
         L.addWidget(self.before_edit)
 
-        L.addWidget(self._caption("練功後"))
+        L.addWidget(self._caption("後"))
         self.after_edit = _input(self._init_int(data.get("after")), w=60)
         L.addWidget(self.after_edit)
 
@@ -358,17 +362,49 @@ class _PotionSectionV2(QFrame):
         head.addWidget(self._total_label)
         outer.addLayout(head)
 
-        # 操作列：新增 + 清除全部
+        # 操作列：藥水下拉（選即新增）+ 清除全部
         ops = QHBoxLayout()
         ops.setSpacing(T.S_SM)
-        add_btn = _text_btn("新增藥水", "plus", "ghost")
-        add_btn.clicked.connect(lambda: self.add_row({}))
-        ops.addWidget(add_btn)
+        self._add_combo = QComboBox()
+        self._add_combo.setFixedHeight(28)
+        self._add_combo.setMinimumWidth(160)
+        self._add_combo.setStyleSheet(
+            f"QComboBox {{ background: {T.BG_INPUT}; color: {T.TEXT};"
+            f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
+            f" padding: 0 8px; font-size: 12px; }}"
+            f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
+            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+        )
+        self._refresh_add_combo()
+        self._add_combo.currentIndexChanged.connect(self._on_pick_add)
+        ops.addWidget(self._add_combo)
         clear_btn = _text_btn("清除全部", "trash-2", "danger")
         clear_btn.clicked.connect(self.clear)
         ops.addWidget(clear_btn)
         ops.addStretch()
         outer.addLayout(ops)
+
+    def _refresh_add_combo(self):
+        """填入該分類所有 PotionService.DEFAULTS（已加入的也保留，可重複加）"""
+        combo = self._add_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("＋ 新增藥水…", None)
+        for entry in PotionService.DEFAULTS.get(self._potion_type, []):
+            combo.addItem(entry["name"], entry)
+        combo.setCurrentIndex(0)
+        combo.blockSignals(False)
+
+    def _on_pick_add(self, idx: int):
+        if idx <= 0:
+            return
+        entry = self._add_combo.itemData(idx)
+        if entry:
+            self.add_row({"name": entry["name"], "price": entry["price"]})
+        # 重置回 placeholder 並避免立即 re-fire
+        self._add_combo.blockSignals(True)
+        self._add_combo.setCurrentIndex(0)
+        self._add_combo.blockSignals(False)
 
         # Row 容器
         self._rows_container = QWidget()
@@ -753,9 +789,18 @@ class PotionPageV2(QWidget):
     # 資料流
     # ════════════════════════════════════════════════════════
     def _collect_form(self) -> dict:
-        """UI → PotionFormData（供 Service 計算與序列化）"""
+        """UI → PotionFormData（供 Service 計算與序列化）
+
+        計時器模式時，duration_minutes 用 timer_elapsed 秒 / 60 提供分數
+        分鐘，讓平均 / 時薪即時反映秒級進度（不再受 spin box 整數分鐘限制）
+        """
+        if self._mode == "timer" and self._timer_elapsed > 0:
+            # 1 秒精度：60 秒 → 1 分；1 秒 → 1/60 分
+            duration_minutes = max(1 / 60, self._timer_elapsed / 60.0)
+        else:
+            duration_minutes = self._duration_spin.value()
         return {
-            "duration_minutes": self._duration_spin.value(),
+            "duration_minutes": duration_minutes,
             "hp_potions":       self._sections["hp"].get_rows_data(),
             "mp_potions":       self._sections["mp"].get_rows_data(),
             "combined_potions": self._sections["combined"].get_rows_data(),
@@ -1028,6 +1073,8 @@ class PotionPageV2(QWidget):
     def _on_tick(self):
         self._timer_elapsed += 1
         self._timer_display.setText(_fmt_elapsed(self._timer_elapsed))
+        # 每秒重算 summary（讓平均速率隨秒更新）；autosave 仍 throttled
+        self._recalc_all()
         if self._timer_elapsed % 60 == 0:
             self._duration_spin.setValue(max(1, self._timer_elapsed // 60))
-            self._on_input_changed()
+            self._schedule_autosave()

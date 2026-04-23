@@ -97,7 +97,16 @@ class WindowManager:
             )
             self.active_windows[skill_id] = skill_window
         except Exception:
-            pass
+            logger.exception("skill window 建立失敗 sid=%r", skill_id)
+            try:
+                import traceback
+                from src.infrastructure.helpers import user_data_path
+                with open(user_data_path("error.log"), "a", encoding="utf-8") as f:
+                    f.write(f"[window_manager] sid={skill_id}\n")
+                    f.write(traceback.format_exc())
+                    f.write("---\n")
+            except Exception:
+                pass
 
     def trigger_monster(self, monster_id):
         """觸發怪物重生計時（正數模式：從 0 數到目標秒數）"""
@@ -226,7 +235,16 @@ class WindowManager:
             )
             self.active_windows[skill_id] = skill_window
         except Exception:
-            pass
+            logger.exception("skill window 建立失敗 sid=%r", skill_id)
+            try:
+                import traceback
+                from src.infrastructure.helpers import user_data_path
+                with open(user_data_path("error.log"), "a", encoding="utf-8") as f:
+                    f.write(f"[window_manager] sid={skill_id}\n")
+                    f.write(traceback.format_exc())
+                    f.write("---\n")
+            except Exception:
+                pass
 
     def initialize_persistent_skills(self):
         """初始化常駐技能與常駐怪物（循環技能不初始化，等待按鍵觸發）"""
@@ -275,12 +293,17 @@ class WindowManager:
         win.alert_sound_filename = self.app.get_alert_sound_for_skill(skill_id)
 
     def _on_window_close(self, window, skill_id):
-        """技能視窗關閉回調"""
-        if skill_id in self.active_windows:
+        """技能視窗關閉回調
+
+        race-safe：只在 active_windows 內仍是「同一個 window 實例」時才刪除。
+        避免 close_all() + initialize_persistent_skills() 後，舊 window 的延遲
+        close 事件清掉新 window 的 entry。
+        """
+        if self.active_windows.get(skill_id) is window:
             del self.active_windows[skill_id]
-        if skill_id in self.window_order:
-            self.window_order.remove(skill_id)
-        self.reposition_all()
+            if skill_id in self.window_order:
+                self.window_order.remove(skill_id)
+            self.reposition_all()
 
     # ==================== 群組拖曳 ====================
 

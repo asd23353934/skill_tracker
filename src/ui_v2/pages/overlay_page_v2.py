@@ -47,6 +47,7 @@ from PySide6.QtGui import QPainter, QPixmap
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_pixmap, lucide_icon
 from src.infrastructure.helpers import user_data_path
+from src.ui.overlay_manager import _resolve_overlay_path
 
 
 _SUPPORTED_FILTER = "圖片與 GIF (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;所有檔案 (*.*)"
@@ -241,7 +242,7 @@ class OverlayCard(QFrame):
         alpha = float(self.data.get("alpha", 0.9))
         if self.app is not None:
             visible = self.overlay_id in self.app.overlay_manager.active_windows
-            image_path = user_data_path(f"overlays/{file}") if file else None
+            image_path = _resolve_overlay_path(file) if file else None
         else:
             visible = False
             image_path = None

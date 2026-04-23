@@ -171,7 +171,27 @@ class PreviewWindow(QMainWindow):
             self.stack.setCurrentWidget(page)
 
     def _open_settings(self):
-        SettingsDialogV2(self, self.app_ctx).exec()
+        try:
+            dlg = SettingsDialogV2(self, self.app_ctx)
+            dlg.raise_()
+            dlg.activateWindow()
+            dlg.exec()
+        except Exception as e:
+            # exe console=False；把錯誤寫到檔案方便 debug
+            import traceback
+            try:
+                from src.infrastructure.helpers import user_data_path
+                log_path = user_data_path("error.log")
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"[_open_settings] {type(e).__name__}: {e}\n")
+                    f.write(traceback.format_exc())
+                    f.write("\n---\n")
+            except Exception:
+                pass
+            # 若 toast 可用則彈錯（至少 user 看到有問題）
+            toast = getattr(self.app_ctx, "toast", None)
+            if toast is not None:
+                toast.show(f"設定無法開啟：{type(e).__name__}", "error")
 
     # --------------------------------------------------
     # 無邊框視窗 Resize（QApplication 全域事件過濾 + startSystemResize）

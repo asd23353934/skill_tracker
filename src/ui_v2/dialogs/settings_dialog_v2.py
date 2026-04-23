@@ -147,9 +147,32 @@ class SettingsDialogV2(BaseDialogV2):
         self.alert_spin = _spin(a.alert_before_seconds, 0, 99, suffix=" 秒")
         body.addWidget(_row("全域提前提示", self.alert_spin))
 
-        # 視窗大小
-        self.size_spin = _spin(a.window_size, 32, 128, suffix=" px")
-        body.addWidget(_row("技能視窗尺寸", self.size_spin))
+        # 視窗大小（小 / 中 / 大 / 超大 → 48 / 64 / 96 / 128 px）
+        self.size_combo = QComboBox()
+        self._size_map = {
+            "小 (48 px)":  48,
+            "中 (64 px)":  64,
+            "大 (96 px)":  96,
+            "超大 (128 px)": 128,
+        }
+        self.size_combo.addItems(list(self._size_map.keys()))
+        cur_size = int(a.window_size or 96)
+        # 找出最接近的選項；不在表內就視為「大」
+        for label, px in self._size_map.items():
+            if px == cur_size:
+                self.size_combo.setCurrentText(label)
+                break
+        else:
+            self.size_combo.setCurrentText("大 (96 px)")
+        self.size_combo.setFixedHeight(28)
+        self.size_combo.setStyleSheet(
+            f"QComboBox {{ background: {T.BG_INPUT}; color: {T.TEXT};"
+            f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
+            f" padding: 0 8px; font-size: 12px; }}"
+            f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
+            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+        )
+        body.addWidget(_row("技能視窗尺寸", self.size_combo))
 
         # 全域結束聲音
         self.end_combo, self._end_label_map = _build_sound_combo(
@@ -256,7 +279,7 @@ class SettingsDialogV2(BaseDialogV2):
             "y":                  int(self.y_spin.value()),
             "sound":              bool(self.sound_cb.isChecked()),
             "alert_before_seconds": int(self.alert_spin.value()),
-            "window_size":        int(self.size_spin.value()),
+            "window_size":        self._size_map.get(self.size_combo.currentText(), 96),
             "global_sound":       self._end_label_map.get(self.end_combo.currentText(), ""),
             "global_alert_sound": self._alert_label_map.get(self.alert_combo.currentText(), ""),
             "sound_volume":       int(self.volume_slider.value()),

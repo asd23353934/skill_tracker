@@ -36,13 +36,13 @@ def _read(path: str) -> dict:
 
 
 def _stripped_config():
-    """模擬 release ZIP 內 config.json"""
+    """模擬 release ZIP 內 config.json（monsters / overlays 是 ship 預設內容）"""
     return {
         "skills":   [{"id": "s1", "name": "技能 A"}],
         "items":    [],
         "settings": {"sound_volume": 100, "player_name": "玩家1"},
-        "monsters": [],
-        "overlays": [],
+        "monsters": [{"id": "ship_boss", "name": "魚屋"}],
+        "overlays": [{"id": "ship_ov", "file": "default.png"}],
         "_user_data_stripped": True,
     }
 
@@ -75,8 +75,8 @@ def test_fresh_install_creates_user_file():
         user = _read(user_path)
         check("settings is default sound_volume",
               user["settings"].get("sound_volume"), 100)
-        check("monsters empty", user["monsters"], [])
-        check("overlays empty", user["overlays"], [])
+        check("ship monsters preserved", len(user["monsters"]), 1)
+        check("ship overlays preserved", len(user["overlays"]), 1)
 
 
 def test_migration_from_pre_split():

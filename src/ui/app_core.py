@@ -172,9 +172,11 @@ class AppCoreMixin:
         default_x = screen.width() // 2
         default_y = screen.height() // 2
 
-        self.player_name          = settings.get("player_name", "玩家1")
-        self.skill_start_x        = settings.get("skill_start_x", default_x)
-        self.skill_start_y        = settings.get("skill_start_y", default_y)
+        self.player_name          = settings.get("player_name") or "玩家1"
+        # skill_start_x/y 在 DEFAULT_USER_SETTINGS 預設為 None（QApplication 尚未建時無法算螢幕中心），
+        # 這裡第一次跑才以 primary screen 計算 fallback；`or` 處理 None / 0 / 缺席
+        self.skill_start_x        = settings.get("skill_start_x") or default_x
+        self.skill_start_y        = settings.get("skill_start_y") or default_y
         self.enable_sound         = settings.get("enable_sound", True)
         self.sound_volume         = settings.get("sound_volume", 100)
         self.sound_manager.set_volume(self.sound_volume / 100.0)

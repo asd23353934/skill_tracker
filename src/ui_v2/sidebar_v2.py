@@ -104,6 +104,22 @@ class SidebarV2(QWidget):
         sw.addWidget(settings)
         lay.addWidget(settings_wrap)
 
+        # ── 版本號（最底、小號淡色）──
+        try:
+            from version import get_version
+            ver_text = f"v{get_version()}"
+        except Exception:
+            ver_text = ""
+        if ver_text:
+            ver_lbl = QLabel(ver_text)
+            ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            ver_lbl.setStyleSheet(
+                f"color: {T.TEXT_MUTED}; background: transparent;"
+                f" font-size: 9px; font-weight: 500;"
+            )
+            lay.addWidget(ver_lbl)
+        lay.addSpacing(6)
+
         # 活動指示條（左側橘色 3px）
         self._indicator = QFrame(self)
         self._indicator.setObjectName("indicator")

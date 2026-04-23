@@ -7,7 +7,18 @@ import os
 import shutil
 import uuid
 
-from src.infrastructure.helpers import user_data_path
+from src.infrastructure.helpers import user_data_path, resource_path
+
+
+def _resolve_overlay_path(filename: str, overlays_dir: str = "overlays") -> str | None:
+    """user_data_path 找不到時，fallback 至 bundled resource_path（V2 出廠預設浮動圖）"""
+    candidate = user_data_path(f"{overlays_dir}/{filename}")
+    if os.path.exists(candidate):
+        return candidate
+    bundled = resource_path(f"{overlays_dir}/{filename}")
+    if os.path.exists(bundled):
+        return bundled
+    return None
 
 
 class OverlayManager:
@@ -48,8 +59,8 @@ class OverlayManager:
         if not data:
             return
 
-        image_path = user_data_path(f"{self._OVERLAYS_DIR}/{data['file']}")
-        if not os.path.exists(image_path):
+        image_path = _resolve_overlay_path(data["file"], self._OVERLAYS_DIR)
+        if not image_path:
             return
 
         from src.ui.overlay_window import OverlayWindow
