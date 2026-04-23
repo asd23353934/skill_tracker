@@ -156,7 +156,7 @@ class PreviewWindow(QMainWindow):
 
 
 def main():
-    app = QApplication(sys.argv)
+    app = QApplication.instance() or QApplication(sys.argv)
     app.setStyleSheet(T.global_qss())
     win = PreviewWindow()
     win.show()
