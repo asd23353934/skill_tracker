@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
 )
 from PySide6.QtCore import Qt, QTimer
+from src.ui.dispatcher import Dispatcher
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.header_v2 import HeaderV2
@@ -24,33 +25,55 @@ from src.ui_v2.pages.mapleworld_page_v2 import MapleWorldPageV2
 
 from src.infrastructure.config_manager import ConfigManager
 from src.infrastructure.helpers import resource_path
-from src.ui.overlay_manager import OverlayManager
+from src.ui.app_core import AppCoreMixin
 
 
-class V2AppContext:
-    """V2 預覽用最小 app backing — 隨各頁接線而擴充
+class V2AppContext(AppCoreMixin):
+    """V2 預覽 app backing — 透過 AppCoreMixin 取得完整 domain 層。
 
-    目前提供：
-        config_manager / overlay_manager / after / toast / overlay_page slot
+    繼承 AppCoreMixin 後即可呼叫所有 V1/V2 共用方法（edit_cooldown / toggle_all
+    / show_skill_detail / …），並擁有 SkillManager / HotkeyManager /
+    WindowManager / SoundManager / OverlayManager 等 backing。
 
-    尚未提供（接到 skill/monster 頁時補）：
-        skill_manager / hotkey_manager / window_manager / sound_manager /
-        skill_service / dispatcher
+    額外提供：
+        toast (NoopToast) / after / overlay_page slot
     """
 
     def __init__(self):
-        self.config_manager = ConfigManager(resource_path("config.json"))
-        self.overlay_manager = OverlayManager(self)
+        # 跨執行緒安全 dispatcher（pynput daemon → 主執行緒）；
+        # 必須在 _init_domain_backing 前建好，因 hotkey/window manager 之後會 capture self
+        self._dispatcher = Dispatcher(QApplication.instance())
+        self._init_domain_backing(ConfigManager(resource_path("config.json")))
         self.overlay_page = None
         self.toast = _NoopToast()
+        # V1 UI 元件 stub —— HotkeyManager / WindowManager 會呼叫
+        self.header = _NoopHeader()
+        self.monster_page = _NoopMonsterPage()
+        # V2 shell 預覽：啟動 hotkey + 還原常駐視窗，行為與 V1 等價
+        self.hotkey_manager.start()
+        self.window_manager.initialize_persistent_skills()
 
     def after(self, ms: int, fn):
-        QTimer.singleShot(ms, fn)
+        """執行緒安全：透過 _Dispatcher 排回主執行緒（V1 等價）"""
+        self._dispatcher.schedule(ms, fn)
 
 
 class _NoopToast:
     def show(self, msg, kind="info"):
         print(f"[toast/{kind}] {msg}")
+
+
+class _NoopHeader:
+    """V1 Header stub — HotkeyManager hint 接收後 print 到 console。"""
+    def show_hotkey_hint(self, *args, **kwargs):
+        print(f"[hotkey-hint] {args} {kwargs}")
+    def clear_hotkey_hint(self):
+        pass
+
+
+class _NoopMonsterPage:
+    """V1 MonsterPage stub — V2 monster page 接線後可移除。"""
+    cards: dict = {}
 
 
 PAGES = [

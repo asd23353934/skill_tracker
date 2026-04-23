@@ -12,110 +12,28 @@ from PySide6.QtWidgets import (
     QStackedWidget, QMessageBox, QInputDialog, QApplication,
     QFrame,
 )
-from PySide6.QtCore import Qt, QEvent, QTimer, QObject, Signal, QPropertyAnimation
+from PySide6.QtCore import Qt, QEvent, QTimer, QPropertyAnimation
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QGraphicsOpacityEffect
 
 from src.ui.theme import AppTheme
 from src.infrastructure.config_manager import ConfigManager
-from src.infrastructure.skill_loader import SkillLoader
 from src.infrastructure.helpers import resource_path
-from src.infrastructure.repositories import SkillRepository
-from src.ui.skill_pixmap_cache import SkillPixmapCache
-from src.ui.hotkey_manager import HotkeyManager
-from src.ui.window_manager import WindowManager
 from src.ui.sidebar import Sidebar
 from src.ui.header import Header
 from src.ui.status_bar import StatusBar
 from src.ui.pages import SkillPage, SkillPageV2, MonsterPage, OverlayPage, PotionCostPage, MapleWorldPage
 from src.ui.toast import ToastManager
-from src.domain.services import SkillService, MonsterService
+from src.ui.app_core import AppCoreMixin
+from src.ui.dispatcher import Dispatcher
 
 
-class _Dispatcher(QObject):
-    """執行緒安全的回呼排程器 — 供 HotkeyManager / OverlayManager 從 daemon thread 呼叫"""
-
-    _call = Signal(object)  # 傳遞 callable
-
-    def __init__(self, parent: QObject):
-        super().__init__(parent)
-        # QueuedConnection：槽在接收端（主執行緒）的事件迴圈中執行
-        self._call.connect(self._dispatch, Qt.ConnectionType.QueuedConnection)
-
-    def schedule(self, ms: int, func):
-        """排程 func 在主執行緒執行（ms=0 立即排隊）"""
-        if ms == 0:
-            self._call.emit(func)
-        else:
-            # 先跨執行緒送到主執行緒，再用 QTimer 延遲
-            self._call.emit(lambda: QTimer.singleShot(ms, func))
-
-    def _dispatch(self, func):
-        func()
 
 
-class App(QMainWindow):
+class App(QMainWindow, AppCoreMixin):
     """主應用程式 — PySide6 QMainWindow"""
 
     _RESIZE_MARGIN = 4   # 邊框 resize 感應距離（像素）
-
-    # --------------------------------------------------
-    # Property 委派：向後相容，實際狀態由 SkillService 持有
-    # --------------------------------------------------
-
-    @property
-    def skill_permanent(self):
-        """委派到 SkillService._permanent"""
-        return self.skill_service._permanent
-
-    @skill_permanent.setter
-    def skill_permanent(self, value):
-        self.skill_service._permanent = value
-
-    @property
-    def skill_loop(self):
-        """委派到 SkillService._loop"""
-        return self.skill_service._loop
-
-    @skill_loop.setter
-    def skill_loop(self, value):
-        self.skill_service._loop = value
-
-    @property
-    def skill_alert_enabled(self):
-        """委派到 SkillService._alert_enabled"""
-        return self.skill_service._alert_enabled
-
-    @skill_alert_enabled.setter
-    def skill_alert_enabled(self, value):
-        self.skill_service._alert_enabled = value
-
-    @property
-    def skill_alert_seconds_overrides(self):
-        """委派到 SkillService._alert_seconds_overrides"""
-        return self.skill_service._alert_seconds_overrides
-
-    @skill_alert_seconds_overrides.setter
-    def skill_alert_seconds_overrides(self, value):
-        self.skill_service._alert_seconds_overrides = value
-
-    @property
-    def skill_sound_overrides(self):
-        """委派到 SkillService._sound_overrides"""
-        return self.skill_service._sound_overrides
-
-    @skill_sound_overrides.setter
-    def skill_sound_overrides(self, value):
-        self.skill_service._sound_overrides = value
-
-    @property
-    def skill_alert_sound_overrides(self):
-        """委派到 SkillService._alert_sound_overrides"""
-        return self.skill_service._alert_sound_overrides
-
-    @skill_alert_sound_overrides.setter
-    def skill_alert_sound_overrides(self, value):
-        self.skill_service._alert_sound_overrides = value
 
     def __init__(self):
         super().__init__()
@@ -149,40 +67,15 @@ class App(QMainWindow):
         self.setMinimumSize(1100, 580)
 
         # 執行緒安全排程器（模擬 tkinter after()）
-        self._dispatcher = _Dispatcher(self)
+        self._dispatcher = Dispatcher(self)
 
-        # 初始化管理器
+        # Manager / Service 鏈 + profile 載入 + widget 登錄 dict
+        # —— 全部委派給 AppCoreMixin._init_domain_backing
         try:
-            self.config_manager = ConfigManager(resource_path("config.json"))
-            self.skill_loader = SkillLoader(self.config_manager)
-            self.skill_manager = SkillPixmapCache(self.skill_loader)
+            self._init_domain_backing(ConfigManager(resource_path("config.json")))
         except Exception as e:
             QMessageBox.critical(None, "錯誤", f"初始化失敗: {e}")
             sys.exit(1)
-
-        # Repository 層（SkillService 依賴）
-        self.skill_repo = SkillRepository(self.config_manager)
-
-        # 音效管理器
-        from src.infrastructure.sound_manager import SoundManager
-        self.sound_manager = SoundManager()
-
-        # Service 層（整潔架構 Phase 3-4，業務邏輯集中）
-        self.skill_service = SkillService(
-            skill_repo=self.skill_repo,
-            skill_loader=self.skill_loader,
-        )
-        self.monster_service = MonsterService(self.config_manager)
-
-        # 初始化狀態
-        self._init_state()
-
-        # 子管理器
-        self.hotkey_manager = HotkeyManager(self)
-        self.window_manager = WindowManager(self)
-
-        from src.ui.overlay_manager import OverlayManager
-        self.overlay_manager = OverlayManager(self)
 
         # 建構 UI
         self._build_ui()
@@ -216,73 +109,6 @@ class App(QMainWindow):
             func: 要執行的 callable
         """
         self._dispatcher.schedule(ms, func)
-
-    # --------------------------------------------------
-    # 狀態初始化
-    # --------------------------------------------------
-
-    def _init_state(self):
-        """初始化應用程式狀態"""
-        self.config_manager.ensure_default_profile()
-        self.current_profile_name = self.config_manager.get_current_profile()
-
-        profile_data = self.config_manager.load_profile(self.current_profile_name)
-        settings = self.config_manager.config.get("settings", {})
-
-        # 螢幕尺寸 → 計算預設技能視窗位置
-        screen = QApplication.primaryScreen().geometry()
-        default_x = screen.width() // 2
-        default_y = screen.height() // 2
-
-        # 一般設定
-        self.player_name          = settings.get("player_name", "玩家1")
-        self.skill_start_x        = settings.get("skill_start_x", default_x)
-        self.skill_start_y        = settings.get("skill_start_y", default_y)
-        self.enable_sound         = settings.get("enable_sound", True)
-        self.sound_volume         = settings.get("sound_volume", 100)
-        self.sound_manager.set_volume(self.sound_volume / 100.0)
-        self.window_alpha         = 0.95
-        self.window_size          = settings.get("window_size", 64)
-        self.alert_before_seconds = settings.get("alert_before_seconds", 0)
-
-        # 音效設定（遷移舊檔名）
-        self.global_sound = self.sound_manager.migrate_sound_filename(
-            settings.get("global_sound", "")
-        )
-        self.global_alert_sound = self.sound_manager.migrate_sound_filename(
-            settings.get("global_alert_sound", "")
-        )
-
-        # 同步全域設定到 SkillService
-        self.skill_service.alert_before_seconds = self.alert_before_seconds
-        self.skill_service.global_sound = self.global_sound
-        self.skill_service.global_alert_sound = self.global_alert_sound
-
-        # 技能設定（從配置檔載入，委派到 SkillService）
-        if profile_data:
-            # 遷移音效檔名
-            migrated_data = dict(profile_data)
-            migrated_data["sound_overrides"] = {
-                k: self.sound_manager.migrate_sound_filename(v)
-                for k, v in profile_data.get("sound_overrides", {}).items()
-            }
-            migrated_data["alert_sound_overrides"] = {
-                k: self.sound_manager.migrate_sound_filename(v)
-                for k, v in profile_data.get("alert_sound_overrides", {}).items()
-            }
-            self.skill_service.load_from_profile(migrated_data)
-        else:
-            self.skill_service.reset_all_to_defaults()
-
-        # UI 元件字典（儲存 QPushButton / QCheckBox 引用）
-        self.permanent_vars        = {}  # skill_id → QCheckBox
-        self.loop_vars             = {}  # skill_id → QCheckBox
-        self.alert_enabled_vars    = {}  # skill_id → QCheckBox
-        self.hotkey_buttons        = {}  # skill_id → QPushButton
-        self.cooldown_buttons      = {}  # skill_id → QPushButton
-        self.alert_seconds_buttons = {}  # skill_id → QPushButton
-        self.monster_respawn_buttons     = {}  # monster_id → QPushButton
-        self.monster_alert_before_buttons = {}  # monster_id → QPushButton
 
     # --------------------------------------------------
     # UI 建構
@@ -408,54 +234,9 @@ class App(QMainWindow):
     # 靜態輔助：動態設定 QPushButton 樣式
     # --------------------------------------------------
 
-    @staticmethod
-    def _apply_btn_style(btn, bg=None, fg=None, hover=None):
-        """動態設定 QPushButton 的內聯樣式
-
-        Args:
-            btn:   QPushButton 實例
-            bg:    背景色 hex（None 使用預設）
-            fg:    前景文字色 hex（None 使用預設）
-            hover: Hover 背景色 hex（None 不設定 hover 規則）
-        """
-        # V2 chip 自行管理樣式；透過 _v2_apply_accent 把 V1 色映射到 V2 accent
-        if hasattr(btn, "_v2_apply_accent"):
-            btn._v2_apply_accent(bg)
-            return
-
-        _bg    = bg    or AppTheme.BG_TERTIARY
-        _fg    = fg    or AppTheme.TEXT_PRIMARY
-        _bdr   = AppTheme.GOLD_MUTED
-        style = (
-            f"QPushButton {{"
-            f" background-color:{_bg}; color:{_fg};"
-            f" border:1px solid {_bdr}; border-radius:3px;"
-            f" padding:0px 4px; font-size:10px; font-weight:bold; }}"
-        )
-        if hover:
-            style += f" QPushButton:hover {{ background-color:{hover}; }}"
-        btn.setStyleSheet(style)
-
     # --------------------------------------------------
     # 怪物 API
     # --------------------------------------------------
-
-    def get_monster(self, monster_id):
-        """根據 ID 取得怪物資料（委派到 MonsterService）"""
-        return self.monster_service.get(monster_id)
-
-    def get_monster_by_hotkey(self, key_name):
-        """根據按鍵名稱取得怪物 ID（委派到 MonsterService）"""
-        monster = self.monster_service.get_by_hotkey(key_name)
-        return monster["id"] if monster else None
-
-    def get_all_monsters(self):
-        """取得所有怪物資料（委派到 MonsterService）"""
-        return self.monster_service.get_all()
-
-    def save_monsters(self):
-        """儲存怪物資料到 config.json（委派到 MonsterService）"""
-        self.monster_service.save()
 
     def edit_respawn_time(self, monster_id):
         """編輯怪物重生時間（委派到 MonsterService）
@@ -607,195 +388,6 @@ class App(QMainWindow):
     # 公開 API（供子元件呼叫）
     # --------------------------------------------------
 
-    def get_original_cooldown(self, skill_id):
-        """獲取技能的原始冷卻秒數（委派到 SkillService）"""
-        return self.skill_service.get_original_cooldown(skill_id)
-
-    def get_alert_seconds(self, skill_id):
-        """獲取技能的提前提示秒數（委派到 SkillService）"""
-        return self.skill_service.get_alert_seconds(skill_id)
-
-    def get_sound_for_skill(self, skill_id):
-        """獲取技能的完成音效檔名（委派到 SkillService）"""
-        return self.skill_service.get_sound(skill_id)
-
-    def get_alert_sound_for_skill(self, skill_id):
-        """獲取技能的提前提示音效檔名（委派到 SkillService）"""
-        return self.skill_service.get_alert_sound(skill_id)
-
-    def auto_save_current_profile(self):
-        """自動保存當前配置到檔案（委派到 SkillService）"""
-        current_settings = self.skill_service.serialize_to_dict()
-        self.config_manager.save_profile(self.current_profile_name, current_settings)
-
-    def update_hotkey_display(self, skill_id, key_str, has_hotkey):
-        """更新快捷鍵按鈕顯示
-
-        Args:
-            skill_id:   技能 ID
-            key_str:    快捷鍵字串
-            has_hotkey: 是否有快捷鍵
-        """
-        btn = self.hotkey_buttons.get(skill_id)
-        if btn:
-            btn.setText(key_str if has_hotkey else "未設定")
-            self._apply_btn_style(
-                btn,
-                bg    = AppTheme.ACCENT_YELLOW      if has_hotkey else AppTheme.BG_TERTIARY,
-                fg    = "#000000"                   if has_hotkey else AppTheme.TEXT_SECONDARY,
-                hover = AppTheme.ACCENT_YELLOW_HOVER if has_hotkey else AppTheme.BG_SECONDARY,
-            )
-
-    def update_skill_setting_exclusive(self, skill_id, setting_type, var):
-        """更新技能設定（常駐 / 循環互斥，委派到 SkillService）
-
-        Args:
-            skill_id:     技能 ID
-            setting_type: 'permanent' | 'loop'
-            var:          觸發變更的 QCheckBox 實例
-        """
-        new_value = var.isChecked()
-
-        # 業務邏輯委派到 SkillService（互斥規則）
-        if setting_type == "permanent":
-            result = self.skill_service.set_permanent(skill_id, new_value)
-        elif setting_type == "loop":
-            result = self.skill_service.set_loop(skill_id, new_value)
-        else:
-            return
-
-        # UI 更新：同步 checkbox 狀態
-        if not result["loop"] and skill_id in self.loop_vars:
-            self.loop_vars[skill_id].setChecked(False)
-        if not result["permanent"] and skill_id in self.permanent_vars:
-            self.permanent_vars[skill_id].setChecked(False)
-
-        # UI 更新：視窗生命週期
-        if new_value:
-            if setting_type == "permanent":
-                # 關閉可能的循環視窗
-                if skill_id in self.window_manager.active_windows:
-                    self.window_manager.active_windows[skill_id].close()
-                if skill_id not in self.window_manager.active_windows:
-                    self.window_manager.create_permanent_window(skill_id)
-            elif setting_type == "loop":
-                # 關閉可能的常駐視窗
-                if skill_id in self.window_manager.active_windows:
-                    self.window_manager.active_windows[skill_id].close()
-        else:
-            if skill_id in self.window_manager.active_windows:
-                self.window_manager.active_windows[skill_id].close()
-
-        self._save_config()
-        self.auto_save_current_profile()
-
-    def update_alert_setting(self, skill_id, var):
-        """更新提前提示設定（委派到 SkillService）
-
-        Args:
-            skill_id: 技能 ID
-            var:      觸發變更的 QCheckBox 實例
-        """
-        new_value = var.isChecked()
-        self.skill_service.set_alert_enabled(skill_id, new_value)
-
-        if skill_id in self.window_manager.active_windows:
-            win = self.window_manager.active_windows[skill_id]
-            win.alert_enabled        = new_value
-            win.alert_before_seconds = self.get_alert_seconds(skill_id)
-
-        self._save_config()
-        self.auto_save_current_profile()
-
-    def edit_alert_seconds(self, skill_id):
-        """編輯技能的個別提前提示秒數（委派到 SkillService）
-
-        Args:
-            skill_id: 技能 ID
-        """
-        self.hotkey_manager.enabled = False
-        current = self.skill_service.get_alert_seconds(skill_id)
-
-        new_val, ok = QInputDialog.getInt(
-            self, "提前提示秒數",
-            f"請輸入提前幾秒提示:\n"
-            f"(全域預設: {self.alert_before_seconds}秒)\n"
-            f"輸入 -1 恢復使用全域設定",
-            current, -1, 999,
-        )
-        self.hotkey_manager.enabled = True
-
-        if ok:
-            if new_val == -1:
-                self.skill_service.clear_alert_seconds_override(skill_id)
-            else:
-                self.skill_service.set_alert_seconds_override(skill_id, new_val)
-
-            btn = self.alert_seconds_buttons.get(skill_id)
-            if btn:
-                if skill_id in self.skill_alert_seconds_overrides:
-                    btn.setText(f"{self.skill_alert_seconds_overrides[skill_id]}s")
-                    self._apply_btn_style(btn, bg=AppTheme.ACCENT_ORANGE)
-                else:
-                    btn.setText(f"{self.alert_before_seconds}s")
-                    self._apply_btn_style(btn, bg=AppTheme.BG_TERTIARY)
-
-            if skill_id in self.window_manager.active_windows:
-                self.window_manager.active_windows[skill_id].alert_before_seconds = \
-                    self.get_alert_seconds(skill_id)
-
-            self.auto_save_current_profile()
-
-    def toggle_all(self, setting_type):
-        """切換所有技能的設定（全開或全關，委派到 SkillService）
-
-        Args:
-            setting_type: 'permanent' | 'loop' | 'alert'
-        """
-        if setting_type == "permanent":
-            results = self.skill_service.toggle_all_permanent()
-            new_val = next(iter(results.values()), False)
-
-            # UI 更新：loop checkbox 全關
-            if new_val:
-                for sid in results:
-                    if sid in self.loop_vars:
-                        self.loop_vars[sid].setChecked(False)
-                    if sid in self.window_manager.active_windows:
-                        self.window_manager.active_windows[sid].close()
-
-            for sid, val in results.items():
-                self._update_permanent_skill(sid, val)
-                if sid in self.permanent_vars:
-                    self.permanent_vars[sid].setChecked(val)
-
-        elif setting_type == "loop":
-            results = self.skill_service.toggle_all_loop()
-            new_val = next(iter(results.values()), False)
-
-            # UI 更新：permanent checkbox 全關 + 關閉常駐視窗
-            if new_val:
-                for sid in results:
-                    if sid in self.permanent_vars:
-                        self.permanent_vars[sid].setChecked(False)
-                    if sid in self.window_manager.active_windows:
-                        self.window_manager.active_windows[sid].close()
-
-            for sid, val in results.items():
-                if sid in self.loop_vars:
-                    self.loop_vars[sid].setChecked(val)
-                if not val and sid in self.window_manager.active_windows:
-                    self.window_manager.active_windows[sid].close()
-
-        elif setting_type == "alert":
-            results = self.skill_service.toggle_all_alert()
-            for sid, val in results.items():
-                if sid in self.alert_enabled_vars:
-                    self.alert_enabled_vars[sid].setChecked(val)
-
-        self._save_config()
-        self.auto_save_current_profile()
-
     def clear_all_hotkeys(self):
         """清空所有快捷鍵和秒數覆寫（含確認對話框，委派到 SkillService）"""
         reply = QMessageBox.question(
@@ -820,74 +412,6 @@ class App(QMainWindow):
 
             self.auto_save_current_profile()
             self.toast.show("已清空所有快捷鍵並恢復預設秒數", "success")
-
-    def edit_cooldown(self, skill_id):
-        """編輯技能冷卻時間（委派到 SkillService）
-
-        Args:
-            skill_id: 技能 ID
-        """
-        skill = self.skill_loader.get_skill(skill_id)
-        if not skill:
-            return
-
-        self.hotkey_manager.enabled = False
-        original = self.skill_service.get_original_cooldown(skill_id)
-
-        new_cooldown, ok = QInputDialog.getInt(
-            self, "修改冷卻時間",
-            f"請輸入 {skill['name']} 的新冷卻時間（秒）:\n(原始值: {original}秒)",
-            skill["cooldown"], 1, 999,
-        )
-        self.hotkey_manager.enabled = True
-
-        if ok and new_cooldown != skill["cooldown"]:
-            is_modified = self.skill_service.set_cooldown_override(skill_id, new_cooldown)
-
-            btn = self.cooldown_buttons.get(skill_id)
-            if btn:
-                btn.setText(f"{new_cooldown}秒")
-                self._apply_btn_style(
-                    btn,
-                    bg = AppTheme.ACCENT_BLUE if is_modified else AppTheme.BG_TERTIARY,
-                    fg = AppTheme.TEXT_PRIMARY,
-                )
-
-            self.auto_save_current_profile()
-
-    def reset_cooldown(self, skill_id):
-        """重置技能冷卻時間為預設值（委派到 SkillService）
-
-        Args:
-            skill_id: 技能 ID
-        """
-        original = self.skill_service.get_original_cooldown(skill_id)
-        skill = self.skill_loader.get_skill(skill_id)
-        if not skill or not original or skill["cooldown"] == original:
-            return
-
-        self.skill_service.clear_cooldown_override(skill_id)
-
-        btn = self.cooldown_buttons.get(skill_id)
-        if btn:
-            btn.setText(f"{original}秒")
-            self._apply_btn_style(btn, bg=AppTheme.BG_TERTIARY, fg=AppTheme.TEXT_PRIMARY)
-
-        self.auto_save_current_profile()
-
-    def reset_hotkey(self, skill_id):
-        """重置技能快捷鍵（委派到 SkillService）
-
-        Args:
-            skill_id: 技能 ID
-        """
-        skill = self.skill_loader.get_skill(skill_id)
-        if not skill or not skill.get("hotkey"):
-            return
-
-        self.skill_service.clear_hotkey(skill_id)
-        self.update_hotkey_display(skill_id, "", False)
-        self.auto_save_current_profile()
 
     def show_settings(self):
         """顯示設定對話框"""
@@ -976,21 +500,6 @@ class App(QMainWindow):
 
         self.hotkey_manager.enabled = True
 
-    def show_skill_detail(self, skill_id):
-        """顯示技能細部設定對話框
-
-        Args:
-            skill_id: 技能 ID
-        """
-        self.hotkey_manager.enabled = False
-
-        from src.ui.dialogs import SkillDetailDialog
-
-        dialog = SkillDetailDialog(self, skill_id, self)
-        dialog.exec()
-
-        self.hotkey_manager.enabled = True
-
     def show_update_dialog(self):
         """顯示更新對話框"""
         if not hasattr(self, "update_info"):
@@ -1050,25 +559,6 @@ class App(QMainWindow):
         self._build_ui()
         self.window_manager.initialize_persistent_skills()
         self.show()
-
-    def _update_permanent_skill(self, skill_id, is_permanent):
-        """依照 is_permanent 開啟或關閉常駐視窗
-
-        Args:
-            skill_id:     技能 ID
-            is_permanent: 目標狀態
-        """
-        was = self.skill_permanent.get(skill_id, False)
-        if is_permanent and not was:
-            if skill_id not in self.window_manager.active_windows:
-                self.window_manager.create_permanent_window(skill_id)
-        elif not is_permanent and was:
-            if skill_id in self.window_manager.active_windows:
-                self.window_manager.active_windows[skill_id].close()
-
-    def _save_config(self):
-        """保存配置到檔案（全域設定；skill_permanent 屬配置可變區，由 auto_save_current_profile 持久化）"""
-        self.config_manager.save()
 
     def _check_for_updates(self):
         """在背景執行緒檢查更新，避免網路請求阻塞主執行緒"""
