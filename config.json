@@ -300,7 +300,7 @@
       "id": "暗黑龍王-重踩",
       "name": "重踩",
       "icon": "7116e19d-1149-4629-8486-b2baa80b73d7.jpg",
-      "cooldown": 20,
+      "cooldown": 40,
       "category": "boss",
       "subcategory": "暗黑龍王"
     },
