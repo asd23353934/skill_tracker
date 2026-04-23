@@ -248,17 +248,21 @@ class SoundManager:
         return filename
 
     def list_sounds(self):
-        """列出所有可用的音效檔案
-
-        Returns:
-            list[str]: 音效檔案名稱列表
-        """
+        """列出所有可用的音效檔案（cache 在 self._sounds_cache，import_sound 後失效）。"""
+        cache = getattr(self, "_sounds_cache", None)
+        if cache is not None:
+            return cache
         if not os.path.exists(self.sounds_dir):
-            return []
-        return sorted([
+            self._sounds_cache = []
+            return self._sounds_cache
+        self._sounds_cache = sorted([
             f for f in os.listdir(self.sounds_dir)
             if f.lower().endswith(('.wav', '.mp3'))
         ])
+        return self._sounds_cache
+
+    def _invalidate_sounds_cache(self):
+        self._sounds_cache = None
 
     def get_sound_label(self, filename):
         """取得音效的顯示名稱
@@ -364,6 +368,7 @@ class SoundManager:
 
         try:
             shutil.copy2(source_path, dest)
+            self._invalidate_sounds_cache()
             return basename
         except Exception:
             return None

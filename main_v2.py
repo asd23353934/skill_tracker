@@ -1,8 +1,8 @@
 """
-V2 UI 預覽入口 — Soft Purple Gradient Dashboard
-頁首無底線；唯一邊線在側邊欄右側
-背景使用紫色漸層
-執行：python main_v2.py
+V2 UI 入口 — Soft Purple Gradient Dashboard（V2 為預設 UI）
+
+頁首無底線；唯一邊線在側邊欄右側；背景使用紫色漸層。
+直接跑 `python main_v2.py` 或走 `python main.py`（預設）進入。
 """
 
 import os
@@ -32,7 +32,7 @@ from src.ui.app_core import AppCoreMixin
 
 
 class V2AppContext(AppCoreMixin):
-    """V2 預覽 app backing — 透過 AppCoreMixin 取得完整 domain 層。
+    """V2 app backing — 透過 AppCoreMixin 取得完整 domain 層。
 
     繼承 AppCoreMixin 後即可呼叫所有 V1/V2 共用方法（edit_cooldown / toggle_all
     / show_skill_detail / …），並擁有 SkillManager / HotkeyManager /
@@ -53,7 +53,7 @@ class V2AppContext(AppCoreMixin):
         # V1 UI 元件 stub —— HotkeyManager / WindowManager 會呼叫
         self.header = _NoopHeader()
         self.monster_page = _NoopMonsterPage()
-        # V2 shell 預覽：啟動 hotkey + 還原常駐視窗，行為與 V1 等價
+        # 啟動 hotkey + 還原常駐視窗，行為與 V1 等價
         self.hotkey_manager.start()
         self.window_manager.initialize_persistent_skills()
 
@@ -91,7 +91,7 @@ PAGES = [
 
 
 class PreviewWindow(QMainWindow):
-    """V2 預覽主視窗 — 無框 1240x760"""
+    """V2 主視窗 — 無框 1240x760"""
 
     _RESIZE_MARGIN = 4   # 邊框 resize 感應距離（像素）
 

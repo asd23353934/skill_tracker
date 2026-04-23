@@ -11,29 +11,11 @@
 pip install -r requirements.txt
 ```
 
-### 2. 遇到導入錯誤？運行修復腳本
-```bash
-python fix_imports.py
-```
-
-### 3. 運行程式
+### 2. 運行程式
 ```bash
 python main.py        # V2 UI（預設）
 python main.py --v1   # V1 舊版 UI（保留 opt-in）
 ```
-
----
-
-## 🔧 故障排除
-
-### 常見錯誤：ModuleNotFoundError
-
-**自動修復（推薦）：**
-```bash
-python fix_imports.py
-```
-
-這個腳本會自動修復所有導入路徑問題。
 
 ---
 
@@ -56,4 +38,4 @@ python fix_imports.py
 
 ---
 
-詳細文檔請查看 CODE_REVIEW.md
+詳細文檔：`docs/PROJECT.md` / `docs/ARCHITECTURE.md` / `docs/DATA_FORMAT.md` / `docs/RELEASE.md`

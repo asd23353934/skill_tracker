@@ -122,14 +122,20 @@ class ToastManagerV2(QObject):
         # 觸發 eventFilter 卻找不到屬性
         self._window = window
         self._toasts: list[ToastV2] = []
+        self._filter_installed = False
         super().__init__(window)
-        window.installEventFilter(self)
+        # eventFilter 不在此處 install，改在第一個 toast 出現時才裝
+        # （避免無 toast 期間每個視窗事件都進 Python eventFilter）
 
     # ── 對外 API ──
     def show(self, message: str, kind: str = "info"):
         toast = ToastV2(self._window, message, kind)
         toast.dismissed.connect(self._remove_toast)
         self._toasts.append(toast)
+        # 確保 resize event filter 已 install（首個 toast 時 lazy install）
+        if not self._filter_installed:
+            self._window.installEventFilter(self)
+            self._filter_installed = True
         toast.show_animated()
         self._reposition_all()
 
@@ -140,6 +146,10 @@ class ToastManagerV2(QObject):
         except ValueError:
             pass
         self._reposition_all()
+        # 全部 dismiss → 卸載 filter，回到無 overhead 狀態
+        if not self._toasts and self._filter_installed:
+            self._window.removeEventFilter(self)
+            self._filter_installed = False
 
     def _reposition_all(self):
         win = self._window
