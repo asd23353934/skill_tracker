@@ -26,7 +26,7 @@ images/                  # 技能圖示
 sounds/                  # 音效檔案
 src/ui/
   app.py                 # 主應用程式 (App / QMainWindow, 統一協調；繼承 AppCoreMixin)
-  app_core.py            # AppCoreMixin — V1 App 與 V2AppContext 共用 domain backing（含 12 技能 + 8 怪物 + 4 sound/monster delegate 方法）
+  app_core.py            # AppCoreMixin — V1 App 與 V2AppContext 共用 domain backing（含 12 技能 + 8 怪物 + switch_profile + 4 sound/monster delegate 方法）
   dispatcher.py          # Dispatcher — 跨執行緒安全的回呼排程器（V1/V2 共用）
   config_manager.py      # 設定檔讀寫、配置管理
   skill_manager.py       # 技能資料載入、圖片快取
@@ -65,7 +65,7 @@ src/domain/              # 純 Python 領域層（零 Qt 依賴，V1/V2 共用�
   potion_service.py      # 藥水費用計算、autosave、紀錄序列化
 src/ui_v2/               # V2 預覽 shell（紫色漸層 dashboard）
   theme_v2.py            # V2 主題常量 (V2Theme)
-  header_v2.py           # V2 無框頂部列
+  header_v2.py           # V2 頁首（精簡為視窗控制 + 拖曳區；profile dropdown 已搬至 skill_page_v2）
   sidebar_v2.py          # V2 左側導覽
   status_bar_v2.py       # V2 底部狀態列
   components.py          # V2 共用元件

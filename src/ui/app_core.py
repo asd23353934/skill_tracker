@@ -609,3 +609,21 @@ class AppCoreMixin:
         else:
             if monster_id in self.window_manager.active_windows:
                 self.window_manager.active_windows[monster_id].close()
+
+    # --------------------------------------------------
+    # Profile 切換（V2 dropdown 用；V1 走 ProfileManagerDialog）
+    # --------------------------------------------------
+
+    def switch_profile(self, name: str):
+        """切換到指定 profile，重載 SkillService 並請 V2 skill 頁 rebuild。
+
+        no-op if name == current_profile_name。
+        """
+        if name == self.current_profile_name:
+            return
+        self.config_manager.set_current_profile(name)
+        self.config_manager.save()
+        self._load_profile_state(name)
+        page = getattr(self, "skill_page_v2", None)
+        if page is not None and hasattr(page, "rebuild"):
+            page.rebuild()

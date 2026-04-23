@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from src.ui_v2.theme_v2 import V2Theme as T
+from src.ui_v2.components import ArrowComboBox
 from src.ui_v2.pages.skill_column_v2 import SkillColumnV2
 from src.ui_v2.pages.skill_card_v2 import SkillCardV2
 
@@ -62,6 +63,9 @@ class SkillPageV2(QWidget):
         self._registered_ids: set[str] = set()
         self._content_layout: QHBoxLayout | None = None
         self._built = False
+        # 自註冊：AppCoreMixin.switch_profile 走 app.skill_page_v2.rebuild()
+        if app is not None:
+            app.skill_page_v2 = self
         self._build_shell()
 
     # --------------------------------------------------
@@ -75,6 +79,8 @@ class SkillPageV2(QWidget):
         bar = QHBoxLayout()
         bar.setSpacing(T.S_SM)
         bar.addWidget(T.make_label("技能倒數", T.FONT_SECTION))
+        bar.addSpacing(T.S_MD)
+        bar.addWidget(self._build_profile_selector())
         bar.addStretch()
         bar.addWidget(T.make_label("快速切換", T.FONT_LABEL))
         for label, color, key in (
@@ -90,6 +96,32 @@ class SkillPageV2(QWidget):
         self._content_layout = QHBoxLayout()
         self._content_layout.setSpacing(T.S_MD)
         root.addLayout(self._content_layout, 1)
+
+    def _build_profile_selector(self) -> ArrowComboBox:
+        """ProfileSelector — 從 ConfigManager 取 profiles，切換呼 app.switch_profile"""
+        combo = ArrowComboBox()
+        combo.setFixedHeight(30)
+        combo.setMinimumWidth(140)
+        combo.setStyleSheet(
+            f"QComboBox {{ background: {T.BG_SURFACE}; color: {T.TEXT};"
+            f" border: 1px solid {T.BORDER_SOFT};"
+            f" border-radius: {T.R_SM}px; padding: 0 10px;"
+            f" font-size: 12px; }}"
+            f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
+            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+        )
+        if self.app is not None and hasattr(self.app, "config_manager"):
+            cm = self.app.config_manager
+            combo.blockSignals(True)
+            combo.addItems(cm.list_profiles())
+            current = cm.get_current_profile()
+            if current:
+                combo.setCurrentText(current)
+            combo.blockSignals(False)
+            combo.currentTextChanged.connect(
+                lambda name: self.app.switch_profile(name)
+            )
+        return combo
 
     def _toggle_chip(self, label: str, color: str) -> QPushButton:
         btn = QPushButton(label)

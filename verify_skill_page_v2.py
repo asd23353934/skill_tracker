@@ -75,6 +75,9 @@ def _build_fixture_app():
 
     app = MagicMock()
     app.skill_manager = sm
+    # ProfileSelector 需要 config_manager 提供 list_profiles + get_current_profile
+    app.config_manager.list_profiles.return_value = ["預設配置"]
+    app.config_manager.get_current_profile.return_value = "預設配置"
 
     app.skill_hotkeys = {sid: meta["hotkey"]
                         for sid, meta in skills_dict.items()}
@@ -310,6 +313,36 @@ def test_unregister_cleans_dicts():
     card.deleteLater()
 
 
+def test_skill_page_self_registers():
+    print("[test_skill_page_self_registers]")
+    app_ctx, _ = _build_fixture_app()
+    page = SkillPageV2(None, app_ctx)
+    check("app.skill_page_v2 is page", app_ctx.skill_page_v2 is page, True)
+
+
+def test_profile_selector():
+    print("[test_profile_selector]")
+    app_ctx, _ = _build_fixture_app()
+    app_ctx.config_manager.list_profiles.return_value = ["A", "B"]
+    app_ctx.config_manager.get_current_profile.return_value = "B"
+    app_ctx.switch_profile = MagicMock()
+
+    page = SkillPageV2(None, app_ctx)
+
+    from src.ui_v2.components import ArrowComboBox
+    combos = page.findChildren(ArrowComboBox)
+    check("at least one ArrowComboBox", len(combos) >= 1, True)
+    profile_combo = combos[0]
+    check("populated A", profile_combo.itemText(0), "A")
+    check("populated B", profile_combo.itemText(1), "B")
+    check("current is B", profile_combo.currentText(), "B")
+    check("init does not call switch_profile", app_ctx.switch_profile.call_count, 0)
+
+    profile_combo.setCurrentText("A")
+    check("user pick fires switch", app_ctx.switch_profile.call_count, 1)
+    check("called with A", app_ctx.switch_profile.call_args[0][0], "A")
+
+
 def main():
     app = QApplication.instance() or QApplication(sys.argv)
 
@@ -321,6 +354,8 @@ def main():
     test_rebuild_reregisters_widgets()
     test_header_chips_call_toggle_all()
     test_unregister_cleans_dicts()
+    test_skill_page_self_registers()
+    test_profile_selector()
 
     print()
     if _failures:
