@@ -126,8 +126,9 @@ class HotkeyManager:
                         if hasattr(self.app, "monster_page"):
                             card = self.app.monster_page.cards.get(monster["id"])
                             if card:
+                                updater = getattr(card, "set_hotkey_text", None) or card.update_hotkey_display
                                 self.app.after(
-                                    0, lambda c=card: c.update_hotkey_display("", False)
+                                    0, lambda u=updater: u("", False)
                                 )
 
             if is_monster:
@@ -136,11 +137,12 @@ class HotkeyManager:
                 monster["hotkey"] = key_str
                 self.app.save_monsters()
 
-                # 更新怪物卡牌 UI
+                # 更新怪物卡牌 UI（V1 / V2 卡片各自實作 set_hotkey_text 或 update_hotkey_display）
                 monster_card = getattr(self, "_monster_card", None)
                 if monster_card:
+                    updater = getattr(monster_card, "set_hotkey_text", None) or monster_card.update_hotkey_display
                     self.app.after(
-                        0, lambda mc=monster_card, ks=key_str: mc.update_hotkey_display(ks, True)
+                        0, lambda u=updater, ks=key_str: u(ks, True)
                     )
                     self._monster_card = None
 

@@ -494,3 +494,118 @@ class AppCoreMixin:
         dialog.exec()
 
         self.hotkey_manager.enabled = True
+
+    # --------------------------------------------------
+    # 8 個共通怪物互動方法（V1 / V2 共用）
+    # --------------------------------------------------
+
+    def edit_respawn_time(self, monster_id):
+        """編輯怪物重生時間（委派到 MonsterService）"""
+        monster = self.get_monster(monster_id)
+        if not monster:
+            return
+
+        self.hotkey_manager.enabled = False
+        original = self.monster_service.get_original_respawn_time(monster_id)
+        current  = monster.get("respawn_time", 0)
+
+        new_val, ok = QInputDialog.getInt(
+            self._dialog_parent(), "修改重生時間",
+            f"請輸入 '{monster['name']}' 的重生時間（秒）:\n(原始值: {original}秒)",
+            current, 1, 9999,
+        )
+        self.hotkey_manager.enabled = True
+
+        if ok and new_val != current:
+            is_modified = self.monster_service.set_respawn_time(monster_id, new_val)
+            self.monster_service.save()
+
+            btn = self.monster_respawn_buttons.get(monster_id)
+            if btn:
+                btn.setText(f"{new_val}秒")
+                self._apply_btn_style(
+                    btn,
+                    bg    = AppTheme.ACCENT_BLUE if is_modified else AppTheme.BG_TERTIARY,
+                    hover = "#2563eb"             if is_modified else AppTheme.BG_SECONDARY,
+                )
+
+    def reset_respawn_time(self, monster_id):
+        """重置怪物重生時間為原始值（委派到 MonsterService）"""
+        original = self.monster_service.reset_respawn_time(monster_id)
+        if original is None:
+            return
+
+        self.monster_service.save()
+
+        btn = self.monster_respawn_buttons.get(monster_id)
+        if btn:
+            btn.setText(f"{original}秒")
+            self._apply_btn_style(btn, bg=AppTheme.BG_TERTIARY, hover=AppTheme.BG_SECONDARY)
+
+    def reset_monster_hotkey(self, monster_id):
+        """重置怪物快捷鍵（委派到 MonsterService）"""
+        monster = self.get_monster(monster_id)
+        if not monster or not monster.get("hotkey"):
+            return
+        self.monster_service.clear_hotkey(monster_id)
+        self.monster_service.save()
+        card = self.monster_page.cards.get(monster_id) if hasattr(self, "monster_page") else None
+        if card:
+            updater = getattr(card, "set_hotkey_text", None) or card.update_hotkey_display
+            self.after(0, lambda u=updater: u("", False))
+
+    def edit_monster_alert_before(self, monster_id):
+        """編輯怪物提前提示秒數（委派到 MonsterService）"""
+        monster = self.get_monster(monster_id)
+        if not monster:
+            return
+
+        self.hotkey_manager.enabled = False
+        current = monster.get("alert_before", 0)
+
+        new_val, ok = QInputDialog.getInt(
+            self._dialog_parent(), "提前提示秒數",
+            f"請輸入 '{monster['name']}' 的提前提示秒數:\n(0 = 不提示)",
+            current, 0, 9999,
+        )
+        self.hotkey_manager.enabled = True
+
+        if ok and new_val != current:
+            self.monster_service.set_alert_before(monster_id, new_val)
+            self.monster_service.save()
+            btn = self.monster_alert_before_buttons.get(monster_id)
+            if btn:
+                btn.setText(f"{new_val}秒")
+                self._apply_btn_style(
+                    btn,
+                    bg    = AppTheme.ACCENT_ORANGE if new_val > 0 else AppTheme.BG_TERTIARY,
+                    hover = "#e07a2a"              if new_val > 0 else AppTheme.BG_SECONDARY,
+                )
+
+    def update_monster_alert_sound(self, monster_id, filename: str):
+        """更新怪物提前提示聲音（委派到 MonsterService）"""
+        self.monster_service.set_alert_sound(monster_id, filename)
+        self.monster_service.save()
+
+    def update_monster_end_sound(self, monster_id, filename: str):
+        """更新怪物結束聲音（委派到 MonsterService）"""
+        self.monster_service.set_sound(monster_id, filename)
+        self.monster_service.save()
+
+    def update_monster_loop(self, monster_id, loop_value):
+        """更新怪物循環設定（委派到 MonsterService）"""
+        self.monster_service.set_loop(monster_id, loop_value)
+        self.monster_service.save()
+        if monster_id in self.window_manager.active_windows:
+            self.window_manager.active_windows[monster_id].is_loop = loop_value
+
+    def update_monster_permanent(self, monster_id, permanent_value):
+        """更新怪物常駐設定（委派到 MonsterService）"""
+        self.monster_service.set_permanent(monster_id, permanent_value)
+        self.monster_service.save()
+        if permanent_value:
+            if monster_id not in self.window_manager.active_windows:
+                self.window_manager.create_permanent_monster_window(monster_id)
+        else:
+            if monster_id in self.window_manager.active_windows:
+                self.window_manager.active_windows[monster_id].close()

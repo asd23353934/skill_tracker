@@ -26,7 +26,7 @@ images/                  # 技能圖示
 sounds/                  # 音效檔案
 src/ui/
   app.py                 # 主應用程式 (App / QMainWindow, 統一協調；繼承 AppCoreMixin)
-  app_core.py            # AppCoreMixin — V1 App 與 V2AppContext 共用 domain backing
+  app_core.py            # AppCoreMixin — V1 App 與 V2AppContext 共用 domain backing（含 12 技能 + 8 怪物 + 4 sound/monster delegate 方法）
   dispatcher.py          # Dispatcher — 跨執行緒安全的回呼排程器（V1/V2 共用）
   config_manager.py      # 設定檔讀寫、配置管理
   skill_manager.py       # 技能資料載入、圖片快取
