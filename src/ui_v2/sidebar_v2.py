@@ -4,42 +4,32 @@ V2 側邊欄 — 主要頁面導覽（唯一導覽方式）
 唯一的右側分隔線（其他元件無邊線）
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QFrame, QLabel
 from PySide6.QtCore import Qt, QRect, QPropertyAnimation, QEasingCurve, QTimer, QSize
-from PySide6.QtGui import QPainter, QColor, QPolygon
-from PySide6.QtCore import QPoint
+from PySide6.QtGui import QPixmap
+from src.infrastructure.helpers import resource_path
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_icon
 
 
-class TriangleLogo(QFrame):
-    """三角形 logo（橘紫漸層）"""
-    def __init__(self, parent, size=36):
+class AppLogo(QLabel):
+    """app icon (icon.png) 縮放至 size×size 顯示。"""
+    def __init__(self, parent=None, size=36):
         super().__init__(parent)
         self.setFixedSize(size, size)
-        self._size = size
+        self.setStyleSheet("background: transparent; border: none;")
+        pix = QPixmap(resource_path("icon.png"))
+        if not pix.isNull():
+            self.setPixmap(pix.scaled(
+                size, size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            ))
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-    def paintEvent(self, e):  # noqa: N802
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        s = self._size
-        p.setBrush(QColor(T.ORANGE))
-        p.setPen(Qt.PenStyle.NoPen)
-        tri = QPolygon([
-            QPoint(s // 2, 4),
-            QPoint(s - 4, s - 6),
-            QPoint(4, s - 6),
-        ])
-        p.drawPolygon(tri)
-        # 內部小三角（深色挖空）
-        p.setBrush(QColor(T.BG_TOP))
-        inner = QPolygon([
-            QPoint(s // 2, s // 2 - 2),
-            QPoint(s - 10, s - 10),
-            QPoint(10, s - 10),
-        ])
-        p.drawPolygon(inner)
-        p.end()
+
+# 向後相容別名（外部如有 import 仍可運作）
+TriangleLogo = AppLogo
 
 
 class SidebarV2(QWidget):
@@ -80,7 +70,7 @@ class SidebarV2(QWidget):
         lw = QVBoxLayout(logo_wrap)
         lw.setContentsMargins(0, 0, 0, 0)
         lw.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lw.addWidget(TriangleLogo(self, 36))
+        lw.addWidget(AppLogo(self, 36))
         lay.addWidget(logo_wrap)
 
         # ── 頁面 icons（上下置中）──

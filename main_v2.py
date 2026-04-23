@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
 )
 from PySide6.QtCore import Qt, QTimer, QEvent
+from PySide6.QtGui import QIcon
 from src.ui.dispatcher import Dispatcher
 from src.ui_v2.toast_v2 import ToastManagerV2
 from src.ui_v2.dialogs import SettingsDialogV2
@@ -97,6 +98,7 @@ class PreviewWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setWindowIcon(QIcon(resource_path("icon.ico")))
         self.resize(1240, 760)
         self.setMinimumSize(1000, 640)
         self.app_ctx = V2AppContext()

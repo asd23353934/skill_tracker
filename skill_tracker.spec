@@ -21,6 +21,7 @@ a = Analysis(
         *collect_images(),          # images/ 排除 mapleworld
         ('config.json',         '.'),
         ('icon.ico',            '.'),
+        ('icon.png',            '.'),  # V2 sidebar logo runtime 用
         ('profiles',            'profiles'),
         ('version.py',          '.'),
         ('update_launcher.bat', '.'),
