@@ -25,8 +25,10 @@ python clean_for_release.py
 # 發布前檢查
 python check_release.py
 
-# 打包
+# 打包（必須先 strip 個人 settings 再 build；build 完 restore）
+python scripts/strip_config_for_release.py
 pyinstaller skill_tracker.spec
+python scripts/strip_config_for_release.py --restore
 
 # 壓縮為 ZIP 發布檔
 python zip_release.py

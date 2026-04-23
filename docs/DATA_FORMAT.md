@@ -54,6 +54,19 @@ sound_overrides, alert_sound_overrides
 - `settings`：僅存跨配置的全域設定（視窗位置、音效開關、current_profile 等）
 - `monsters` / `overlays`：各自的狀態完整存於此，不拆到 profiles
 
+## config_user.json（user 可變區實際儲存位置）
+
+從 `config-static-merge` 起，`settings` / `monsters` / `overlays` 三個全域可變區實際**只**儲存在 `config_user.json`（與 `config.json` 同層）。`ConfigManager` 啟動時：
+
+- 一律讀 `config.json` 取靜態區（`skills` / `items`）
+- 若 `config_user.json` 存在 → 讀入後覆蓋 in-memory 的 settings / monsters / overlays
+- 若 `config_user.json` 不存在 + `config.json` 含 `_user_data_stripped: true` → 建空白 user 檔（防止讀到 release placeholder）
+- 若 `config_user.json` 不存在 + 無 stripped 標記（pre-split 升級）→ 從 `config.json` 抽出三欄寫成 user 檔
+
+`save()` 只寫 `config_user.json`，`config.json` 在程式運行期間磁碟內容不變。
+
+`config_user.json` 加入 `.gitignore`，不入版控；release ZIP 也不打包。
+
 ## profiles/{name}.json 結構
 
 ```json

@@ -32,6 +32,8 @@ profiles/
 sounds/
 overlays/
 potion_autosave.json
+config_user.json
+config.json.dev_backup
 
 # V2 預覽截圖（開發用，不入 repo）
 _shot_*.png

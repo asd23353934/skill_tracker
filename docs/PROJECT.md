@@ -17,6 +17,8 @@ Python 3 + PySide6 GUI 桌面應用，支援 PyInstaller 打包為 exe。
 ## 專案結構
 
 ```
+scripts/                 # 工具腳本
+  strip_config_for_release.py  # release 前清掉 config.json 內 user 可變區
 main.py                  # 入口點（`python main.py --v2` 進 V2 預覽 shell）
 main_v2.py               # V2 預覽入口（紫色漸層 dashboard，逐頁接線中）
 version.py               # 版本號 (VERSION = "x.y.z")
@@ -28,7 +30,7 @@ src/ui/
   app.py                 # 主應用程式 (App / QMainWindow, 統一協調；繼承 AppCoreMixin)
   app_core.py            # AppCoreMixin — V1 App 與 V2AppContext 共用 domain backing（含 12 技能 + 8 怪物 + switch_profile + apply_settings + 4 profile CRUD + 4 sound/monster delegate 方法）
   dispatcher.py          # Dispatcher — 跨執行緒安全的回呼排程器（V1/V2 共用）
-  config_manager.py      # 設定檔讀寫、配置管理
+  config_manager.py      # 設定檔讀寫（config.json 靜態 + config_user.json 可變區分檔）
   skill_manager.py       # 技能資料載入、圖片快取
   hotkey_manager.py      # 鍵盤監聽、快捷鍵綁定
   window_manager.py      # 浮動技能視窗生命週期

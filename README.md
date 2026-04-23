@@ -37,6 +37,14 @@ python fix_imports.py
 
 ---
 
+## 📦 發布前注意
+
+- `settings` / `monsters` / `overlays` 從 `config-static-merge` 起儲存到 `config_user.json`（已在 `.gitignore`）
+- 如有動到 `config.json`，commit 前可手動跑一次 `python scripts/strip_config_for_release.py` 確認 user 可變區乾淨；確認後 `--restore` 還原
+- 完整打包流程見 `docs/RELEASE.md`
+
+---
+
 ## ✨ 功能特色
 
 - ✅ 技能倒數追蹤

@@ -20,10 +20,31 @@ _RESERVED_WINDOWS_NAMES = frozenset({
 class ConfigManager:
     """配置管理器"""
     
+    # ── user 可變區預設值（_load_or_migrate_user_config + strip script 共用） ──
+    DEFAULT_USER_SETTINGS = {
+        "player_name":          "玩家1",
+        "skill_start_x":        None,   # AppCoreMixin._load_profile_state 有 primary_screen fallback
+        "skill_start_y":        None,
+        "enable_sound":         True,
+        "sound_volume":         100,
+        "window_size":          64,
+        "alert_before_seconds": 0,
+        "hint_position_x":      0,
+        "hint_position_y":      0,
+        "global_sound":         "",
+        "global_alert_sound":   "",
+        "current_profile":      "預設配置",
+    }
+
     def __init__(self, config_path):
         self.config_path = config_path
+        self.user_config_path = os.path.join(
+            os.path.dirname(config_path), 'config_user.json'
+        )
         self.config = self._load_config()
-        
+        # 載入 user 可變區（settings / monsters / overlays），覆蓋 in-memory config
+        self._load_or_migrate_user_config()
+
         # 分離出 skills 和 items（只讀，不會被保存）
         self.initial_skills = self.config.get('skills', [])
         self.initial_items = self.config.get('items', [])
@@ -33,10 +54,10 @@ class ConfigManager:
             m["id"]: m.get("respawn_time", 0)
             for m in self.config.get("monsters", [])
         }
-        
+
         self.profiles_dir = os.path.join(os.path.dirname(config_path), 'profiles')
         self._ensure_profiles_dir()
-    
+
     def _load_config(self):
         """載入配置文件"""
         try:
@@ -45,35 +66,66 @@ class ConfigManager:
         except Exception as e:
             print(f"無法載入 config.json: {e}")
             raise
-    
+
+    def _load_or_migrate_user_config(self):
+        """user 可變區（settings / monsters / overlays）分檔載入。
+
+        三種情境：
+        1. config_user.json 已存在 → 讀入後覆蓋 self.config 對應欄位
+        2. config_user.json 不存在 + config.json 已被 strip（含 _user_data_stripped）
+           → 建空白 user 檔（settings 用 DEFAULT_USER_SETTINGS）
+        3. config_user.json 不存在 + config.json 仍含 user data（migration from
+           pre-split 版本） → 從現有 self.config 抽出 settings/monsters/overlays
+           寫成 user 檔
+        """
+        if os.path.exists(self.user_config_path):
+            try:
+                with open(self.user_config_path, 'r', encoding='utf-8') as f:
+                    user = json.load(f)
+                if isinstance(user.get('settings'), dict):
+                    self.config['settings'] = user['settings']
+                if isinstance(user.get('monsters'), list):
+                    self.config['monsters'] = user['monsters']
+                if isinstance(user.get('overlays'), list):
+                    self.config['overlays'] = user['overlays']
+                return
+            except Exception as e:
+                print(f"無法載入 config_user.json: {e}")
+                # 故障時退回 fresh 邏輯（下面）
+
+        # 第一次跑：判斷 config.json 來源
+        if self.config.get('_user_data_stripped') is True:
+            # 升級的 fresh install：config.json 已被 strip，user data 不可信
+            self.config['settings'] = dict(self.DEFAULT_USER_SETTINGS)
+            self.config['monsters'] = []
+            self.config['overlays'] = []
+        # else: pre-split 版本升上來，self.config 內 settings/monsters/overlays
+        # 即為 user data，直接持有；接著寫成 user 檔保留下來
+        self._write_user_config()
+
+    def _write_user_config(self):
+        """把 self.config 的 settings/monsters/overlays 寫成 config_user.json。"""
+        try:
+            user = {
+                'settings': self.config.get('settings', {}),
+                'monsters': self.config.get('monsters', []),
+                'overlays': self.config.get('overlays', []),
+            }
+            with open(self.user_config_path, 'w', encoding='utf-8') as f:
+                json.dump(user, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"保存 config_user.json 失敗: {e}")
+            return False
+
     def _ensure_profiles_dir(self):
         """確保配置檔案目錄存在"""
         if not os.path.exists(self.profiles_dir):
             os.makedirs(self.profiles_dir)
-    
+
     def save(self):
-        """儲存配置文件（保存 settings 和 monsters，skills/items 使用原始值）"""
-        try:
-            save_config = {
-                'skills': self.initial_skills,  # 使用原始值
-                'items': self.initial_items,    # 使用原始值
-                'settings': self.config.get('settings', {}),
-            }
-
-            # 保存怪物資料（含快捷鍵等可變動欄位）
-            if 'monsters' in self.config:
-                save_config['monsters'] = self.config['monsters']
-
-            # 保存覆蓋圖片資料（位置、尺寸、透明度等）
-            if 'overlays' in self.config:
-                save_config['overlays'] = self.config['overlays']
-
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(save_config, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"保存配置失敗: {e}")
-            return False
+        """儲存設定（只寫 config_user.json；config.json 保持磁碟原樣）"""
+        return self._write_user_config()
     
     def get_original_respawn_time(self, monster_id):
         """取得怪物原始重生時間"""
