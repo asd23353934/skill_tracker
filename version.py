@@ -4,10 +4,16 @@
 """
 
 # 當前版本
-VERSION = "4.1.5"
+VERSION = "4.1.6"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.6 (2026-04-24)
+-------------------
+🔧 分類 cache 加 version 欄位（v2 schema：{"version": 2, "tags": {...}}）
+  - 未來 CATEGORIES 變動只要 +1 version 即可全量失效重分類
+  - 完全相容 v1 純 dict 舊檔；下次存檔自動升級
+
 v4.1.5 (2026-04-24)
 -------------------
 🔧 重構：拆分 mapleworld_page_v2.py（897 行 → 573 行）

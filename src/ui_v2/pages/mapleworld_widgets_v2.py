@@ -90,37 +90,68 @@ _THUMB_CACHE = _LRUPixCache(_THUMB_CACHE_MAX)
 # 分類 cache I/O
 # ════════════════════════════════════════════════════════════
 
+# 分類 cache schema 版本。每次 CATEGORIES 改 label 或分桶規則變動就要 +1，
+# 舊版 cache 直接作廢重新分類，避免髒資料殘留。
+CLASSIFY_CACHE_VERSION = 2
+
+
 def load_classify_cache() -> dict:
-    """讀取分類 cache；舊位置（images/mapleworld/_classify_cache.json）自動遷移後刪除"""
+    """讀取分類 cache；舊位置（images/mapleworld/_classify_cache.json）自動遷移後刪除
+
+    檔案格式：{"version": int, "tags": {fname: category, ...}}
+    版本不符或 schema 不合法 → 回傳空 dict（等同全量重分類）。
+    相容 v1 純 dict 格式：{fname: category}。
+    """
     path = CLASSIFY_CACHE_PATH
     if not os.path.isfile(path) and os.path.isfile(_LEGACY_CACHE_PATH):
         path = _LEGACY_CACHE_PATH
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if not isinstance(data, dict):
-                return {}
-            valid = set(mapleworld_scanner.CATEGORIES)
-            if any(v not in valid for v in data.values()):
-                return {}
-            if path == _LEGACY_CACHE_PATH:
-                save_classify_cache(data)
-                try:
-                    os.remove(_LEGACY_CACHE_PATH)
-                except OSError:
-                    pass
-            return data
+        tags = _extract_tags(data)
+        if tags is None:
+            return {}
+        if path == _LEGACY_CACHE_PATH:
+            save_classify_cache(tags)
+            try:
+                os.remove(_LEGACY_CACHE_PATH)
+            except OSError:
+                pass
+        return tags
     except Exception:
         return {}
+
+
+def _extract_tags(data) -> "dict | None":
+    """把磁碟 JSON 解析成 {fname: category}，格式不合時回 None"""
+    if not isinstance(data, dict):
+        return None
+    valid = set(mapleworld_scanner.CATEGORIES)
+
+    # v2+ 有 version 欄位
+    if "version" in data:
+        if data.get("version") != CLASSIFY_CACHE_VERSION:
+            return None
+        tags = data.get("tags")
+        if not isinstance(tags, dict):
+            return None
+    else:
+        # v1 純 dict 格式，僅當全部 value 皆為合法 category 才視為可用
+        tags = data
+
+    if any(v not in valid for v in tags.values()):
+        return None
+    return tags
 
 
 def save_classify_cache(tags: dict):
     """原子寫入；worker thread / 主執行緒皆可呼叫"""
     try:
         os.makedirs(os.path.dirname(CLASSIFY_CACHE_PATH) or ".", exist_ok=True)
+        payload = {"version": CLASSIFY_CACHE_VERSION, "tags": tags}
         tmp = CLASSIFY_CACHE_PATH + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(tags, f, ensure_ascii=False)
+            json.dump(payload, f, ensure_ascii=False)
         os.replace(tmp, CLASSIFY_CACHE_PATH)
     except Exception:
         pass
