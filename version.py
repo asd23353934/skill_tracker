@@ -4,10 +4,17 @@
 """
 
 # 當前版本
-VERSION = "4.1.4"
+VERSION = "4.1.5"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.5 (2026-04-24)
+-------------------
+🔧 重構：拆分 mapleworld_page_v2.py（897 行 → 573 行）
+  - 新增 mapleworld_widgets_v2.py：_PreviewDialog / _AssetCard / _ThumbBox /
+    _TabBtn / _CatChip / _LRUPixCache / 分類色表 / classify cache I/O
+  - 原頁面只留 layout / 掃描 / filter 主流程
+
 v4.1.4 (2026-04-24)
 -------------------
 🔧 V2 資源中心縮圖快取改 LRU（上限 800 張），避免長時瀏覽記憶體無限膨脹
