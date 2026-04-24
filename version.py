@@ -4,10 +4,21 @@
 """
 
 # 當前版本
-VERSION = "4.2.0"
+VERSION = "4.2.1"
 
 # 版本歷史
 CHANGELOG = """
+v4.2.1 (2026-04-24)
+-------------------
+✅ 補 domain / infrastructure 測試：72 → 150 passing
+  - tests/test_services.py — SkillService / MonsterService（34 cases）
+    互斥狀態、快捷鍵衝突 displace、批次 toggle、serialize/load、
+    MonsterService 重生時間 + 狀態 setter + save
+  - tests/test_config_manager.py — ConfigManager（44 cases）
+    檔名驗證（Path Traversal / Windows 保留字）、config+user 分檔三情境、
+    profile CRUD / list sort / rename、potion record CRUD /
+    mtime 排序、potion autosave（含 corrupt 容錯）
+
 v4.2.0 (2026-04-24)
 -------------------
 🎉 V1 UI 正式下架 — V2 為唯一 UI
