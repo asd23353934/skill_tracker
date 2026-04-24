@@ -4,10 +4,18 @@
 """
 
 # 當前版本
-VERSION = "4.1.1"
+VERSION = "4.1.2"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.2 (2026-04-24)
+-------------------
+🔧 分類 cache 檔案移出 images/mapleworld/，放至 exe 同層（mapleworld_classify_cache.json）
+  - 避免備份 / 壓縮 images/ 時被帶上無關的 JSON
+  - 自動遷移舊位置 _classify_cache.json 並刪除
+🔧 分類 worker 每 1000 張 flush 一次磁碟，中途關閉程式仍保留已分類進度
+🔧 分類 badge 改 8 色漸層（cyan → teal → green → lime → yellow → orange → deep-orange → red），一眼辨識尺寸級數
+
 v4.1.1 (2026-04-24)
 -------------------
 ✨ V2 資源中心卡片點擊彈出原尺寸預覽（超過螢幕等比縮放）

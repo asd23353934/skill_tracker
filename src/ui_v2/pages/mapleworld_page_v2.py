@@ -47,7 +47,9 @@ from src.infrastructure import mapleworld_scanner
 
 
 _MAPLEWORLD_DIR = user_data_path(os.path.join("images", "mapleworld"))
-_CLASSIFY_CACHE = os.path.join(_MAPLEWORLD_DIR, "_classify_cache.json")
+# cache 放在 exe 同層，與圖片目錄分開（避免備份 / 壓縮時被帶走）
+_CLASSIFY_CACHE = user_data_path("mapleworld_classify_cache.json")
+_LEGACY_CACHE   = os.path.join(_MAPLEWORLD_DIR, "_classify_cache.json")
 _DEFAULT_GAME_PATH = os.path.normpath(
     os.path.expandvars(r"%LOCALAPPDATA%\..\LocalLow\nexon\MapleStory Worlds")
 )
@@ -70,35 +72,45 @@ _CAT_ORDER = (
     "129-256", "257-512", "513-1024", ">1024",
 )
 _CAT_COLORS = {
-    "≤16":       T.CYAN,
-    "17-32":     T.CYAN,
-    "33-64":     T.GREEN,
-    "65-128":    T.GREEN,
-    "129-256":   T.YELLOW,
-    "257-512":   T.YELLOW,
-    "513-1024":  T.ORANGE,
-    ">1024":     T.ORANGE,
+    "≤16":       "#4dd2e8",   # cyan
+    "17-32":     "#5ae0c4",   # teal
+    "33-64":     "#56d99a",   # green
+    "65-128":    "#b3e356",   # lime
+    "129-256":   "#fbbf24",   # yellow
+    "257-512":   "#ff9d5a",   # light orange
+    "513-1024":  "#ff6b35",   # deep orange
+    ">1024":     "#ef4444",   # red
 }
 
 
 def _load_classify_cache() -> dict:
+    # 優先讀新位置；舊位置（images/mapleworld/_classify_cache.json）自動遷移後刪除
+    path = _CLASSIFY_CACHE
+    if not os.path.isfile(path) and os.path.isfile(_LEGACY_CACHE):
+        path = _LEGACY_CACHE
     try:
-        with open(_CLASSIFY_CACHE, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             if not isinstance(data, dict):
                 return {}
             valid = set(mapleworld_scanner.CATEGORIES)
-            # 舊 schema（含 圖示 / 精靈 / UI…）一律丟棄
             if any(v not in valid for v in data.values()):
                 return {}
+            if path == _LEGACY_CACHE:
+                _save_classify_cache(data)
+                try:
+                    os.remove(_LEGACY_CACHE)
+                except OSError:
+                    pass
             return data
     except Exception:
         return {}
 
 
 def _save_classify_cache(tags: dict):
+    """原子寫入；worker thread / 主執行緒皆可呼叫"""
     try:
-        os.makedirs(_MAPLEWORLD_DIR, exist_ok=True)
+        os.makedirs(os.path.dirname(_CLASSIFY_CACHE) or ".", exist_ok=True)
         tmp = _CLASSIFY_CACHE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(tags, f, ensure_ascii=False)
@@ -608,6 +620,9 @@ class MapleWorldPageV2(QWidget):
             except Exception:
                 return fname, ">1024"
 
+        # 基準快照：worker flush 到磁碟時會合併這份 + 當前 batch
+        baseline = dict(self._tags)
+
         def dispatcher():
             # 4 條 worker 並行讀 PNG header（PIL.open 讀 header 會釋放 GIL）
             batch: dict[str, str] = {}
@@ -619,10 +634,12 @@ class MapleWorldPageV2(QWidget):
                         return
                     batch[fname] = cat
                     done += 1
-                    # 每 500 張只更新一次統計文字，不重渲 grid
                     if done % 500 == 0:
                         self.app.after(0, lambda d=done, t=total, tok=token:
                                        self._update_classify_stat(d, t, tok))
+                    # 每 1000 張 flush 一次磁碟；中途關閉程式仍保留已分類進度
+                    if done % 1000 == 0:
+                        _save_classify_cache({**baseline, **batch})
             self.app.after(0, lambda b=batch, tok=token:
                            self._classify_done(b, tok))
 
