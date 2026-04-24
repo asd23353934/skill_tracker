@@ -13,6 +13,7 @@ from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPixmap, QImage, QBrush
 
 from src.ui.theme import AppTheme
 from src.ui_v2.theme_v2 import V2Theme
+from src.ui_v2.lucide import lucide_pixmap
 
 
 class SkillWindow(QWidget):
@@ -23,7 +24,8 @@ class SkillWindow(QWidget):
     COLOR_BORDER_INNER = V2Theme.BORDER_HOVER   # 內層邊框：低調灰紫
     COLOR_TEXT         = V2Theme.TEXT_HI        # 倒數文字：亮白
     COLOR_OUTLINE      = V2Theme.BG_BOTTOM      # 文字描邊：深黑
-    COLOR_CLOSE        = V2Theme.TEXT_DIM       # 關閉鈕常態
+    COLOR_CLOSE        = V2Theme.TEXT_HI        # 關閉鈕常態 X（亮白更顯眼）
+    COLOR_CLOSE_BG     = V2Theme.BG_ELEVATED    # 關閉鈕常態底色（半透明灰）
     COLOR_CLOSE_HOVER  = V2Theme.TEXT_HI        # 關閉鈕 hover X
     COLOR_CLOSE_HOVER_BG = V2Theme.ORANGE       # 關閉鈕 hover 底色
     COLOR_FLASH        = V2Theme.YELLOW         # 提前提示閃爍
@@ -410,22 +412,28 @@ class SkillWindow(QWidget):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
+        # 底色：常態深灰、hover ORANGE；都帶圓角
+        bg_rect = QRectF(self._close_rect)
         if self._close_hovered:
-            # hover：ORANGE 圓角填色底 + 白 X
-            bg_rect = QRectF(self._close_rect)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(self.COLOR_CLOSE_HOVER_BG)))
-            painter.drawRoundedRect(bg_rect, V2Theme.R_SM, V2Theme.R_SM)
-            x_color = QColor(self.COLOR_CLOSE_HOVER)
+            bg_color = QColor(self.COLOR_CLOSE_HOVER_BG)
+            x_color  = QColor(self.COLOR_CLOSE_HOVER)
         else:
-            # 常態：無底色，僅灰 X
-            x_color = QColor(self.COLOR_CLOSE)
+            bg_color = QColor(self.COLOR_CLOSE_BG)
+            bg_color.setAlpha(220)   # 常態略透，避免過搶
+            x_color  = QColor(self.COLOR_CLOSE)
 
-        close_font = QFont(self.FONT_FAMILY, 10)
-        close_font.setBold(True)
-        painter.setFont(close_font)
-        painter.setPen(x_color)
-        painter.drawText(self._close_rect, Qt.AlignmentFlag.AlignCenter, "✕")
+        # 細 ORANGE 框線讓按鈕邊緣可見
+        painter.setPen(QPen(QColor(V2Theme.ORANGE), 1))
+        painter.setBrush(QBrush(bg_color))
+        painter.drawRoundedRect(bg_rect, V2Theme.R_SM, V2Theme.R_SM)
+
+        # 用 lucide "x" SVG 繪製關閉符號（與 V2 header 同一套 icon）
+        cr       = self._close_rect
+        icon_sz  = 10                                          # 在 16×16 按鈕內留 3px padding
+        pix      = lucide_pixmap("x", x_color.name(), icon_sz, stroke=1.8)
+        px       = cr.x() + (cr.width()  - icon_sz) // 2
+        py       = cr.y() + (cr.height() - icon_sz) // 2
+        painter.drawPixmap(px, py, pix)
         painter.restore()
 
     # --------------------------------------------------

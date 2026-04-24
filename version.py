@@ -4,10 +4,20 @@
 """
 
 # 當前版本
-VERSION = "4.2.3"
+VERSION = "4.2.4"
 
 # 版本歷史
 CHANGELOG = """
+v4.2.4 (2026-04-24)
+-------------------
+🎨 浮動視窗 icon 統一走 lucide + HiDPI 銳利化
+  - lucide_pixmap 改為 devicePixelRatio aware：
+    renders at size*dpr, setDevicePixelRatio(dpr) → HiDPI 螢幕不再模糊
+  - skill_window 關閉鈕：改用 lucide "x"（移除自繪 drawLine / drawText "✕"）
+    常態深灰圓底 + ORANGE 細框，hover ORANGE 填色，icon 永遠幾何置中
+  - overlay_window 關閉鈕：同改 lucide "x"（移除 drawText "✕"）
+  - 統一規範：UI 圖示一律走 lucide，禁止自繪 / Unicode 符號當 icon
+
 v4.2.3 (2026-04-24)
 -------------------
 🎨 技能倒數小窗視覺整合 V2 調性（尺寸/位置計算完全未動）

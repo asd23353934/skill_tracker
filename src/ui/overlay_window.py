@@ -191,16 +191,18 @@ class OverlayWindow(QWidget):
         painter.drawPixmap(0, 0, self._frames[self._frame_idx])
 
         if self._close_visible:
-            # 關閉按鈕
-            r = self._CLOSE_R
+            # 關閉按鈕：紅色圓底 + lucide "x" 圖示（置中）
             painter.setBrush(QBrush(QColor("#cc2222")))
             painter.setPen(QPen(QColor("#ff5555"), 1))
             painter.drawEllipse(self._close_rect)
-            close_font = QFont("Arial", 9)
-            close_font.setBold(True)
-            painter.setFont(close_font)
-            painter.setPen(QColor("white"))
-            painter.drawText(self._close_rect, Qt.AlignmentFlag.AlignCenter, "✕")
+
+            from src.ui_v2.lucide import lucide_pixmap
+            cr      = self._close_rect
+            icon_sz = max(8, int(min(cr.width(), cr.height()) * 0.6))
+            pix     = lucide_pixmap("x", "#ffffff", icon_sz, stroke=2.0)
+            px      = cr.x() + (cr.width()  - icon_sz) // 2
+            py      = cr.y() + (cr.height() - icon_sz) // 2
+            painter.drawPixmap(px, py, pix)
 
             # 右下角縮放把手（三角形）
             hs = self._HANDLE_SIZE
