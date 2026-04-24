@@ -403,6 +403,7 @@ class MapleWorldPageV2(QWidget):
         self._render_limit = _RENDER_STEP
         self._append_from: int | None = None
         self._more_btn: QPushButton | None = None
+        self._cancel_evt: threading.Event | None = None
         # 全部檔名列表（一次列目錄，不重複 IO）
         self._files: dict[str, list[str]] = {"unity": [], "web": []}
         # fname → category；從磁碟 cache 預載，避免每次進頁重分類
@@ -694,10 +695,15 @@ class MapleWorldPageV2(QWidget):
         """Unity 資源掃描 — 委派給 infrastructure.mapleworld_scanner
 
         路徑驗證 → 鎖按鈕 + toast 提示 → 背景掃描 → callback 走 app.after 回主執行緒
+        掃描中按鈕切換為「取消」，再按一次會設 cancel_evt 讓 worker 中止。
         """
-        if self._scanning:
-            return
         if self.app is None:
+            return
+        if self._scanning:
+            if self._cancel_evt is not None:
+                self._cancel_evt.set()
+                self._scan_btn.setEnabled(False)
+                self._stat_lbl.setText("取消中…")
             return
 
         game_path = self._path_input.text().strip()
@@ -708,22 +714,40 @@ class MapleWorldPageV2(QWidget):
             return
 
         self._scanning = True
-        self._scan_btn.setEnabled(False)
+        self._cancel_evt = threading.Event()
+        self._scan_btn.setText("取消")
         self._stat_lbl.setText("掃描中，自動解碼並儲存至 images/mapleworld/ …")
         if hasattr(self.app, "toast"):
             self.app.toast.show("掃描中…", "info")
 
+        evt = self._cancel_evt
         mapleworld_scanner.scan_unity(
             game_path,
             on_progress=lambda msg: self.app.after(0, lambda m=msg: self._stat_lbl.setText(m)),
             on_done=lambda saved, errors, fatal:
                 self.app.after(0, lambda: self._on_scan_done(saved, errors, fatal)),
+            should_cancel=evt.is_set,
         )
 
     def _on_scan_done(self, saved: list, errors: int, fatal: "str | None"):
         """掃描結束（主執行緒）— 重掃目錄後重繪 grid"""
         self._scanning = False
+        self._cancel_evt = None
         self._scan_btn.setEnabled(True)
+        self._scan_btn.setText("掃描資源")
+
+        if fatal == "已取消":
+            if hasattr(self.app, "toast"):
+                self.app.toast.show(f"已取消，已儲存 {len(saved)} 張", "info")
+            self._stat_lbl.setText(f"已取消（已儲存 {len(saved)} 張）")
+            # 取消後仍重掃，讓已儲存的檔案顯示出來
+            self._files = {"unity": [], "web": []}
+            self._scan_dir()
+            self._loaded = True
+            _THUMB_CACHE.clear()
+            self._render_limit = _RENDER_STEP
+            self._render_grid()
+            return
 
         if fatal:
             if hasattr(self.app, "toast"):

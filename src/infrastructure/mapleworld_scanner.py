@@ -37,6 +37,7 @@ _MAPLEWORLD_DIR = user_data_path(os.path.join("images", "mapleworld"))
 # Callback 型別別名
 ProgressCB = Callable[[str], None]
 DoneCB     = Callable[[list, int, "str | None"], None]
+CancelCB   = Callable[[], bool]
 
 
 # ════════════════════════════════════════════════════════════
@@ -190,12 +191,15 @@ def extract_images_from_bytes(data: bytes) -> list:
 # Unity 掃描 — resource_cache/**/*.win.mod
 # ════════════════════════════════════════════════════════════
 
-def scan_unity(game_path: str, on_progress: ProgressCB, on_done: DoneCB) -> None:
+def scan_unity(game_path: str, on_progress: ProgressCB, on_done: DoneCB,
+               should_cancel: "CancelCB | None" = None) -> None:
     """背景掃描 .win.mod → PNG
 
     立即返回；實際工作在 daemon thread 進行。
     on_progress(msg) / on_done(saved, errors, fatal) 都在 worker thread 被呼叫，
     呼叫端必須自行排回主執行緒才能更新 UI。
+
+    should_cancel 可選：worker 每 500 檔查詢一次；True 時中止，fatal="已取消"。
     """
     resource_cache = os.path.join(game_path, "resource_cache")
     if not os.path.isdir(resource_cache):
@@ -206,12 +210,13 @@ def scan_unity(game_path: str, on_progress: ProgressCB, on_done: DoneCB) -> None
 
     threading.Thread(
         target=_unity_worker,
-        args=(resource_cache, on_progress, on_done),
+        args=(resource_cache, on_progress, on_done, should_cancel),
         daemon=True,
     ).start()
 
 
-def _unity_worker(resource_cache: str, on_progress: ProgressCB, on_done: DoneCB) -> None:
+def _unity_worker(resource_cache: str, on_progress: ProgressCB, on_done: DoneCB,
+                  should_cancel: "CancelCB | None" = None) -> None:
     """背景掃描：resource_cache/ 下所有子目錄的 .win.mod → PNG
 
     掃描範圍：
@@ -245,6 +250,9 @@ def _unity_worker(resource_cache: str, on_progress: ProgressCB, on_done: DoneCB)
 
         for fi, (mod_path, dir_type) in enumerate(mod_files):
             if fi % 500 == 0 and total:
+                if should_cancel and should_cancel():
+                    on_done(saved, errors, "已取消")
+                    return
                 pct = fi * 100 // total
                 on_progress(f"解碼中 {fi}/{total} ({pct}%)  已存 {len(saved)} 張…")
 
@@ -288,7 +296,8 @@ def _unity_worker(resource_cache: str, on_progress: ProgressCB, on_done: DoneCB)
 # WebView 快取掃描 — Vuplex.WebView/
 # ════════════════════════════════════════════════════════════
 
-def scan_web(game_path: str, on_progress: ProgressCB, on_done: DoneCB) -> None:
+def scan_web(game_path: str, on_progress: ProgressCB, on_done: DoneCB,
+             should_cancel: "CancelCB | None" = None) -> None:
     """背景掃描 Chromium WebView 快取 → PNG
 
     立即返回；實際工作在 daemon thread 進行。
@@ -303,12 +312,13 @@ def scan_web(game_path: str, on_progress: ProgressCB, on_done: DoneCB) -> None:
 
     threading.Thread(
         target=_web_worker,
-        args=(vuplex_dir, on_progress, on_done),
+        args=(vuplex_dir, on_progress, on_done, should_cancel),
         daemon=True,
     ).start()
 
 
-def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB) -> None:
+def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB,
+                should_cancel: "CancelCB | None" = None) -> None:
     """背景：多路徑多格式掃描
 
     Phase 0 — 自動發現：遞迴走訪 Vuplex.WebView/，收集所有快取相關檔案
@@ -355,6 +365,9 @@ def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB) -> No
     # ── Phase 1：暴力掃描全部位元組 ──
     for fi, fpath in enumerate(scan_files):
         if fi % 100 == 0:
+            if should_cancel and should_cancel():
+                on_done(saved, errors, "已取消")
+                return
             pct = fi * 100 // total_files
             on_progress(
                 f"掃描中 {fi}/{total_files} ({pct}%)  已提取 {len(saved)} 張…"
@@ -447,6 +460,9 @@ def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB) -> No
 
     for i, url in enumerate(cdn_urls):
         if i % 50 == 0:
+            if should_cancel and should_cancel():
+                on_done(saved, errors, "已取消")
+                return
             dl = len(saved) - p1_count
             on_progress(f"下載中：{i}/{len(cdn_urls)}  已存 {dl} 張…")
 

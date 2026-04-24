@@ -4,10 +4,17 @@
 """
 
 # 當前版本
-VERSION = "4.1.2"
+VERSION = "4.1.3"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.3 (2026-04-24)
+-------------------
+✨ V2 資源中心掃描支援取消
+  - scanner 新增 should_cancel callback，Unity 每 500 檔 / Web Phase 1 每 100 檔、Phase 2 每 50 URL 檢查一次
+  - 掃描中按鈕切換為「取消」，再按一次會中止 worker 並回報已存張數
+  - 取消後仍重掃目錄顯示已儲存的檔案
+
 v4.1.2 (2026-04-24)
 -------------------
 🔧 分類 cache 檔案移出 images/mapleworld/，放至 exe 同層（mapleworld_classify_cache.json）
