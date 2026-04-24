@@ -92,6 +92,19 @@ class V2Theme:
         return getattr(cls, name)
 
     @classmethod
+    def combo_popup_qss(cls) -> str:
+        """QComboBox 下拉列表樣式 — 個別 widget 覆寫 QComboBox 時須附加此規則，
+        否則 popup 會失去全域背景、在部分裝置呈現透明。"""
+        return (
+            f"QComboBox QAbstractItemView {{"
+            f" background: {cls.BG_ELEVATED}; color: {cls.TEXT_HI};"
+            f" border: 1px solid {cls.BORDER};"
+            f" selection-background-color: {cls.BG_HOVER};"
+            f" selection-color: {cls.TEXT_HI};"
+            f" outline: none; padding: 4px; }}"
+        )
+
+    @classmethod
     def alpha(cls, hex_color: str, alpha_int: int) -> str:
         """產生 rgba 字串（hex_color = '#rrggbb'，alpha 0-255）"""
         h = hex_color.lstrip("#")

@@ -4,10 +4,26 @@
 """
 
 # 當前版本
-VERSION = "4.0.0"
+VERSION = "4.1.0"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.0 (2026-04-24)
+-------------------
+✨ V2 資源中心完整接線
+  - 「掃描資源」按鈕啟用，委派給新 src/infrastructure/mapleworld_scanner 模組（V1/V2 共用）
+  - 圖片分類：依 max(寬,高) 分 8 級 chip 篩選（≤16 / 17-32 / … / >1024），支援「全部」
+  - 分類結果快取至 _classify_cache.json，再進頁面直接讀取不重跑
+  - 4 執行緒 ThreadPoolExecutor 並行分類，分類過程不重渲 grid（只更新統計文字）
+  - 每張卡片右下角「另存新檔」按鈕（shutil.copy2 保留時間戳）
+✨ V2 grid 分批渲染：每 24 張 yield 主執行緒，避免整批 QPixmap 解碼卡頓
+✨ V2「載入更多」按鈕：append-only 續畫、鎖定 inner 高度避免捲動軸跳動
+✨ V2 切 tab / 切分類自動回頂；載入更多保持捲動位置
+🔧 MapleWorld 掃描邏輯從 V1 page 抽出成 infrastructure 模組（Qt-free，callback 介面）
+🐛 V2 練功水錢新增藥水時 AttributeError（_rows_layout 在錯誤位置初始化）
+🐛 V2 QComboBox 下拉選單在部分裝置背景透明難以辨識（theme_v2 新增 combo_popup_qss helper）
+🔧 V2 怪物重生卡片移除多餘齒輪按鈕（從未接線）
+
 v4.0.0 (2026-04-23)
 -------------------
 🎉 重大版本：V2 介面正式預設、設定 / 配置管理 / 通知全面升級

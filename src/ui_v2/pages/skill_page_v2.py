@@ -109,6 +109,7 @@ class SkillPageV2(QWidget):
             f" font-size: 12px; }}"
             f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
             f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+            + T.combo_popup_qss()
         )
         self._profile_combo = combo
         if self.app is not None and hasattr(self.app, "config_manager"):

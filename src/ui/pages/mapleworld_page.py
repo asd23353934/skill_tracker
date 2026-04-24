@@ -21,6 +21,7 @@ from PySide6.QtGui import QImage, QIcon, QPixmap, QPainter, QColor
 
 from src.ui.theme import AppTheme
 from src.infrastructure.helpers import user_data_path
+from src.infrastructure import mapleworld_scanner
 
 # 遊戲快取預設路徑
 _DEFAULT_GAME_PATH = os.path.normpath(
@@ -1106,8 +1107,6 @@ class MapleWorldPage(QWidget):
             self.app.toast.show(f"找不到資源快取目錄，請確認遊戲路徑是否正確。", "error")
             return
 
-        os.makedirs(_MAPLEWORLD_DIR, exist_ok=True)
-
         self._scanning = True
         self._scan_btn.setEnabled(False)
         self._scan_btn.setText("掃描中...")
@@ -1115,127 +1114,12 @@ class MapleWorldPage(QWidget):
         self._status_lbl.setText("掃描中，自動解碼並儲存至 images/mapleworld/ …")
         self._select_all_cb.setChecked(False)
 
-        threading.Thread(
-            target=self._scan_worker,
-            args=(resource_cache,),
-            daemon=True,
-        ).start()
-
-    @staticmethod
-    def _extract_all_dds(raw: bytes):
-        """從原始資料中提取所有 DDS 圖片
-
-        部分 .win.mod 內含多個 DDS 資料塊，逐一掃描並解碼。
-        利用 BytesIO.tell() 取得每次 PIL 實際讀取的位元組數，
-        以此定位下一個 DDS 的起點。
-
-        Args:
-            raw: .win.mod 完整原始資料
-
-        Yields:
-            (index, PIL Image RGBA) — 同一檔案的第幾張圖、圖片物件
-        """
-        from PIL import Image as PILImage
-
-        pos = 0
-        idx = 0
-        while True:
-            found = raw.find(b"DDS ", pos)
-            if found == -1:
-                break
-            try:
-                buf = BytesIO(raw[found:])
-                img = PILImage.open(buf)
-                img.load()                      # 強制讀入像素，確保 tell() 正確
-                consumed = buf.tell()
-                img = img.convert("RGBA")
-                img = img.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
-                yield idx, img
-                idx += 1
-                # 前進到這個 DDS 結束後繼續找
-                pos = found + max(consumed, 128)
-            except Exception:
-                pos = found + 4   # 跳過損壞的 DDS，繼續往後找
-
-    def _scan_worker(self, resource_cache: str):
-        """背景掃描：resource_cache/ 下所有子目錄的 .win.mod → PNG
-
-        掃描範圍：
-          - resource_cache/msw/  → 內含 DDS 紋理（需翻轉）
-          - resource_cache/ugc/  → 內含 PNG 直接嵌入
-          - resource_cache/raw/  → 保留
-
-        策略：先找 DDS，沒有 DDS 就用 _extract_images_from_bytes 找 PNG/JPEG/etc。
-        命名：{UUID}.png（單圖）/ {UUID}_{index}.png（多圖）
-        """
-        from PIL import Image as PILImage
-
-        saved: list[tuple] = []
-        errors: int = 0
-
-        try:
-            # 遞迴收集所有 .win.mod（含 msw/ ugc/ raw/ 等所有子目錄）
-            mod_files: list[tuple[str, str]] = []
-            for root, _dirs, files in os.walk(resource_cache):
-                for f in files:
-                    if f.endswith(".win.mod"):
-                        # 取前兩層路徑作 dir_type（e.g. msw/avataritem, msw/01-sprite, ugc）
-                        rel = os.path.relpath(root, resource_cache)
-                        parts = rel.split(os.sep) if rel != "." else []
-                        if len(parts) >= 2:
-                            dir_type = parts[0] + "/" + parts[1]
-                        elif parts:
-                            dir_type = parts[0]
-                        else:
-                            dir_type = "unknown"
-                        mod_files.append((os.path.join(root, f), dir_type))
-
-            total = len(mod_files)
-            self.app.after(0, lambda: self._status_lbl.setText(
-                f"找到 {total} 個 .win.mod，解碼中…"
-            ))
-
-            for fi, (mod_path, dir_type) in enumerate(mod_files):
-                if fi % 500 == 0:
-                    pct = fi * 100 // total if total else 0
-                    n = len(saved)
-                    self.app.after(0, lambda p=pct, c=n, f=fi, t=total: self._status_lbl.setText(
-                        f"解碼中 {f}/{t} ({p}%)  已存 {c} 張…"
-                    ))
-                try:
-                    with open(mod_path, "rb") as fh:
-                        raw = fh.read()
-
-                    base_hash = os.path.basename(mod_path).replace(".win.mod", "")
-
-                    # ① 先嘗試 DDS（msw/ 的主要格式，需上下翻轉）
-                    dds_imgs = list(self._extract_all_dds(raw))
-                    if dds_imgs:
-                        for img_idx, img in dds_imgs:
-                            suffix = f"_{img_idx}" if len(dds_imgs) > 1 else ""
-                            name = f"{base_hash}{suffix}"
-                            save_path = os.path.join(_MAPLEWORLD_DIR, f"{name}.png")
-                            img.save(save_path, "PNG")
-                            saved.append((name, img, save_path, dir_type))
-                        continue
-
-                    # ② 沒有 DDS → 找 PNG / JPEG / WebP / GIF（ugc/ 的格式，不翻轉）
-                    other_imgs = self._extract_images_from_bytes(raw, PILImage)
-                    for img_idx, img in enumerate(other_imgs):
-                        suffix = f"_{img_idx}" if len(other_imgs) > 1 else ""
-                        name = f"{base_hash}{suffix}"
-                        save_path = os.path.join(_MAPLEWORLD_DIR, f"{name}.png")
-                        img.save(save_path, "PNG")
-                        saved.append((name, img, save_path, dir_type))
-
-                except Exception:
-                    errors += 1
-
-        except Exception as e:
-            self.app.after(0, lambda: self._on_scan_done([], 0, str(e)))
-            return
-
-        self.app.after(0, lambda: self._on_scan_done(saved, errors, None))
+        mapleworld_scanner.scan_unity(
+            game_path,
+            on_progress=lambda msg: self.app.after(0, lambda m=msg: self._status_lbl.setText(m)),
+            on_done=lambda saved, errors, fatal:
+                self.app.after(0, lambda: self._on_scan_done(saved, errors, fatal)),
+        )
 
     # ──────────────────────────────────────────
     # 網頁快取掃描（Vuplex.WebView Chromium）
@@ -1252,8 +1136,6 @@ class MapleWorldPage(QWidget):
             self.app.toast.show("找不到 Vuplex.WebView 目錄，請確認遊戲路徑並先啟動遊戲。", "error")
             return
 
-        os.makedirs(_MAPLEWORLD_DIR, exist_ok=True)
-
         self._scanning = True
         self._scan_btn.setEnabled(False)
         self._scan_web_btn.setEnabled(False)
@@ -1262,246 +1144,12 @@ class MapleWorldPage(QWidget):
         self._status_lbl.setText("搜尋快取目錄中…")
         self._select_all_cb.setChecked(False)
 
-        threading.Thread(
-            target=self._web_cache_worker,
-            args=(vuplex_dir,),
-            daemon=True,
-        ).start()
-
-    def _web_cache_worker(self, vuplex_dir: str):
-        """背景：多路徑多格式掃描
-
-        Phase 0 — 自動發現：遞迴走訪 Vuplex.WebView/，收集所有快取相關檔案
-                  SimpleCache (f_*)、Blockfile (data_*)、IndexedDB/LocalStorage (*.ldb, *.log)
-        Phase 1 — 直接提取：暴力掃描位元組，找 PNG / WebP / JPEG / GIF magic bytes
-                  同時嘗試 gzip 解壓後再掃描
-        Phase 2 — URL 下載：從文字內容提取圖片 URL，從網路下載
-        Phase 3 — Base64 解碼：從 data:image/... base64 字串解出內嵌圖片
-        """
-        import gzip
-        import base64 as _base64
-        import re as _re
-        from PIL import Image as PILImage
-        import requests as _requests
-
-        saved: list[tuple] = []
-        errors = 0
-        seen_names: set[str] = set()
-        seen_urls:  set[str] = set()
-        cdn_urls:   list[str] = []
-
-        # ── Phase 0：自動發現所有快取相關檔案 ──
-        scan_files: list[str] = []
-        _SCAN_EXTS = (".ldb", ".log", ".sst")
-        _SCAN_PFXS = ("f_", "data_")
-        try:
-            for root, _dirs, files in os.walk(vuplex_dir):
-                for fname in files:
-                    if (any(fname.startswith(p) for p in _SCAN_PFXS)
-                            or any(fname.endswith(e) for e in _SCAN_EXTS)):
-                        scan_files.append(os.path.join(root, fname))
-        except Exception as e:
-            self.app.after(0, lambda: self._on_web_scan_done([], 0, str(e)))
-            return
-
-        total_files = len(scan_files)
-        if total_files == 0:
-            self.app.after(0, lambda: self._on_web_scan_done(
-                [], 0, f"在 {vuplex_dir} 下找不到任何快取檔案\n請先啟動遊戲讓 WebView 建立快取。"
-            ))
-            return
-
-        self.app.after(0, lambda: self._status_lbl.setText(
-            f"發現 {total_files} 個快取檔案，掃描中…"
-        ))
-
-        # ── Phase 1：暴力掃描全部位元組 ──
-        for fi, fpath in enumerate(scan_files):
-            if fi % 100 == 0:
-                pct = fi * 100 // total_files
-                n = len(saved)
-                self.app.after(0, lambda p=pct, c=n, f=fi, t=total_files: self._status_lbl.setText(
-                    f"掃描中 {f}/{t} ({p}%)  已提取 {c} 張…"
-                ))
-
-            fname_base = os.path.basename(fpath)
-            try:
-                with open(fpath, "rb") as fp:
-                    raw_data = fp.read()
-
-                if len(raw_data) < 16:
-                    continue
-
-                # 原始 + 所有 gzip 解壓結果
-                chunks: list[bytes] = [raw_data]
-                gz_pos = 0
-                while True:
-                    gz_pos = raw_data.find(b"\x1f\x8b", gz_pos)
-                    if gz_pos == -1:
-                        break
-                    try:
-                        dec = gzip.decompress(raw_data[gz_pos:])
-                        if dec:
-                            chunks.append(dec)
-                    except Exception:
-                        pass
-                    gz_pos += 2
-
-                for chunk_idx, chunk in enumerate(chunks):
-                    # Phase 1a：直接提取 PNG / WebP / JPEG / GIF
-                    imgs = self._extract_images_from_bytes(chunk, PILImage)
-                    for img_idx, img in enumerate(imgs):
-                        base_name = f"web_{fname_base}_{chunk_idx}_{img_idx}"
-                        if base_name in seen_names:
-                            continue
-                        seen_names.add(base_name)
-                        save_path = os.path.join(_MAPLEWORLD_DIR, f"{base_name}.png")
-                        img.save(save_path, "PNG")
-                        saved.append((base_name, img, save_path, "web-cache"))
-
-                    # Phase 1b：從文字內容提取圖片 URL（不限網域，含 gif）
-                    try:
-                        text = chunk.decode("utf-8", errors="ignore")
-                        urls = _re.findall(
-                            r'https?://[^\s"\'<>\[\]{}\\]+?\.(?:png|webp|jpg|jpeg|gif)'
-                            r'(?:[?#][^\s"\'<>\[\]{}\\]*)?',
-                            text,
-                        )
-                        for url in urls:
-                            url_clean = url.split("?")[0].split("#")[0]
-                            if url_clean not in seen_urls and len(url_clean) < 512:
-                                seen_urls.add(url_clean)
-                                cdn_urls.append(url_clean)
-
-                        # Phase 3：提取 data:image/... Base64 內嵌圖片
-                        for img_fmt, b64_data in _re.findall(
-                            r'data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]{100,})',
-                            text,
-                        ):
-                            try:
-                                img_bytes = _base64.b64decode(b64_data + "==")
-                                img = PILImage.open(BytesIO(img_bytes)).convert("RGBA")
-                                if img.width < 16 or img.height < 16:
-                                    continue
-                                h = abs(hash(b64_data[:80])) % 0xFFFFFF
-                                base_name = f"web_b64_{fname_base}_{h}"
-                                if base_name in seen_names:
-                                    continue
-                                seen_names.add(base_name)
-                                save_path = os.path.join(_MAPLEWORLD_DIR, f"{base_name}.png")
-                                img.save(save_path, "PNG")
-                                saved.append((base_name, img, save_path, "base64"))
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
-
-            except Exception:
-                errors += 1
-
-        p1_count = len(saved)
-        self.app.after(0, lambda: self._status_lbl.setText(
-            f"直接提取 {p1_count} 張｜準備下載 {len(cdn_urls)} 個 URL…"
-        ))
-
-        # ── Phase 2：從 URL 下載圖片 ──
-        session = _requests.Session()
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/124.0.0.0 Safari/537.36",
-        })
-
-        for i, url in enumerate(cdn_urls):
-            if i % 50 == 0:
-                prog = i
-                total = len(cdn_urls)
-                dl = len(saved) - p1_count
-                self.app.after(0, lambda p=prog, t=total, d=dl: self._status_lbl.setText(
-                    f"下載中：{p}/{t}  已存 {d} 張…"
-                ))
-
-            try:
-                url_fname = url.rsplit("/", 1)[-1]
-                safe_fname = re.sub(r'[\\/:*?"<>|]', "_", url_fname)
-                stem = os.path.splitext(f"cdn_{safe_fname}")[0]
-
-                save_path = os.path.join(_MAPLEWORLD_DIR, f"{stem}.png")
-                if os.path.exists(save_path):
-                    continue
-
-                resp = session.get(url, timeout=12)
-                if resp.status_code != 200 or not resp.content:
-                    continue
-
-                img = PILImage.open(BytesIO(resp.content)).convert("RGBA")
-                if img.width < 8 or img.height < 8:
-                    continue
-
-                img.save(save_path, "PNG")
-                saved.append((stem, img, save_path, "cdn"))
-
-            except Exception:
-                errors += 1
-
-        self.app.after(0, lambda: self._on_web_scan_done(saved, errors, None))
-
-    @staticmethod
-    def _extract_images_from_bytes(data: bytes, PILImage) -> list:
-        """從 bytes 中掃描並提取所有 PNG / WebP 圖片
-
-        Args:
-            data:     原始位元組資料
-            PILImage: PIL.Image 模組
-
-        Returns:
-            PIL Image (RGBA) 清單
-        """
-        results = []
-        seen_offsets: set[int] = set()
-
-        # (magic, extra_check, min_skip)
-        # extra_check="WEBP" → 驗證 offset+8 == b"WEBP"
-        signatures = [
-            (b"\x89PNG\r\n\x1a\n", None,     8),   # PNG
-            (b"RIFF",              "WEBP",   12),  # WebP (RIFF container)
-            (b"\xff\xd8\xff",      None,      3),   # JPEG
-            (b"GIF87a",            None,      6),   # GIF 87a
-            (b"GIF89a",            None,      6),   # GIF 89a（含動畫）
-        ]
-
-        for magic, extra, min_skip in signatures:
-            pos = 0
-            while True:
-                found = data.find(magic, pos)
-                if found == -1:
-                    break
-
-                if extra == "WEBP":
-                    if data[found + 8: found + 12] != b"WEBP":
-                        pos = found + 4
-                        continue
-
-                if found in seen_offsets:
-                    pos = found + min_skip
-                    continue
-                seen_offsets.add(found)
-
-                try:
-                    buf = BytesIO(data[found:])
-                    img = PILImage.open(buf)
-                    # 過濾太小的圖（< 16x16 通常是 icon 或雜訊）
-                    if img.width >= 16 and img.height >= 16:
-                        img.load()
-                        consumed = buf.tell()
-                        results.append(img.convert("RGBA"))
-                        pos = found + max(consumed, min_skip)
-                        continue
-                except Exception:
-                    pass
-                pos = found + min_skip
-
-        return results
+        mapleworld_scanner.scan_web(
+            game_path,
+            on_progress=lambda msg: self.app.after(0, lambda m=msg: self._status_lbl.setText(m)),
+            on_done=lambda saved, errors, fatal:
+                self.app.after(0, lambda: self._on_web_scan_done(saved, errors, fatal)),
+        )
 
     def _on_web_scan_done(self, saved: list, errors: int, fatal: str | None):
         """網頁快取掃描完成（主執行緒）"""

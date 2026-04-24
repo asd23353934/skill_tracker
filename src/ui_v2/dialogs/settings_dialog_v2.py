@@ -101,6 +101,7 @@ def _build_sound_combo(sound_manager, current_filename: str) -> tuple[QComboBox,
         f" padding: 0 8px; font-size: 12px; }}"
         f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
         f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+        + T.combo_popup_qss()
     )
     return combo, label_map
 
@@ -171,6 +172,7 @@ class SettingsDialogV2(BaseDialogV2):
             f" padding: 0 8px; font-size: 12px; }}"
             f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
             f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+            + T.combo_popup_qss()
         )
         body.addWidget(_row("技能視窗尺寸", self.size_combo))
 

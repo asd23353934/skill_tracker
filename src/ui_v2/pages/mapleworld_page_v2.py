@@ -28,24 +28,30 @@ MapleWorld 資源中心 — V2
 """
 
 import os
+import json
+import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
     QLineEdit, QScrollArea, QGridLayout, QFileDialog,
 )
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QPainter, QPixmap
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_pixmap, lucide_icon
 from src.infrastructure.helpers import user_data_path
+from src.infrastructure import mapleworld_scanner
 
 
 _MAPLEWORLD_DIR = user_data_path(os.path.join("images", "mapleworld"))
+_CLASSIFY_CACHE = os.path.join(_MAPLEWORLD_DIR, "_classify_cache.json")
 _DEFAULT_GAME_PATH = os.path.normpath(
     os.path.expandvars(r"%LOCALAPPDATA%\..\LocalLow\nexon\MapleStory Worlds")
 )
-_MAX_RENDER = 120        # 單 tab 最多渲染張數，避免 14k+ 卡 UI
+_RENDER_STEP = 120       # 每次「載入更多」增加的卡片數（避免 14k+ 一次塞爆 UI）
 
 # 縮圖快取：避免搜尋/換 tab 時對相同檔重複從硬碟解碼
 # key=image_path, value=(scaled QPixmap, orig_w, orig_h)
@@ -58,6 +64,48 @@ TABS = [
     ("web",   "WebView 網頁快取", "globe",    T.CYAN),
 ]
 
+# 分類 chip 顯示色 — 冷到暖漸進，代表尺寸由小到大
+_CAT_ORDER = (
+    "≤16", "17-32", "33-64", "65-128",
+    "129-256", "257-512", "513-1024", ">1024",
+)
+_CAT_COLORS = {
+    "≤16":       T.CYAN,
+    "17-32":     T.CYAN,
+    "33-64":     T.GREEN,
+    "65-128":    T.GREEN,
+    "129-256":   T.YELLOW,
+    "257-512":   T.YELLOW,
+    "513-1024":  T.ORANGE,
+    ">1024":     T.ORANGE,
+}
+
+
+def _load_classify_cache() -> dict:
+    try:
+        with open(_CLASSIFY_CACHE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if not isinstance(data, dict):
+                return {}
+            valid = set(mapleworld_scanner.CATEGORIES)
+            # 舊 schema（含 圖示 / 精靈 / UI…）一律丟棄
+            if any(v not in valid for v in data.values()):
+                return {}
+            return data
+    except Exception:
+        return {}
+
+
+def _save_classify_cache(tags: dict):
+    try:
+        os.makedirs(_MAPLEWORLD_DIR, exist_ok=True)
+        tmp = _CLASSIFY_CACHE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(tags, f, ensure_ascii=False)
+        os.replace(tmp, _CLASSIFY_CACHE)
+    except Exception:
+        pass
+
 
 # ════════════════════════════════════════════════════════════
 # AssetCard
@@ -65,14 +113,16 @@ TABS = [
 
 class _AssetCard(QFrame):
     CARD_W = 148
-    CARD_H = 168
+    CARD_H = 190
     THUMB_H = 108
 
-    def __init__(self, name: str, image_path: str | None, accent: str):
+    def __init__(self, name: str, image_path: str | None, accent: str,
+                 category: str | None = None):
         super().__init__()
         self._name       = name
         self._accent     = accent
         self._image_path = image_path
+        self._category   = category
         self._pix: QPixmap | None = None
         self._w_px = self._h_px = 0
         if image_path:
@@ -121,6 +171,54 @@ class _AssetCard(QFrame):
             f"color: {T.TEXT_MUTED}; font-size: 9px; background: transparent;"
         )
         L.addWidget(meta)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(T.S_XS)
+        if self._category:
+            color = _CAT_COLORS.get(self._category, T.TEXT_MUTED)
+            badge = QLabel(self._category)
+            badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            badge.setFixedHeight(16)
+            badge.setStyleSheet(
+                f"color: {color}; background: {T.alpha(color, 28)};"
+                f" border: 1px solid {T.alpha(color, 80)};"
+                f" border-radius: 8px; font-size: 9px; font-weight: 700;"
+                f" padding: 0 6px;"
+            )
+            row.addWidget(badge)
+        row.addStretch()
+        if self._image_path:
+            save_btn = QPushButton()
+            save_btn.setFixedSize(20, 18)
+            save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            save_btn.setToolTip("另存新檔")
+            save_btn.setIcon(lucide_icon("save", T.TEXT_DIM, 11, stroke=1.8))
+            save_btn.setIconSize(QSize(11, 11))
+            save_btn.setStyleSheet(
+                f"QPushButton {{ background: {T.BG_INPUT};"
+                f" border: 1px solid {T.BORDER}; border-radius: 6px; }}"
+                f"QPushButton:hover {{ background: {T.BG_HOVER};"
+                f" border-color: {self._accent}; }}"
+            )
+            save_btn.clicked.connect(self._on_save_as)
+            row.addWidget(save_btn)
+        L.addLayout(row)
+
+    def _on_save_as(self):
+        if not self._image_path or not os.path.isfile(self._image_path):
+            return
+        default_name = os.path.basename(self._image_path)
+        dst, _ = QFileDialog.getSaveFileName(
+            self, "另存新檔", default_name, "PNG Image (*.png);;所有檔案 (*.*)"
+        )
+        if not dst:
+            return
+        try:
+            shutil.copy2(self._image_path, dst)
+        except OSError as e:
+            # 交給上層 toast 顯示；這邊僅避免 crash
+            print(f"[mapleworld] save-as failed: {e}")
 
 
 class _ThumbBox(QFrame):
@@ -189,6 +287,40 @@ class _TabBtn(QPushButton):
 
 
 # ════════════════════════════════════════════════════════════
+# 分類 chip
+# ════════════════════════════════════════════════════════════
+
+class _CatChip(QPushButton):
+    def __init__(self, label: str, color: str, active: bool, on_click):
+        super().__init__()
+        self._color = color
+        self.setCheckable(True)
+        self.setChecked(active)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(26)
+        self.setText(label)
+        self.clicked.connect(on_click)
+        self.toggled.connect(self._apply)
+        self._apply()
+
+    def _apply(self):
+        if self.isChecked():
+            bg = T.alpha(self._color, 48)
+            fg = self._color
+            bd = T.alpha(self._color, 120)
+        else:
+            bg = "transparent"
+            fg = T.TEXT_DIM
+            bd = T.BORDER
+        self.setStyleSheet(
+            f"QPushButton {{ color: {fg}; background: {bg};"
+            f" border: 1px solid {bd}; border-radius: 13px;"
+            f" padding: 0 12px; font-size: 11px; font-weight: 600; }}"
+            f"QPushButton:hover {{ color: {T.TEXT_HI}; }}"
+        )
+
+
+# ════════════════════════════════════════════════════════════
 # MapleWorldPageV2
 # ════════════════════════════════════════════════════════════
 
@@ -197,10 +329,19 @@ class MapleWorldPageV2(QWidget):
         super().__init__(parent)
         self.app = app
         self._current_tab = "unity"
+        self._current_cat = "全部"
         self._search_text = ""
         self._loaded = False
+        self._scanning = False
+        self._classify_token = 0
+        self._render_token = 0
+        self._render_limit = _RENDER_STEP
+        self._append_from: int | None = None
+        self._more_btn: QPushButton | None = None
         # 全部檔名列表（一次列目錄，不重複 IO）
         self._files: dict[str, list[str]] = {"unity": [], "web": []}
+        # fname → category；從磁碟 cache 預載，避免每次進頁重分類
+        self._tags: dict[str, str] = _load_classify_cache()
         self._build()
 
     def showEvent(self, e):  # noqa: N802
@@ -268,8 +409,23 @@ class MapleWorldPageV2(QWidget):
         filt_row.addStretch()
         root.addLayout(filt_row)
 
+        # 分類 chip 列
+        chip_row = QHBoxLayout()
+        chip_row.setSpacing(T.S_XS)
+        self._chips: dict[str, _CatChip] = {}
+        chips_def = [("全部", T.ORANGE)] + [(c, _CAT_COLORS[c]) for c in _CAT_ORDER]
+        for label, color in chips_def:
+            chip = _CatChip(label, color,
+                            active=(label == self._current_cat),
+                            on_click=lambda _=False, k=label: self._switch_cat(k))
+            self._chips[label] = chip
+            chip_row.addWidget(chip)
+        chip_row.addStretch()
+        root.addLayout(chip_row)
+
         # 縮圖 grid
         scroll = QScrollArea()
+        self._scroll = scroll
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -334,6 +490,7 @@ class MapleWorldPageV2(QWidget):
         ph.addWidget(browse_btn)
 
         scan_btn = QPushButton("掃描資源")
+        self._scan_btn = scan_btn
         scan_btn.setFixedHeight(30)
         scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         scan_btn.setIcon(lucide_icon("search", "#ffffff", 13, stroke=1.8))
@@ -367,6 +524,68 @@ class MapleWorldPageV2(QWidget):
                 self._files["web"].append(f)
             else:
                 self._files["unity"].append(f)
+        self._kickoff_classify()
+
+    def _kickoff_classify(self):
+        """背景分類尚未入 cache 的 PNG — ThreadPool 併發，過程僅更新統計文字"""
+        if self.app is None:
+            return
+        self._classify_token += 1
+        token = self._classify_token
+        all_files: set[str] = set()
+        for bucket in self._files.values():
+            all_files.update(bucket)
+
+        # 清掉 cache 中已不存在的檔案（避免 cache 無限膨脹）
+        stale = [k for k in self._tags if k not in all_files]
+        for k in stale:
+            del self._tags[k]
+
+        todo = [f for f in all_files if f not in self._tags]
+        if not todo and not stale:
+            return
+        if not todo:
+            _save_classify_cache(self._tags)
+            return
+
+        def classify_one(fname: str) -> tuple[str, str]:
+            path = os.path.join(_MAPLEWORLD_DIR, fname)
+            try:
+                return fname, mapleworld_scanner.classify_image(path)
+            except Exception:
+                return fname, ">1024"
+
+        def dispatcher():
+            # 4 條 worker 並行讀 PNG header（PIL.open 讀 header 會釋放 GIL）
+            batch: dict[str, str] = {}
+            done = 0
+            total = len(todo)
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                for fname, cat in pool.map(classify_one, todo, chunksize=32):
+                    if token != self._classify_token:
+                        return
+                    batch[fname] = cat
+                    done += 1
+                    # 每 500 張只更新一次統計文字，不重渲 grid
+                    if done % 500 == 0:
+                        self.app.after(0, lambda d=done, t=total, tok=token:
+                                       self._update_classify_stat(d, t, tok))
+            self.app.after(0, lambda b=batch, tok=token:
+                           self._classify_done(b, tok))
+
+        threading.Thread(target=dispatcher, daemon=True).start()
+
+    def _update_classify_stat(self, done: int, total: int, token: int):
+        if token != self._classify_token:
+            return
+        self._stat_lbl.setText(f"分類中 {done}/{total} …")
+
+    def _classify_done(self, batch: dict, token: int):
+        if token != self._classify_token:
+            return
+        self._tags.update(batch)
+        _save_classify_cache(self._tags)
+        self._render_grid()
 
     def _switch_tab(self, key: str):
         if key == self._current_tab:
@@ -375,15 +594,86 @@ class MapleWorldPageV2(QWidget):
         self._current_tab = key
         for k, btn in self._tab_btns.items():
             btn.setChecked(k == key)
+        self._render_limit = _RENDER_STEP
+        self._scroll.verticalScrollBar().setValue(0)
         self._render_grid()
 
     def _on_search(self, text: str):
         self._search_text = text.strip().lower()
+        self._render_limit = _RENDER_STEP
+        self._render_grid()
+
+    def _switch_cat(self, key: str):
+        if key == self._current_cat:
+            self._chips[key].setChecked(True)
+            return
+        self._current_cat = key
+        for k, chip in self._chips.items():
+            chip.setChecked(k == key)
+        self._render_limit = _RENDER_STEP
+        self._scroll.verticalScrollBar().setValue(0)
+        self._render_grid()
+
+    def _load_more(self):
+        # 不清空 grid，直接從上次結尾 append 新卡，避免捲動軸閃動
+        self._append_from = self._render_limit
+        self._render_limit += _RENDER_STEP
         self._render_grid()
 
     def _on_scan(self):
-        if self.app is not None and hasattr(self.app, "toast"):
-            self.app.toast.show("掃描功能尚未接到 V2，請暫用 V1 版", "info")
+        """Unity 資源掃描 — 委派給 infrastructure.mapleworld_scanner
+
+        路徑驗證 → 鎖按鈕 + toast 提示 → 背景掃描 → callback 走 app.after 回主執行緒
+        """
+        if self._scanning:
+            return
+        if self.app is None:
+            return
+
+        game_path = self._path_input.text().strip()
+        resource_cache = os.path.join(game_path, "resource_cache")
+        if not os.path.isdir(resource_cache):
+            if hasattr(self.app, "toast"):
+                self.app.toast.show("找不到資源快取目錄，請確認遊戲路徑是否正確。", "error")
+            return
+
+        self._scanning = True
+        self._scan_btn.setEnabled(False)
+        self._stat_lbl.setText("掃描中，自動解碼並儲存至 images/mapleworld/ …")
+        if hasattr(self.app, "toast"):
+            self.app.toast.show("掃描中…", "info")
+
+        mapleworld_scanner.scan_unity(
+            game_path,
+            on_progress=lambda msg: self.app.after(0, lambda m=msg: self._stat_lbl.setText(m)),
+            on_done=lambda saved, errors, fatal:
+                self.app.after(0, lambda: self._on_scan_done(saved, errors, fatal)),
+        )
+
+    def _on_scan_done(self, saved: list, errors: int, fatal: "str | None"):
+        """掃描結束（主執行緒）— 重掃目錄後重繪 grid"""
+        self._scanning = False
+        self._scan_btn.setEnabled(True)
+
+        if fatal:
+            if hasattr(self.app, "toast"):
+                self.app.toast.show(f"掃描失敗：{fatal}", "error")
+            self._stat_lbl.setText("掃描失敗")
+            return
+
+        # 清掉上次快照並重掃 images/mapleworld/
+        self._files = {"unity": [], "web": []}
+        # 保留 _tags cache，_kickoff_classify 只會分類新檔
+        self._scan_dir()
+        self._loaded = True
+        _THUMB_CACHE.clear()
+        self._render_limit = _RENDER_STEP
+        self._render_grid()
+
+        err_hint = f"（{errors} 個解析失敗）" if errors else ""
+        msg = f"Unity 掃描完成：新增 {len(saved)} 張{err_hint}"
+        if hasattr(self.app, "toast"):
+            self.app.toast.show(msg, "success")
 
     def _browse(self):
         path = QFileDialog.getExistingDirectory(
@@ -396,34 +686,41 @@ class MapleWorldPageV2(QWidget):
     # 渲染
     # ──────────────────────────────────────────
     def _render_grid(self):
-        # 清空 grid
-        while self._grid.count():
-            item = self._grid.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
+        append_from = self._append_from
+        self._append_from = None
 
         files = self._files.get(self._current_tab, [])
         if self._search_text:
-            matches = [f for f in files if self._search_text in f.lower()]
+            files = [f for f in files if self._search_text in f.lower()]
+        if self._current_cat != "全部":
+            matches = [f for f in files if self._tags.get(f) == self._current_cat]
         else:
             matches = files
 
         total = len(matches)
-        shown = min(total, _MAX_RENDER)
+        shown = min(total, self._render_limit)
 
-        # 統計列
-        full_total = sum(len(v) for v in self._files.values())
-        if not self._loaded or full_total == 0:
-            self._stat_lbl.setText("尚未載入快取（執行 V1 掃描以填入 images/mapleworld/）")
-        elif self._search_text:
-            self._stat_lbl.setText(
-                f"搜尋結果 {total}（顯示 {shown}） · 全庫 {full_total}"
-            )
+        if append_from is None:
+            # 整頁重畫 — 清空 grid
+            while self._grid.count():
+                item = self._grid.takeAt(0)
+                w = item.widget()
+                if w is not None:
+                    w.deleteLater()
+            self._more_btn = None
+            start = 0
         else:
-            self._stat_lbl.setText(
-                f"本 tab {total}（顯示 {shown}） · 全庫 {full_total}"
-            )
+            # append 模式 — 先鎖住 inner 高度（避免移除 more_btn 造成 scroll 跳動），
+            # 再移除舊「載入更多」按鈕，保留既有卡片
+            self._inner.setMinimumHeight(self._inner.height())
+            if self._more_btn is not None:
+                self._grid.removeWidget(self._more_btn)
+                self._more_btn.deleteLater()
+                self._more_btn = None
+            start = min(append_from, shown)
+
+        self._stat_tmpl = self._build_stat_text(total, shown)
+        self._stat_lbl.setText(self._stat_tmpl)
 
         if shown == 0:
             empty = QLabel("沒有符合的資源" if self._search_text else
@@ -436,11 +733,71 @@ class MapleWorldPageV2(QWidget):
             self._grid.addWidget(empty, 0, 0, 1, 7)
             return
 
+        # 拆批渲染：每 CHUNK 張讓一次主執行緒，避免整批 QPixmap 阻塞 UI
+        self._render_token += 1
+        token = self._render_token
+        self._render_queue = matches[:shown]
+        self._render_total = total
+        self._render_shown = shown
+        self._render_idx = start
+        QTimer.singleShot(0, lambda: self._render_chunk(token))
+
+    def _build_stat_text(self, total: int, shown: int) -> str:
+        full_total = sum(len(v) for v in self._files.values())
+        classified = len(self._tags)
+        pending = max(0, full_total - classified)
+        cat_hint = "" if self._current_cat == "全部" else f" · 分類 {self._current_cat}"
+        progress_hint = f" · 分類中 {classified}/{full_total}" if pending else ""
+        if not self._loaded or full_total == 0:
+            return "尚未載入快取（執行 V1 掃描以填入 images/mapleworld/）"
+        if self._search_text:
+            return f"搜尋結果 {total}（顯示 {shown}） · 全庫 {full_total}{cat_hint}{progress_hint}"
+        return f"本 tab {total}（顯示 {shown}） · 全庫 {full_total}{cat_hint}{progress_hint}"
+
+    def _render_chunk(self, token: int):
+        if token != self._render_token:
+            return
+        CHUNK = 24
+        cols = 7
         accent = next((a for k, _, _, a in TABS if k == self._current_tab),
                       T.PURPLE)
-        cols = 7
-        for i, fname in enumerate(matches[:shown]):
+        end = min(self._render_idx + CHUNK, len(self._render_queue))
+        for i in range(self._render_idx, end):
+            fname = self._render_queue[i]
             r, c = divmod(i, cols)
             name = os.path.splitext(fname)[0]
             path = os.path.join(_MAPLEWORLD_DIR, fname)
-            self._grid.addWidget(_AssetCard(name, path, accent), r, c)
+            cat = self._tags.get(fname)
+            self._grid.addWidget(_AssetCard(name, path, accent, cat), r, c)
+        self._render_idx = end
+
+        if end < len(self._render_queue):
+            self._stat_lbl.setText(
+                f"載入中 {end}/{len(self._render_queue)} … · {self._stat_tmpl}"
+            )
+            QTimer.singleShot(0, lambda: self._render_chunk(token))
+            return
+
+        # 全部畫完 — 補「載入更多」按鈕
+        self._stat_lbl.setText(self._stat_tmpl)
+        total = self._render_total
+        shown = self._render_shown
+        if shown < total:
+            more_btn = QPushButton(f"載入更多（{total - shown} 張剩餘）")
+            more_btn.setFixedHeight(34)
+            more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            more_btn.setStyleSheet(
+                f"QPushButton {{ color: {T.TEXT}; background: {T.BG_INPUT};"
+                f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
+                f" padding: 0 18px; font-size: 12px; font-weight: 600; }}"
+                f"QPushButton:hover {{ background: {T.BG_HOVER};"
+                f" border-color: {T.BORDER_HOVER}; }}"
+            )
+            more_btn.clicked.connect(self._load_more)
+            next_row = (shown + cols - 1) // cols
+            self._grid.addWidget(more_btn, next_row, 0, 1, cols,
+                                 Qt.AlignmentFlag.AlignCenter)
+            self._more_btn = more_btn
+
+        # 渲染完成後解除高度鎖定
+        self._inner.setMinimumHeight(0)

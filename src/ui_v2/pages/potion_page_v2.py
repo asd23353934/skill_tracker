@@ -374,6 +374,7 @@ class _PotionSectionV2(QFrame):
             f" padding: 0 8px; font-size: 12px; }}"
             f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
             f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+            + T.combo_popup_qss()
         )
         self._refresh_add_combo()
         self._add_combo.currentIndexChanged.connect(self._on_pick_add)
@@ -383,6 +384,14 @@ class _PotionSectionV2(QFrame):
         ops.addWidget(clear_btn)
         ops.addStretch()
         outer.addLayout(ops)
+
+        # Row 容器
+        self._rows_container = QWidget()
+        self._rows_container.setStyleSheet("background: transparent;")
+        self._rows_layout = QVBoxLayout(self._rows_container)
+        self._rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._rows_layout.setSpacing(T.S_XS)
+        outer.addWidget(self._rows_container)
 
     def _refresh_add_combo(self):
         """填入該分類所有 PotionService.DEFAULTS（已加入的也保留，可重複加）"""
@@ -405,14 +414,6 @@ class _PotionSectionV2(QFrame):
         self._add_combo.blockSignals(True)
         self._add_combo.setCurrentIndex(0)
         self._add_combo.blockSignals(False)
-
-        # Row 容器
-        self._rows_container = QWidget()
-        self._rows_container.setStyleSheet("background: transparent;")
-        self._rows_layout = QVBoxLayout(self._rows_container)
-        self._rows_layout.setContentsMargins(0, 0, 0, 0)
-        self._rows_layout.setSpacing(T.S_XS)
-        outer.addWidget(self._rows_container)
 
     # ── 對外 API ──
     def add_row(self, data: dict):

@@ -44,7 +44,7 @@ from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.components import ArrowComboBox
 from src.ui_v2.lucide import lucide_pixmap
 from src.ui_v2.pages.skill_card_v2 import (
-    InputChip, MoreBtn, _accent_check, _pill_btn,
+    InputChip, _accent_check, _pill_btn,
 )
 
 
@@ -167,6 +167,7 @@ def _build_sound_combo(sound_manager, current_filename: str) -> tuple[ArrowCombo
         f" padding: 0 8px; font-size: 11px; }}"
         f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
         f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+        + T.combo_popup_qss()
     )
     return combo, label_map
 
@@ -218,15 +219,13 @@ class MonsterCard(QFrame):
         L.setContentsMargins(T.S_LG, T.S_MD, T.S_LG, T.S_MD)
         L.setSpacing(T.S_SM)
 
-        # ── 頂部：名稱 + 設定 ──
+        # ── 頂部：名稱 ──
         top = QHBoxLayout()
         top.setSpacing(T.S_SM)
         name_lbl = T.make_label(m.get("name", ""), T.FONT_CARD_TITLE,
                                 color_override=T.TEXT_HI)
         top.addWidget(name_lbl)
         top.addStretch()
-        more = MoreBtn("怪物詳細設定")
-        top.addWidget(more)
         L.addLayout(top)
 
         # ── icon 大框 ──
