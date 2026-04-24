@@ -16,6 +16,9 @@ python main.py
 # 安裝依賴
 pip install -r requirements.txt
 
+# 跑單元測試（純邏輯層：domain / infrastructure）
+python -m pytest tests/ -v
+
 # 版本遞增（互動式）
 python bump_version.py
 
