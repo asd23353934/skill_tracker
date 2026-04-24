@@ -56,8 +56,35 @@ _DEFAULT_GAME_PATH = os.path.normpath(
 _RENDER_STEP = 120       # 每次「載入更多」增加的卡片數（避免 14k+ 一次塞爆 UI）
 
 # 縮圖快取：避免搜尋/換 tab 時對相同檔重複從硬碟解碼
+# LRU 上限避免長時間瀏覽記憶體無限膨脹（14k+ 圖都存成 QPixmap 會很吃）
 # key=image_path, value=(scaled QPixmap, orig_w, orig_h)
-_THUMB_CACHE: dict[str, tuple[QPixmap, int, int]] = {}
+_THUMB_CACHE_MAX = 800
+
+
+class _LRUPixCache:
+    def __init__(self, maxsize: int):
+        from collections import OrderedDict
+        self._d: "OrderedDict[str, tuple[QPixmap, int, int]]" = OrderedDict()
+        self._max = maxsize
+
+    def get(self, key):
+        v = self._d.get(key)
+        if v is not None:
+            self._d.move_to_end(key)
+        return v
+
+    def __setitem__(self, key, value):
+        if key in self._d:
+            self._d.move_to_end(key)
+        self._d[key] = value
+        while len(self._d) > self._max:
+            self._d.popitem(last=False)
+
+    def clear(self):
+        self._d.clear()
+
+
+_THUMB_CACHE = _LRUPixCache(_THUMB_CACHE_MAX)
 
 
 # Tab 定義：(key, label, lucide-icon, accent)
