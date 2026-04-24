@@ -33,7 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
-    QLineEdit, QScrollArea, QGridLayout, QFileDialog,
+    QLineEdit, QScrollArea, QGridLayout, QFileDialog, QProgressBar,
 )
 from PySide6.QtCore import Qt, QSize, QTimer
 
@@ -132,6 +132,19 @@ class MapleWorldPageV2(QWidget):
         )
         tab_row.addWidget(self._stat_lbl)
         root.addLayout(tab_row)
+
+        # 掃描進度條：掃描時才顯示（indeterminate → 0-100），設 fixed 2px 保留空間
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setTextVisible(False)
+        self._progress_bar.setFixedHeight(2)
+        self._progress_bar.setRange(0, 0)
+        self._progress_bar.setVisible(False)
+        self._progress_bar.setStyleSheet(
+            f"QProgressBar {{ background: {T.BG_INPUT};"
+            f" border: none; border-radius: 1px; }}"
+            f"QProgressBar::chunk {{ background: {T.ORANGE}; border-radius: 1px; }}"
+        )
+        root.addWidget(self._progress_bar)
 
         # 搜尋列
         filt_row = QHBoxLayout()
@@ -393,17 +406,30 @@ class MapleWorldPageV2(QWidget):
         self._cancel_evt = threading.Event()
         self._scan_btn.setText("取消")
         self._stat_lbl.setText("掃描中，自動解碼並儲存至 images/mapleworld/ …")
+        self._progress_bar.setRange(0, 0)   # indeterminate 直到第一個 pct 進來
+        self._progress_bar.setVisible(True)
         if hasattr(self.app, "toast"):
             self.app.toast.show("掃描中…", "info")
 
         evt = self._cancel_evt
         mapleworld_scanner.scan_unity(
             game_path,
-            on_progress=lambda msg: self.app.after(0, lambda m=msg: self._stat_lbl.setText(m)),
+            on_progress=lambda msg, pct: self.app.after(
+                0, lambda m=msg, p=pct: self._on_scan_progress(m, p)),
             on_done=lambda saved, errors, fatal:
                 self.app.after(0, lambda: self._on_scan_done(saved, errors, fatal)),
             should_cancel=evt.is_set,
         )
+
+    def _on_scan_progress(self, msg: str, pct: int):
+        """主執行緒：更新文字與進度條"""
+        self._stat_lbl.setText(msg)
+        if pct < 0:
+            self._progress_bar.setRange(0, 0)       # indeterminate
+        else:
+            if self._progress_bar.maximum() == 0:
+                self._progress_bar.setRange(0, 100)
+            self._progress_bar.setValue(pct)
 
     def _on_scan_done(self, saved: list, errors: int, fatal: "str | None"):
         """掃描結束（主執行緒）— 重掃目錄後重繪 grid"""
@@ -411,6 +437,7 @@ class MapleWorldPageV2(QWidget):
         self._cancel_evt = None
         self._scan_btn.setEnabled(True)
         self._scan_btn.setText("掃描資源")
+        self._progress_bar.setVisible(False)
 
         if fatal == "已取消":
             if hasattr(self.app, "toast"):

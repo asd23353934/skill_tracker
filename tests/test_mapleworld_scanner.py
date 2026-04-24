@@ -128,7 +128,7 @@ def test_scan_unity_reports_fatal_when_resource_cache_missing(tmp_path):
         captured["errors"] = errors
         captured["fatal"] = fatal
 
-    mw.scan_unity(str(tmp_path), on_progress=lambda _m: None, on_done=on_done)
+    mw.scan_unity(str(tmp_path), on_progress=lambda _m, _p: None, on_done=on_done)
     assert captured["saved"] == []
     assert captured["errors"] == 0
     assert captured["fatal"] and "resource_cache" in captured["fatal"]
@@ -140,5 +140,5 @@ def test_scan_web_reports_fatal_when_vuplex_missing(tmp_path):
     def on_done(saved, errors, fatal):
         captured["fatal"] = fatal
 
-    mw.scan_web(str(tmp_path), on_progress=lambda _m: None, on_done=on_done)
+    mw.scan_web(str(tmp_path), on_progress=lambda _m, _p: None, on_done=on_done)
     assert captured["fatal"] and "Vuplex.WebView" in captured["fatal"]

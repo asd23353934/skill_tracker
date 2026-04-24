@@ -1116,7 +1116,7 @@ class MapleWorldPage(QWidget):
 
         mapleworld_scanner.scan_unity(
             game_path,
-            on_progress=lambda msg: self.app.after(0, lambda m=msg: self._status_lbl.setText(m)),
+            on_progress=lambda msg, pct: self.app.after(0, lambda m=msg: self._status_lbl.setText(m)),
             on_done=lambda saved, errors, fatal:
                 self.app.after(0, lambda: self._on_scan_done(saved, errors, fatal)),
         )
@@ -1146,7 +1146,7 @@ class MapleWorldPage(QWidget):
 
         mapleworld_scanner.scan_web(
             game_path,
-            on_progress=lambda msg: self.app.after(0, lambda m=msg: self._status_lbl.setText(m)),
+            on_progress=lambda msg, pct: self.app.after(0, lambda m=msg: self._status_lbl.setText(m)),
             on_done=lambda saved, errors, fatal:
                 self.app.after(0, lambda: self._on_web_scan_done(saved, errors, fatal)),
         )

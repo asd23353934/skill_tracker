@@ -4,10 +4,16 @@
 """
 
 # 當前版本
-VERSION = "4.1.6"
+VERSION = "4.1.7"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.7 (2026-04-24)
+-------------------
+✨ V2 資源中心新增掃描進度條（QProgressBar, indeterminate → 0-100）
+  - scanner on_progress 簽章改為 (msg, pct)；pct=-1 視為 indeterminate
+  - Unity 掃描直接回報百分比；Web 掃描 Phase 1 / Phase 2 各佔 50%
+
 v4.1.6 (2026-04-24)
 -------------------
 🔧 分類 cache 加 version 欄位（v2 schema：{"version": 2, "tags": {...}}）

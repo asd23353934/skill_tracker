@@ -35,7 +35,8 @@ from src.infrastructure.helpers import user_data_path
 _MAPLEWORLD_DIR = user_data_path(os.path.join("images", "mapleworld"))
 
 # Callback 型別別名
-ProgressCB = Callable[[str], None]
+# on_progress(msg, pct) — pct ∈ [0, 100]；-1 表示無法估算（indeterminate）
+ProgressCB = Callable[[str, int], None]
 DoneCB     = Callable[[list, int, "str | None"], None]
 CancelCB   = Callable[[], bool]
 
@@ -246,7 +247,7 @@ def _unity_worker(resource_cache: str, on_progress: ProgressCB, on_done: DoneCB,
                     mod_files.append((os.path.join(root, f), dir_type))
 
         total = len(mod_files)
-        on_progress(f"找到 {total} 個 .win.mod，解碼中…")
+        on_progress(f"找到 {total} 個 .win.mod，解碼中…", 0)
 
         for fi, (mod_path, dir_type) in enumerate(mod_files):
             if fi % 500 == 0 and total:
@@ -254,7 +255,7 @@ def _unity_worker(resource_cache: str, on_progress: ProgressCB, on_done: DoneCB,
                     on_done(saved, errors, "已取消")
                     return
                 pct = fi * 100 // total
-                on_progress(f"解碼中 {fi}/{total} ({pct}%)  已存 {len(saved)} 張…")
+                on_progress(f"解碼中 {fi}/{total} ({pct}%)  已存 {len(saved)} 張…", pct)
 
             try:
                 with open(mod_path, "rb") as fh:
@@ -360,7 +361,7 @@ def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB,
         )
         return
 
-    on_progress(f"發現 {total_files} 個快取檔案，掃描中…")
+    on_progress(f"發現 {total_files} 個快取檔案，掃描中…", 0)
 
     # ── Phase 1：暴力掃描全部位元組 ──
     for fi, fpath in enumerate(scan_files):
@@ -368,9 +369,11 @@ def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB,
             if should_cancel and should_cancel():
                 on_done(saved, errors, "已取消")
                 return
-            pct = fi * 100 // total_files
+            # Phase 1 佔總工時約 50%（Phase 2 下載為剩餘 50%）
+            pct = (fi * 100 // total_files) // 2
             on_progress(
-                f"掃描中 {fi}/{total_files} ({pct}%)  已提取 {len(saved)} 張…"
+                f"掃描中 {fi}/{total_files} ({fi * 100 // total_files}%)  已提取 {len(saved)} 張…",
+                pct,
             )
 
         fname_base = os.path.basename(fpath)
@@ -448,7 +451,7 @@ def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB,
             errors += 1
 
     p1_count = len(saved)
-    on_progress(f"直接提取 {p1_count} 張｜準備下載 {len(cdn_urls)} 個 URL…")
+    on_progress(f"直接提取 {p1_count} 張｜準備下載 {len(cdn_urls)} 個 URL…", 50)
 
     # ── Phase 2：從 URL 下載圖片 ──
     session = requests.Session()
@@ -458,13 +461,15 @@ def _web_worker(vuplex_dir: str, on_progress: ProgressCB, on_done: DoneCB,
                       "Chrome/124.0.0.0 Safari/537.36",
     })
 
+    n_urls = max(len(cdn_urls), 1)
     for i, url in enumerate(cdn_urls):
         if i % 50 == 0:
             if should_cancel and should_cancel():
                 on_done(saved, errors, "已取消")
                 return
             dl = len(saved) - p1_count
-            on_progress(f"下載中：{i}/{len(cdn_urls)}  已存 {dl} 張…")
+            pct = 50 + (i * 50 // n_urls)
+            on_progress(f"下載中：{i}/{len(cdn_urls)}  已存 {dl} 張…", pct)
 
         try:
             url_fname = url.rsplit("/", 1)[-1]
