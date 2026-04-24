@@ -39,6 +39,7 @@ from PySide6.QtCore import Qt, QSize, QTimer
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_pixmap, lucide_icon
+from src.ui_v2.flow_layout import FlowLayout
 from src.infrastructure.helpers import user_data_path
 from src.infrastructure import mapleworld_scanner
 from src.ui_v2.pages.mapleworld_widgets_v2 import (
@@ -164,9 +165,8 @@ class MapleWorldPageV2(QWidget):
         filt_row.addStretch()
         root.addLayout(filt_row)
 
-        # 分類 chip 列
-        chip_row = QHBoxLayout()
-        chip_row.setSpacing(T.S_XS)
+        # 分類 chip 列 — FlowLayout 讓窄視窗能自動折行
+        chip_row = FlowLayout(h_spacing=T.S_XS, v_spacing=T.S_XS)
         self._chips: dict[str, _CatChip] = {}
         chips_def = [("全部", T.ORANGE)] + [(c, _CAT_COLORS[c]) for c in _CAT_ORDER]
         for label, color in chips_def:
@@ -175,7 +175,6 @@ class MapleWorldPageV2(QWidget):
                             on_click=lambda _=False, k=label: self._switch_cat(k))
             self._chips[label] = chip
             chip_row.addWidget(chip)
-        chip_row.addStretch()
         root.addLayout(chip_row)
 
         # 縮圖 grid

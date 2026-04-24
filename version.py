@@ -4,10 +4,15 @@
 """
 
 # 當前版本
-VERSION = "4.1.7"
+VERSION = "4.1.8"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.8 (2026-04-24)
+-------------------
+🔧 V2 資源中心分類 chip 改用 FlowLayout，視窗變窄時自動折行
+  - 新增 src/ui_v2/flow_layout.py（Qt 官方 FlowLayout 範例 Python 版）
+
 v4.1.7 (2026-04-24)
 -------------------
 ✨ V2 資源中心新增掃描進度條（QProgressBar, indeterminate → 0-100）
