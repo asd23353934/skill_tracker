@@ -4,10 +4,15 @@
 """
 
 # 當前版本
-VERSION = "4.1.8"
+VERSION = "4.1.9"
 
 # 版本歷史
 CHANGELOG = """
+v4.1.9 (2026-04-24)
+-------------------
+🐛 修復：點卡片預覽時 AttributeError: V2Theme has no attribute 'BG_BASE'
+  - _PreviewDialog 誤用不存在的 T.BG_BASE，改為 T.BG_WINDOW
+
 v4.1.8 (2026-04-24)
 -------------------
 🔧 V2 資源中心分類 chip 改用 FlowLayout，視窗變窄時自動折行

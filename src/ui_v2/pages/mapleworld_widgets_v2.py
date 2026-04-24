@@ -167,7 +167,7 @@ class _PreviewDialog(QDialog):
     def __init__(self, parent, name: str, image_path: str):
         super().__init__(parent)
         self.setWindowTitle(name)
-        self.setStyleSheet(f"background: {T.BG_BASE};")
+        self.setStyleSheet(f"background: {T.BG_WINDOW};")
 
         pm = QPixmap(image_path)
         screen = self.screen().availableGeometry() if self.screen() else None
