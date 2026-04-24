@@ -4,10 +4,22 @@
 """
 
 # 當前版本
-VERSION = "4.2.1"
+VERSION = "4.2.2"
 
 # 版本歷史
 CHANGELOG = """
+v4.2.2 (2026-04-24)
+-------------------
+🔧 SkillPixmapCache 改 lazy load（啟動零 QPixmap 解碼）
+  - 啟動只掃 icon 路徑索引，不開檔；首次 .get(skill_id) 才解碼
+  - 一次解碼產四尺寸（50 / 28 / 64 / 36），後續命中走 dict
+  - 對外 qpixmaps / qpixmaps_small / qpixmaps_medium / qpixmaps_card
+    仍是 dict-like（.get / [] / in / 指派）— 現有呼叫端零改動
+  - 缺圖 / 解碼失敗 → 四個 dict 都寫 None，不重試
+  - 新增 preload_all() 供測試 / 舊行為還原
+  - 新增 tests/test_skill_pixmap_cache.py（10 cases）
+  - 全 pytest：150 → 160 passing
+
 v4.2.1 (2026-04-24)
 -------------------
 ✅ 補 domain / infrastructure 測試：72 → 150 passing
