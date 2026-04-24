@@ -35,7 +35,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
-    QLineEdit, QScrollArea, QGridLayout, QFileDialog,
+    QLineEdit, QScrollArea, QGridLayout, QFileDialog, QDialog,
 )
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QPainter, QPixmap
@@ -111,18 +111,59 @@ def _save_classify_cache(tags: dict):
 # AssetCard
 # ════════════════════════════════════════════════════════════
 
+class _PreviewDialog(QDialog):
+    """點卡片後彈出的原尺寸預覽對話框（超過螢幕會等比縮放）"""
+
+    def __init__(self, parent, name: str, image_path: str):
+        super().__init__(parent)
+        self.setWindowTitle(name)
+        self.setStyleSheet(f"background: {T.BG_BASE};")
+
+        pm = QPixmap(image_path)
+        screen = self.screen().availableGeometry() if self.screen() else None
+        max_w = (screen.width() - 80) if screen else 1600
+        max_h = (screen.height() - 120) if screen else 900
+        if not pm.isNull() and (pm.width() > max_w or pm.height() > max_h):
+            pm = pm.scaled(
+                max_w, max_h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+
+        L = QVBoxLayout(self)
+        L.setContentsMargins(T.S_MD, T.S_MD, T.S_MD, T.S_MD)
+        L.setSpacing(T.S_XS)
+
+        img_lbl = QLabel()
+        img_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if not pm.isNull():
+            img_lbl.setPixmap(pm)
+        img_lbl.setStyleSheet(f"background: {T.BG_SURFACE}; border-radius: {T.R_MD}px;")
+        L.addWidget(img_lbl)
+
+        info = QLabel(f"{name} · {pm.width()}×{pm.height()}"
+                      if not pm.isNull() else name)
+        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info.setStyleSheet(
+            f"color: {T.TEXT_MUTED}; font-size: 11px; background: transparent;"
+        )
+        L.addWidget(info)
+
+
 class _AssetCard(QFrame):
     CARD_W = 148
     CARD_H = 190
     THUMB_H = 108
 
     def __init__(self, name: str, image_path: str | None, accent: str,
-                 category: str | None = None):
+                 category: str | None = None, page=None):
         super().__init__()
         self._name       = name
         self._accent     = accent
         self._image_path = image_path
         self._category   = category
+        self._page       = page
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._pix: QPixmap | None = None
         self._w_px = self._h_px = 0
         if image_path:
@@ -214,11 +255,23 @@ class _AssetCard(QFrame):
         )
         if not dst:
             return
+        toast = getattr(getattr(self._page, "app", None), "toast", None)
         try:
             shutil.copy2(self._image_path, dst)
         except OSError as e:
-            # 交給上層 toast 顯示；這邊僅避免 crash
-            print(f"[mapleworld] save-as failed: {e}")
+            if toast is not None:
+                toast.show(f"另存失敗：{e}", "error")
+            return
+        if toast is not None:
+            toast.show(f"已另存：{os.path.basename(dst)}", "success")
+
+    def mousePressEvent(self, e):  # noqa: N802
+        # 預覽：整張卡片可點（save 按鈕會先吃掉自己的 click，不衝突）
+        if (e.button() == Qt.MouseButton.LeftButton
+                and self._image_path and os.path.isfile(self._image_path)):
+            dlg = _PreviewDialog(self.window(), self._name, self._image_path)
+            dlg.exec()
+        super().mousePressEvent(e)
 
 
 class _ThumbBox(QFrame):
@@ -768,7 +821,7 @@ class MapleWorldPageV2(QWidget):
             name = os.path.splitext(fname)[0]
             path = os.path.join(_MAPLEWORLD_DIR, fname)
             cat = self._tags.get(fname)
-            self._grid.addWidget(_AssetCard(name, path, accent, cat), r, c)
+            self._grid.addWidget(_AssetCard(name, path, accent, cat, self), r, c)
         self._render_idx = end
 
         if end < len(self._render_queue):
