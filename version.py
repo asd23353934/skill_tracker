@@ -4,10 +4,20 @@
 """
 
 # 當前版本
-VERSION = "4.2.2"
+VERSION = "4.2.3"
 
 # 版本歷史
 CHANGELOG = """
+v4.2.3 (2026-04-24)
+-------------------
+🎨 技能倒數小窗視覺整合 V2 調性（尺寸/位置計算完全未動）
+  - 外框改 V2 ORANGE + 圓角（R_SM=6），alert 時閃 YELLOW
+  - 內框改 V2 BORDER_HOVER 低調灰紫
+  - 倒數文字 / 標題改 TEXT_HI + BG_BOTTOM 深描邊，字型統一 Microsoft JhengHei
+  - 關閉鈕 hover 改 ORANGE 圓角填色底 + 亮 X（常態僅 dim X 無底）
+  - BORDER_W / INNER_BORDER_W / 所有 QRect / window_size 計算維持原樣
+  - 驗證：64/80/96 三種尺寸最終 window size 與 v4.2.2 一致
+
 v4.2.2 (2026-04-24)
 -------------------
 🔧 SkillPixmapCache 改 lazy load（啟動零 QPixmap 解碼）

@@ -8,25 +8,28 @@ import time
 import math
 
 from PySide6.QtWidgets import QWidget
-from PySide6.QtCore import Qt, QTimer, QRect
-from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPixmap, QImage
+from PySide6.QtCore import Qt, QTimer, QRect, QRectF
+from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPixmap, QImage, QBrush
 
 from src.ui.theme import AppTheme
+from src.ui_v2.theme_v2 import V2Theme
 
 
 class SkillWindow(QWidget):
-    """技能/怪物倒數浮動視窗 — QPainter 繪製"""
+    """技能/怪物倒數浮動視窗 — QPainter 繪製（V2 配色 + 圓角）"""
 
-    # 金色調常量（RPG 風格）
-    GOLD_BORDER       = "#d4a843"
-    GOLD_BORDER_INNER = "#8b7435"
-    GOLD_TEXT         = "#f0d78c"
-    GOLD_OUTLINE      = "#8b7435"
-    GOLD_CLOSE        = "#d4a843"
-    GOLD_CLOSE_HOVER  = "#f0d78c"
-    GOLD_FLASH        = "#f0d78c"
+    # V2 調性常量（顏色／字型家族，不含任何尺寸）
+    COLOR_BORDER       = V2Theme.ORANGE         # 外層邊框：V2 主 CTA
+    COLOR_BORDER_INNER = V2Theme.BORDER_HOVER   # 內層邊框：低調灰紫
+    COLOR_TEXT         = V2Theme.TEXT_HI        # 倒數文字：亮白
+    COLOR_OUTLINE      = V2Theme.BG_BOTTOM      # 文字描邊：深黑
+    COLOR_CLOSE        = V2Theme.TEXT_DIM       # 關閉鈕常態
+    COLOR_CLOSE_HOVER  = V2Theme.TEXT_HI        # 關閉鈕 hover X
+    COLOR_CLOSE_HOVER_BG = V2Theme.ORANGE       # 關閉鈕 hover 底色
+    COLOR_FLASH        = V2Theme.YELLOW         # 提前提示閃爍
+    FONT_FAMILY        = V2Theme.FONT_FAMILY    # 統一字型家族
 
-    # 邊框寬度
+    # 邊框寬度（嚴禁調整 — 影響整體尺寸計算）
     BORDER_W       = 2
     INNER_BORDER_W = 1
 
@@ -327,22 +330,26 @@ class SkillWindow(QWidget):
         if self._overlay_pixmap and not self._overlay_pixmap.isNull():
             painter.drawPixmap(bw, iy0 + bw, self._overlay_pixmap)
 
-        # ===== 外層金色邊框 =====
-        border_color = self.GOLD_FLASH if self._flash_active else self.GOLD_BORDER
+        # ===== 外層邊框（V2 ORANGE / alert 時 YELLOW，圓角）=====
+        border_color = self.COLOR_FLASH if self._flash_active else self.COLOR_BORDER
         pen = QPen(QColor(border_color), bw)
-        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(bw // 2, iy0 + bw // 2,
-                         cw - bw, iy1 - iy0 - bw)
+        outer_rect = QRectF(bw / 2, iy0 + bw / 2,
+                            cw - bw, iy1 - iy0 - bw)
+        painter.drawRoundedRect(outer_rect, V2Theme.R_SM, V2Theme.R_SM)
 
-        # ===== 內層暗金邊框 =====
+        # ===== 內層細邊框（低調灰紫，圓角同心）=====
         ibw = self.INNER_BORDER_W
-        inner_pen = QPen(QColor(self.GOLD_BORDER_INNER), ibw)
-        inner_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        inner_pen = QPen(QColor(self.COLOR_BORDER_INNER), ibw)
+        inner_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(inner_pen)
-        ib = bw + ibw // 2
-        painter.drawRect(ib, iy0 + ib, cw - ib * 2, iy1 - iy0 - ib * 2)
+        ib = bw + ibw / 2
+        inner_rect = QRectF(ib, iy0 + ib, cw - ib * 2, iy1 - iy0 - ib * 2)
+        # 內框半徑比外框小 1px，保持同心弧度觀感
+        painter.drawRoundedRect(inner_rect, V2Theme.R_SM - 1, V2Theme.R_SM - 1)
 
         # ===== 關閉按鈕 =====
         self._paint_close_btn(painter)
@@ -353,7 +360,7 @@ class SkillWindow(QWidget):
         """繪製計時文字（附描邊）"""
         text      = self._current_display_text
         font_size = max(18, int(self.window_size * 0.4))
-        font      = QFont("Arial", font_size)
+        font      = QFont(self.FONT_FAMILY, font_size)
         font.setBold(True)
         painter.setFont(font)
 
@@ -362,7 +369,7 @@ class SkillWindow(QWidget):
 
         # 描邊（8 方向偏移）
         offset = 2
-        painter.setPen(QColor(self.GOLD_OUTLINE))
+        painter.setPen(QColor(self.COLOR_OUTLINE))
         for dx in (-offset, 0, offset):
             for dy in (-offset, 0, offset):
                 if dx == 0 and dy == 0:
@@ -370,13 +377,13 @@ class SkillWindow(QWidget):
                 painter.drawText(text_rect.translated(dx, dy), flags, text)
 
         # 主文字
-        painter.setPen(QColor(self.GOLD_TEXT))
+        painter.setPen(QColor(self.COLOR_TEXT))
         painter.drawText(text_rect, flags, text)
 
     def _paint_title_text(self, painter: QPainter, cw: int):
         """繪製技能標題（緊貼圖片上方）"""
         title_font_size = max(9, int(self.window_size * 0.17))
-        font            = QFont("Arial", title_font_size)
+        font            = QFont(self.FONT_FAMILY, title_font_size)
         font.setBold(True)
         painter.setFont(font)
 
@@ -387,7 +394,7 @@ class SkillWindow(QWidget):
         flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
 
         # 描邊
-        painter.setPen(QColor(self.GOLD_OUTLINE))
+        painter.setPen(QColor(self.COLOR_OUTLINE))
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 if dx == 0 and dy == 0:
@@ -395,21 +402,31 @@ class SkillWindow(QWidget):
                 painter.drawText(title_rect.translated(dx, dy), flags, self.title)
 
         # 主文字
-        painter.setPen(QColor(self.GOLD_TEXT))
+        painter.setPen(QColor(self.COLOR_TEXT))
         painter.drawText(title_rect, flags, self.title)
 
     def _paint_close_btn(self, painter: QPainter):
-        """繪製關閉按鈕"""
-        color   = QColor(self.GOLD_CLOSE_HOVER if self._close_hovered else self.GOLD_CLOSE)
-        pen     = QPen(color, 2)
-        painter.setPen(pen)
-        painter.drawRect(self._close_rect)
+        """繪製關閉按鈕 — V2 風格：常態 dim X、hover 時 ORANGE 圓角填色 + 亮 X"""
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        close_font = QFont("Arial", 10)
+        if self._close_hovered:
+            # hover：ORANGE 圓角填色底 + 白 X
+            bg_rect = QRectF(self._close_rect)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(self.COLOR_CLOSE_HOVER_BG)))
+            painter.drawRoundedRect(bg_rect, V2Theme.R_SM, V2Theme.R_SM)
+            x_color = QColor(self.COLOR_CLOSE_HOVER)
+        else:
+            # 常態：無底色，僅灰 X
+            x_color = QColor(self.COLOR_CLOSE)
+
+        close_font = QFont(self.FONT_FAMILY, 10)
         close_font.setBold(True)
         painter.setFont(close_font)
-        painter.setPen(color)
+        painter.setPen(x_color)
         painter.drawText(self._close_rect, Qt.AlignmentFlag.AlignCenter, "✕")
+        painter.restore()
 
     # --------------------------------------------------
     # 閃爍邊框
