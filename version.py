@@ -4,10 +4,22 @@
 """
 
 # 當前版本
-VERSION = "4.1.9"
+VERSION = "4.2.0"
 
 # 版本歷史
 CHANGELOG = """
+v4.2.0 (2026-04-24)
+-------------------
+🎉 V1 UI 正式下架 — V2 為唯一 UI
+  - 移除 src/ui/app.py / pages/ / dialogs/ / header / sidebar / status_bar /
+    skill_column / skill_card / toast
+  - main.py 不再支援 --v1 opt-in，直接進 V2
+  - app_core.py 清掉 V1-only show_skill_detail（V2 SkillCardV2 直呼 V2 dialog）
+  - src/ui/ 只留 V2 共用基礎：app_core / dispatcher / hotkey_manager /
+    window_manager / overlay_manager / skill_window / overlay_window /
+    skill_pixmap_cache / theme
+  - 文件同步：PROJECT.md / ARCHITECTURE.md
+
 v4.1.9 (2026-04-24)
 -------------------
 🐛 修復：點卡片預覽時 AttributeError: V2Theme has no attribute 'BG_BASE'

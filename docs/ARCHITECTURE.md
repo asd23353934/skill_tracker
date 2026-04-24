@@ -2,11 +2,11 @@
 
 ## 職責分離
 
-- **App (app.py)**: 只做協調，初始化各 Manager，串接事件，包含 `_Dispatcher` 執行緒安全排程
+- **V2AppContext (main_v2.py)**: 只做協調，初始化各 Manager、Dispatcher；透過 `AppCoreMixin` 取得 domain backing
 - **Manager 類別**: 各自負責單一領域 (config / skill / hotkey / window / overlay / sound)
 - **UI 元件**: 接收 callback，不直接操作其他元件的狀態
-- **Pages**: 繼承 QWidget，透過 `self.app` 存取應用狀態，放在 `pages/` 目錄
-- **dialog/**: 所有對話框繼承 `BaseDialog`
+- **Pages**: 繼承 QWidget，透過 `self.app` 存取應用狀態，放在 `src/ui_v2/pages/`
+- **Dialog**: 所有對話框繼承 `BaseDialogV2`
 
 ## 狀態管理
 
