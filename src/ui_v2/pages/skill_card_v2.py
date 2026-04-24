@@ -345,7 +345,7 @@ class SkillCardV2(QFrame):
         # row 1：冷卻秒數 chip
         r1 = QHBoxLayout()
         r1.setSpacing(0); r1.setContentsMargins(0, 0, 0, 0)
-        self._cd_chip = InputChip("", reset_tooltip="重置秒數", value_w=46)
+        self._cd_chip = InputChip("", reset_tooltip="重置秒數", value_w=64)
         self._cd_chip.value_btn.clicked.connect(self._on_edit_cooldown)
         self._cd_chip.reset_btn.clicked.connect(self._on_reset_cooldown)
         r1.addWidget(self._cd_chip)
@@ -355,7 +355,7 @@ class SkillCardV2(QFrame):
         # row 2：熱鍵 chip
         r2 = QHBoxLayout()
         r2.setSpacing(0); r2.setContentsMargins(0, 0, 0, 0)
-        self._hk_chip = InputChip("", reset_tooltip="清除按鍵", value_w=46)
+        self._hk_chip = InputChip("", reset_tooltip="清除按鍵", value_w=64)
         self._hk_chip.value_btn.clicked.connect(self._on_begin_hotkey)
         self._hk_chip.reset_btn.clicked.connect(self._on_reset_hotkey)
         r2.addWidget(self._hk_chip)

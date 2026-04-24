@@ -4,10 +4,20 @@
 """
 
 # 當前版本
-VERSION = "4.2.4"
+VERSION = "4.2.5"
 
 # 版本歷史
 CHANGELOG = """
+v4.2.5 (2026-04-24)
+-------------------
+✨ 技能卡片冷卻/熱鍵 chip 加寬（value_w 46 → 64）
+  長按鍵名（如 CTRL+F12）不再被截斷
+🐛 右側數字鍵 / numpad 快捷鍵判斷修復
+  pynput 在 Num Lock off 或 NUM+/-/*/÷ 等鍵回傳 KeyCode(char=None)
+  舊邏輯 str(None) → "None"，顯示成 "NONE" 無法使用
+  新增 _key_to_name 走 VK 對應表：NUM0..9 / NUM+ / NUM- / NUM* / NUM/ / NUM.
+  副作用：numpad 與主排數字為不同快捷鍵（可分別指派）
+
 v4.2.4 (2026-04-24)
 -------------------
 🎨 浮動視窗 icon 統一走 lucide + HiDPI 銳利化
