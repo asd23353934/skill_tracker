@@ -4,10 +4,16 @@
 """
 
 # 當前版本
-VERSION = "4.3.3"
+VERSION = "4.3.4"
 
 # 版本歷史
 CHANGELOG = """
+v4.3.4 (2026-04-27)
+-------------------
+🐛 召喚銀隼 icon 再修正：改用 skill 3221005 (Frostprey 藍色冰鳥)
+   Artale 命名與全球版不同：Artale 的「銀隼」對應全球版 4 轉
+   神射手的 Frostprey，而非全球版 3 轉獵人的 Silver Hawk
+
 v4.3.3 (2026-04-27)
 -------------------
 🐛 召喚銀隼 icon 修正：原本誤用 3211005（Crossbowman 的 Golden Eagle 金鳥），
