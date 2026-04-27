@@ -4,10 +4,17 @@
 """
 
 # 當前版本
-VERSION = "4.3.2"
+VERSION = "4.3.3"
 
 # 版本歷史
 CHANGELOG = """
+v4.3.3 (2026-04-27)
+-------------------
+🐛 召喚銀隼 icon 修正：原本誤用 3211005（Crossbowman 的 Golden Eagle 金鳥），
+   改用正確的 3111005（Hunter 的 Silver Hawk 銀鳥）
+📝 openspec/specs/auto-update/spec.md 同步現況：
+   Purpose 補上實際說明、UpdateDialog 路徑改指 V2、清理 @trace 雜訊
+
 v4.3.2 (2026-04-27)
 -------------------
 ✨ 弓箭手技能調整

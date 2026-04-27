@@ -2,7 +2,10 @@
 
 ## Purpose
 
-TBD - created by archiving change 'auto-update'. Update Purpose after archive.
+定義 Skill Tracker 的自動更新機制：包含 GitHub Release API 版本檢查、檔案下載、
+以及 V2 預覽 shell 啟動時的背景檢查與更新對話框流程。
+所有實作集中於 `src/infrastructure/updater.py`（網路 / 檔案 I/O）與
+`src/ui_v2/dialogs/update_dialog_v2.py`（UI），由 `main_v2.py` 啟動時排程觸發。
 
 ## Requirements
 
@@ -33,16 +36,7 @@ the method SHALL return `{"available": False, "error": <message>}`.
 source: auto-update
 updated: 2026-03-20
 code:
-  - src/ui/skill_manager.py
-  - docs/CODE_STYLE.md
-  - src/ui/app.py
-  - docs/ARCHITECTURE.md
-  - docs/DATA_FORMAT.md
-  - docs/RELEASE.md
-  - src/ui/hotkey_manager.py
-  - docs/PROJECT.md
-  - CLAUDE.md
-  - config.json
+  - src/infrastructure/updater.py
 -->
 
 ---
@@ -69,16 +63,7 @@ code:
 source: auto-update
 updated: 2026-03-20
 code:
-  - src/ui/skill_manager.py
-  - docs/CODE_STYLE.md
-  - src/ui/app.py
-  - docs/ARCHITECTURE.md
-  - docs/DATA_FORMAT.md
-  - docs/RELEASE.md
-  - src/ui/hotkey_manager.py
-  - docs/PROJECT.md
-  - CLAUDE.md
-  - config.json
+  - src/infrastructure/updater.py
 -->
 
 ---
@@ -104,16 +89,7 @@ When `check_for_updates()` finds a newer version, the download URL SHALL be sele
 source: auto-update
 updated: 2026-03-20
 code:
-  - src/ui/skill_manager.py
-  - docs/CODE_STYLE.md
-  - src/ui/app.py
-  - docs/ARCHITECTURE.md
-  - docs/DATA_FORMAT.md
-  - docs/RELEASE.md
-  - src/ui/hotkey_manager.py
-  - docs/PROJECT.md
-  - CLAUDE.md
-  - config.json
+  - src/infrastructure/updater.py
 -->
 
 ---
@@ -142,16 +118,7 @@ code:
 source: auto-update
 updated: 2026-03-20
 code:
-  - src/ui/skill_manager.py
-  - docs/CODE_STYLE.md
-  - src/ui/app.py
-  - docs/ARCHITECTURE.md
-  - docs/DATA_FORMAT.md
-  - docs/RELEASE.md
-  - src/ui/hotkey_manager.py
-  - docs/PROJECT.md
-  - CLAUDE.md
-  - config.json
+  - src/infrastructure/updater.py
 -->
 
 ---
@@ -169,16 +136,7 @@ resolved via `helpers.resource_path()`, supporting both development and packaged
 source: auto-update
 updated: 2026-03-20
 code:
-  - src/ui/skill_manager.py
-  - docs/CODE_STYLE.md
-  - src/ui/app.py
-  - docs/ARCHITECTURE.md
-  - docs/DATA_FORMAT.md
-  - docs/RELEASE.md
-  - src/ui/hotkey_manager.py
-  - docs/PROJECT.md
-  - CLAUDE.md
-  - config.json
+  - src/infrastructure/updater.py
 -->
 
 ---
@@ -223,17 +181,16 @@ the scheduling SHALL be skipped entirely so test runs do not hit the network.
 source: wire-v2-update-checker
 updated: 2026-04-26
 code:
-  - verify_v2_update_checker.py
-  - images/Spectra_2.2.5_x64-setup.exe
-  - =5.2.0
   - main_v2.py
+  - src/ui_v2/dialogs/update_dialog_v2.py
+  - verify_v2_update_checker.py
 -->
 
 ---
 ### Requirement: V2 update dialog is shown only when a newer version is available
 
 When the V2 update check completes on the main thread, the result handler SHALL
-open `UpdateDialog` (from `src/ui/dialogs/update_dialog.py`) ONLY when
+open `UpdateDialog` (from `src/ui_v2/dialogs/update_dialog_v2.py`) ONLY when
 `update_info.get("available")` is truthy. (The `Updater.check_for_updates()`
 contract guarantees that when `available` is `True`, the keys `current`,
 `latest`, and `download_url` are present and populated, so no further key
@@ -281,8 +238,7 @@ without crashing the V2 shell.
 source: wire-v2-update-checker
 updated: 2026-04-26
 code:
-  - verify_v2_update_checker.py
-  - images/Spectra_2.2.5_x64-setup.exe
-  - =5.2.0
   - main_v2.py
+  - src/ui_v2/dialogs/update_dialog_v2.py
+  - verify_v2_update_checker.py
 -->
