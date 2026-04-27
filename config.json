@@ -25,6 +25,14 @@
       "subcategory": "弓箭手"
     },
     {
+      "id": "concentrate",
+      "name": "念力集中",
+      "icon": "concentrate.png",
+      "cooldown": 360,
+      "category": "player",
+      "subcategory": "弓箭手"
+    },
+    {
       "id": "curse",
       "name": "詛咒術",
       "icon": "curse.png",
