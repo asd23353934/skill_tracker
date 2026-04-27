@@ -7,6 +7,7 @@ V2 UI 入口 — Soft Purple Gradient Dashboard（V2 為預設 UI）
 
 import os
 import sys
+import threading
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
 )
@@ -107,6 +108,8 @@ class PreviewWindow(QMainWindow):
         self.app_ctx.toast = ToastManagerV2(self)
         # 安裝全域事件過濾器：攔截邊框附近滑鼠事件以實現原生 resize
         QApplication.instance().installEventFilter(self)
+        # 啟動 1 秒後背景檢查 GitHub Release（與 V1 等價）
+        self._schedule_update_check()
 
     def _build(self):
         # 主背景：紫色漸層
@@ -192,6 +195,42 @@ class PreviewWindow(QMainWindow):
             toast = getattr(self.app_ctx, "toast", None)
             if toast is not None:
                 toast.show(f"設定無法開啟：{type(e).__name__}", "error")
+
+    # --------------------------------------------------
+    # 自動更新檢查（與 V1 App._check_for_updates 等價）
+    # --------------------------------------------------
+    def _schedule_update_check(self):
+        """1 秒後排程背景更新檢查；測試模式（env=1）跳過"""
+        if os.environ.get("SKILL_TRACKER_DISABLE_UPDATE_CHECK") == "1":
+            return
+        QTimer.singleShot(1000, self._run_update_check)
+
+    def _run_update_check(self):
+        """daemon thread 內呼叫 Updater，結果透過 app_ctx.after(0,…) 排回主執行緒"""
+        def _worker():
+            try:
+                from src.infrastructure.updater import Updater
+                update_info = Updater().check_for_updates()
+            except Exception as e:
+                print(f"[v2-update] check error: {type(e).__name__}: {e}")
+                return
+            self.app_ctx.after(0, lambda info=update_info: self._on_update_result(info))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_update_result(self, update_info):
+        """主執行緒 handler：有新版才開 UpdateDialog；錯誤/無新版只寫 console"""
+        if not update_info or not update_info.get("available"):
+            err = (update_info or {}).get("error")
+            if err:
+                print(f"[v2-update] no update: {err}")
+            return
+        try:
+            from src.ui_v2.dialogs.update_dialog_v2 import UpdateDialog
+            dlg = UpdateDialog(self, update_info)
+            dlg.exec()
+        except Exception as e:
+            print(f"[v2-update] dialog error: {type(e).__name__}: {e}")
 
     # --------------------------------------------------
     # 無邊框視窗 Resize（QApplication 全域事件過濾 + startSystemResize）

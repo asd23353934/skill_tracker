@@ -4,10 +4,21 @@
 """
 
 # 當前版本
-VERSION = "4.2.5"
+VERSION = "4.3.0"
 
 # 版本歷史
 CHANGELOG = """
+v4.3.0 (2026-04-27)
+-------------------
+✨ V2 預覽 shell 接上自動更新檢查
+  - 啟動 1 秒後背景查 GitHub Release，有新版時開 V2 UpdateDialog
+  - V2 UpdateDialog（src/ui_v2/dialogs/update_dialog_v2.py）：
+    BaseDialogV2 + V2Theme，繼承 V1 下載 / 啟動 launcher 流程
+  - 進度回呼節流（100ms 或 0.5% delta），避免大檔下載塞爆 event queue
+  - SKILL_TRACKER_DISABLE_UPDATE_CHECK=1 可關閉（測試用）
+  - verify_v2_update_checker.py：6 cases 全綠
+🔧 移除 verify_lucide_hidpi.py（DPR 路線已被 v4.2.4 4x 超採樣取代）
+
 v4.2.5 (2026-04-24)
 -------------------
 ✨ 技能卡片冷卻/熱鍵 chip 加寬（value_w 46 → 64）
