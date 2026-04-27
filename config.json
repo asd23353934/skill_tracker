@@ -17,18 +17,26 @@
       "subcategory": "弓箭手"
     },
     {
-      "id": "puppet",
-      "name": "替身術",
-      "icon": "puppet.png",
-      "cooldown": 60,
-      "category": "player",
-      "subcategory": "弓箭手"
-    },
-    {
       "id": "concentrate",
       "name": "念力集中",
       "icon": "concentrate.png",
       "cooldown": 360,
+      "category": "player",
+      "subcategory": "弓箭手"
+    },
+    {
+      "id": "phoenix",
+      "name": "召喚鳳凰",
+      "icon": "phoenix.png",
+      "cooldown": 300,
+      "category": "player",
+      "subcategory": "弓箭手"
+    },
+    {
+      "id": "silverHawk",
+      "name": "召喚銀隼",
+      "icon": "silverHawk.png",
+      "cooldown": 300,
       "category": "player",
       "subcategory": "弓箭手"
     },
