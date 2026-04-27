@@ -5,23 +5,25 @@ Lucide SVG 圖示載入器
 
 import os
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtGui import QPixmap, QPainter, QIcon, QGuiApplication
+from PySide6.QtGui import QPixmap, QPainter, QIcon
 from PySide6.QtCore import Qt, QByteArray
 
 ICON_DIR = os.path.join(os.path.dirname(__file__), "icons")
 _cache: dict = {}
 
 
-def _device_pixel_ratio() -> float:
-    """取得目前主螢幕的 device pixel ratio（high-DPI 支援）"""
-    screen = QGuiApplication.primaryScreen()
-    return float(screen.devicePixelRatio()) if screen is not None else 1.0
+_OVERSAMPLE = 4   # 內部以此倍率渲染 SVG，再平滑縮回目標尺寸
 
 
 def lucide_pixmap(name: str, color: str = "#ffffff",
                   size: int = 16, stroke: float = 2.0) -> QPixmap:
-    dpr = _device_pixel_ratio()
-    key = (name, color, size, stroke, dpr)
+    """載入 Lucide SVG 並回傳 QPixmap（size × size 邏輯像素）。
+
+    內部以 4x 超採樣渲染後平滑縮回，避免小尺寸 icon 的對角線因
+    抗鋸齒落在奇偶像素格而視覺歪斜。不依賴 devicePixelRatio，
+    在不同 Qt / Windows 版本行為一致。
+    """
+    key = (name, color, size, stroke)
     if key in _cache:
         return _cache[key]
 
@@ -32,18 +34,20 @@ def lucide_pixmap(name: str, color: str = "#ffffff",
     if stroke != 2.0:
         svg = svg.replace('stroke-width="2"', f'stroke-width="{stroke}"')
 
-    # 以物理像素建立 pixmap，再透過 setDevicePixelRatio 讓 Qt 以 logical size 顯示，
-    # 避免 high-DPI（125% / 150% / 200%）下 SVG 被點陣放大造成糊邊。
-    phys = max(1, int(round(size * dpr)))
     renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-    pix = QPixmap(phys, phys)
-    pix.fill(Qt.GlobalColor.transparent)
-    pix.setDevicePixelRatio(dpr)
-    p = QPainter(pix)
+    hi = max(1, size * _OVERSAMPLE)
+    hi_pix = QPixmap(hi, hi)
+    hi_pix.fill(Qt.GlobalColor.transparent)
+    p = QPainter(hi_pix)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
     renderer.render(p)
     p.end()
+
+    pix = hi_pix.scaled(
+        size, size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
     _cache[key] = pix
     return pix
 

@@ -493,23 +493,8 @@ class AppCoreMixin:
         self.update_hotkey_display(skill_id, "", False)
         self.auto_save_current_profile()
 
-    def show_skill_detail(self, skill_id):
-        """顯示 V1 技能細部設定對話框
-
-        注意：V2 SkillCardV2 直接 instantiate SkillDetailDialogV2，
-        不走此方法；此方法供 V1 SkillCard 使用。
-        """
-        self.hotkey_manager.enabled = False
-
-        from src.ui.dialogs import SkillDetailDialog
-        dialog = SkillDetailDialog(self._dialog_parent(), skill_id, self)
-        dialog.exec()
-
-        self.hotkey_manager.enabled = True
-
     # --------------------------------------------------
-    # 8 個共通怪物互動方法（V1 / V2 共用）
-    # --------------------------------------------------
+    # 8 個共通怪物互動方法
 
     def edit_respawn_time(self, monster_id):
         """編輯怪物重生時間（委派到 MonsterService）"""

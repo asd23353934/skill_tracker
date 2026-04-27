@@ -19,6 +19,37 @@ from pynput import keyboard
 from src.ui.theme import AppTheme
 
 
+# 右側數字鍵區（numpad）Windows virtual-key code → 顯示名稱
+# pynput 在某些狀態下（Num Lock off 或特定按鍵）回傳 KeyCode(char=None, vk=..)
+# 直接 str(None) 會變成 "None" / .upper() 成 "NONE"，無法作為快捷鍵使用
+_NUMPAD_VK_LABELS = {
+    96:  "NUM0", 97:  "NUM1", 98:  "NUM2", 99:  "NUM3", 100: "NUM4",
+    101: "NUM5", 102: "NUM6", 103: "NUM7", 104: "NUM8", 105: "NUM9",
+    106: "NUM*", 107: "NUM+", 109: "NUM-", 110: "NUM.", 111: "NUM/",
+}
+
+
+def _key_to_name(key) -> str:
+    """將 pynput Key / KeyCode 轉為穩定的名稱字串。
+
+    優先順序：
+      1. Key.name（特殊鍵：f1 / space / ctrl_l / …）
+      2. VK 對應的 numpad 標籤（NUM0..9 / NUM+ / …）
+      3. KeyCode.char（一般字元鍵）
+      4. fallback "VK{vk}"，完全無法辨識則回 "UNKNOWN"
+    """
+    name = getattr(key, "name", None)
+    if name:
+        return name
+    vk = getattr(key, "vk", None)
+    if vk in _NUMPAD_VK_LABELS:
+        return _NUMPAD_VK_LABELS[vk]
+    char = getattr(key, "char", None)
+    if char:
+        return char
+    return f"VK{vk}" if vk else "UNKNOWN"
+
+
 class HotkeyManager:
     """快捷鍵管理器"""
 
@@ -72,7 +103,7 @@ class HotkeyManager:
             return
 
         try:
-            key_name = key.name if hasattr(key, "name") else str(key.char)
+            key_name = _key_to_name(key)
 
             # 先檢查技能快捷鍵
             skill_id = self.app.skill_manager.get_skill_by_hotkey(key_name)
@@ -98,7 +129,7 @@ class HotkeyManager:
             return
 
         try:
-            key_name = key.name if hasattr(key, "name") else str(key.char)
+            key_name = _key_to_name(key)
             key_str = key_name.upper()
 
             waiting_id = self.waiting_for

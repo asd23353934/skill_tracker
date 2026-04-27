@@ -17,15 +17,15 @@ Python 3 + PySide6 GUI 桌面應用，支援 PyInstaller 打包為 exe。
 ## 專案結構
 
 ```
-main.py                  # 入口（預設進 V2；--v1 走 V1 opt-in）
-main_v2.py               # V2 入口（紫色漸層 dashboard，正式預設 UI）
+main.py                  # 入口（薄 wrapper — 佔 single instance 鎖後委派給 main_v2）
+main_v2.py               # V2 入口（紫色漸層 dashboard，正式 UI）
 version.py               # 版本號 (VERSION = "x.y.z")
 config.json              # 靜態：skills / items 元資料（tracked）
 config_user.json         # 可變：settings / monsters / overlays（gitignored，ConfigManager 自建）
 profiles/                # 使用者配置檔 JSON（gitignored）
 images/                  # 技能 / 怪物圖示
 sounds/                  # 音效檔案
-icon.ico / icon.png      # app icon（.ico 給 exe + V1 視窗；.png 給 V2 sidebar logo）
+icon.ico / icon.png      # app icon（.ico 給 exe；.png 給 V2 sidebar logo）
 scripts/
   strip_config_for_release.py  # release 前清 config.json 內可變區（--restore 還原）
 src/infrastructure/      # 外部邊界（檔案 I/O、OS、第三方）
@@ -35,33 +35,23 @@ src/infrastructure/      # 外部邊界（檔案 I/O、OS、第三方）
   sound_manager.py       # 音效播放 / 清單 / 匯入
   helpers.py             # resource_path / user_data_path / lucide_pixmap 等
   updater.py             # 版本更新檢查
-src/domain/              # 純 Python 領域層（零 Qt 依賴，V1/V2 共用）
+  mapleworld_scanner.py  # MapleWorld 資源掃描（Unity / Web，背景執行緒 + callback）
+src/domain/              # 純 Python 領域層（零 Qt 依賴）
   models.py              # 領域資料模型
   services.py            # SkillService / MonsterService
   potion_service.py      # 藥水費用計算 / autosave / 紀錄序列化
-src/ui/                  # V1 UI + V1/V2 共用控制層
-  app.py                 # V1 App (QMainWindow) — 繼承 AppCoreMixin
-  app_core.py            # AppCoreMixin — V1 App / V2AppContext 共用 domain backing
+src/ui/                  # V1/V2 共用控制層（V1 已下架；保留共用基礎）
+  app_core.py            # AppCoreMixin — 提供 V2AppContext 的 domain backing
                          #   技能 / 怪物互動 + profile CRUD + apply_settings + switch_profile + delegates
-  dispatcher.py          # Dispatcher — 跨執行緒安全的回呼排程（V1/V2 共用）
+  dispatcher.py          # Dispatcher — 跨執行緒安全的回呼排程
   skill_pixmap_cache.py  # 技能 QPixmap 多尺寸預載快取
-  hotkey_manager.py      # pynput 鍵盤監聽 / 快捷鍵綁定（V1/V2 共用）
-  window_manager.py      # 浮動技能視窗生命週期（V1/V2 共用）
-  overlay_manager.py     # 浮動圖片視窗管理（V1/V2 共用）
+  hotkey_manager.py      # pynput 鍵盤監聽 / 快捷鍵綁定
+  window_manager.py      # 浮動技能視窗生命週期
+  overlay_manager.py     # 浮動圖片視窗管理
   skill_window.py        # 單一技能倒數視窗（QWidget frameless）
   overlay_window.py      # 浮動圖片視窗（QWidget frameless, 透明）
-  skill_column.py / skill_card.py  # V1 技能頁元件
-  sidebar.py / header.py / status_bar.py  # V1 主視窗元件
-  theme.py               # V1 主題常量 AppTheme
-  toast.py               # V1 ToastManager（V2 另有 toast_v2）
-  pages/                 # V1 頁面
-    skill_page.py / monster_page.py / overlay_page.py /
-    potion_cost_page.py / mapleworld_page.py
-    skill_page_v2.py     # 舊 V1-era 預覽頁（作為 V1 sidebar "skill_v2" tab；未來砍 V1 時一併移除）
-  dialogs/
-    base_dialog.py / profile_dialog.py / settings_dialog.py /
-    skill_detail_dialog.py / potion_save_dialog.py / update_dialog.py
-src/ui_v2/               # V2 UI（正式預設）
+  theme.py               # 共用主題常量 AppTheme（浮動視窗 / hotkey manager 等使用）
+src/ui_v2/               # V2 UI（正式 UI）
   theme_v2.py            # V2 主題常量 V2Theme
   header_v2.py           # V2 頁首（精簡為視窗控制 + 拖曳區）
   sidebar_v2.py          # V2 左側導覽（齒輪→SettingsDialogV2）
@@ -73,6 +63,7 @@ src/ui_v2/               # V2 UI（正式預設）
     skill_page_v2.py / skill_column_v2.py / skill_card_v2.py
     monster_page_v2.py / overlay_page_v2.py /
     potion_page_v2.py / mapleworld_page_v2.py
+    mapleworld_widgets_v2.py  # 資源中心卡片 / chip / 縮圖 LRU / 分類 cache
   dialogs/
     base_dialog_v2.py
     skill_detail_dialog_v2.py
@@ -89,7 +80,7 @@ docs/DESIGN_V2.md        # V2 設計規範（顏色、間距、元件契約）
 - PySide6 Qt override 方法（如 `paintEvent`）需加 `# noqa: N802` 抑制 PEP 8 警告
 - 圖片快取：`SkillPixmapCache` 啟動時載入所有技能圖片，預生多種尺寸（技能視窗用大、卡片用小、V2 用中）
 - 新增技能只需在 `config.json` 加入資料 + 放入對應圖片檔到 `images/`
-- 新增頁面請在對應 `pages/` 建立；V2 頁面在 `src/ui_v2/pages/`
-- 新增對話框請繼承 `dialogs/base_dialog.py`（V1）或 `dialogs/base_dialog_v2.py`（V2）
+- 新增頁面請在 `src/ui_v2/pages/` 建立
+- 新增對話框請繼承 `src/ui_v2/dialogs/base_dialog_v2.py`
 - 音效檔放在 `sounds/`，使用者可自訂（exe 同層目錄）
 - 升級時 ZIP 不覆蓋 `config_user.json` / `profiles/`；既有 user 資料保留

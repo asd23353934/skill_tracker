@@ -4,10 +4,115 @@
 """
 
 # 當前版本
-VERSION = "4.1.2"
+VERSION = "4.2.5"
 
 # 版本歷史
 CHANGELOG = """
+v4.2.5 (2026-04-24)
+-------------------
+✨ 技能卡片冷卻/熱鍵 chip 加寬（value_w 46 → 64）
+  長按鍵名（如 CTRL+F12）不再被截斷
+🐛 右側數字鍵 / numpad 快捷鍵判斷修復
+  pynput 在 Num Lock off 或 NUM+/-/*/÷ 等鍵回傳 KeyCode(char=None)
+  舊邏輯 str(None) → "None"，顯示成 "NONE" 無法使用
+  新增 _key_to_name 走 VK 對應表：NUM0..9 / NUM+ / NUM- / NUM* / NUM/ / NUM.
+  副作用：numpad 與主排數字為不同快捷鍵（可分別指派）
+
+v4.2.4 (2026-04-24)
+-------------------
+🎨 浮動視窗 icon 統一走 lucide + HiDPI 銳利化
+  - lucide_pixmap 改為 devicePixelRatio aware：
+    renders at size*dpr, setDevicePixelRatio(dpr) → HiDPI 螢幕不再模糊
+  - skill_window 關閉鈕：改用 lucide "x"（移除自繪 drawLine / drawText "✕"）
+    常態深灰圓底 + ORANGE 細框，hover ORANGE 填色，icon 永遠幾何置中
+  - overlay_window 關閉鈕：同改 lucide "x"（移除 drawText "✕"）
+  - 統一規範：UI 圖示一律走 lucide，禁止自繪 / Unicode 符號當 icon
+
+v4.2.3 (2026-04-24)
+-------------------
+🎨 技能倒數小窗視覺整合 V2 調性（尺寸/位置計算完全未動）
+  - 外框改 V2 ORANGE + 圓角（R_SM=6），alert 時閃 YELLOW
+  - 內框改 V2 BORDER_HOVER 低調灰紫
+  - 倒數文字 / 標題改 TEXT_HI + BG_BOTTOM 深描邊，字型統一 Microsoft JhengHei
+  - 關閉鈕 hover 改 ORANGE 圓角填色底 + 亮 X（常態僅 dim X 無底）
+  - BORDER_W / INNER_BORDER_W / 所有 QRect / window_size 計算維持原樣
+  - 驗證：64/80/96 三種尺寸最終 window size 與 v4.2.2 一致
+
+v4.2.2 (2026-04-24)
+-------------------
+🔧 SkillPixmapCache 改 lazy load（啟動零 QPixmap 解碼）
+  - 啟動只掃 icon 路徑索引，不開檔；首次 .get(skill_id) 才解碼
+  - 一次解碼產四尺寸（50 / 28 / 64 / 36），後續命中走 dict
+  - 對外 qpixmaps / qpixmaps_small / qpixmaps_medium / qpixmaps_card
+    仍是 dict-like（.get / [] / in / 指派）— 現有呼叫端零改動
+  - 缺圖 / 解碼失敗 → 四個 dict 都寫 None，不重試
+  - 新增 preload_all() 供測試 / 舊行為還原
+  - 新增 tests/test_skill_pixmap_cache.py（10 cases）
+  - 全 pytest：150 → 160 passing
+
+v4.2.1 (2026-04-24)
+-------------------
+✅ 補 domain / infrastructure 測試：72 → 150 passing
+  - tests/test_services.py — SkillService / MonsterService（34 cases）
+    互斥狀態、快捷鍵衝突 displace、批次 toggle、serialize/load、
+    MonsterService 重生時間 + 狀態 setter + save
+  - tests/test_config_manager.py — ConfigManager（44 cases）
+    檔名驗證（Path Traversal / Windows 保留字）、config+user 分檔三情境、
+    profile CRUD / list sort / rename、potion record CRUD /
+    mtime 排序、potion autosave（含 corrupt 容錯）
+
+v4.2.0 (2026-04-24)
+-------------------
+🎉 V1 UI 正式下架 — V2 為唯一 UI
+  - 移除 src/ui/app.py / pages/ / dialogs/ / header / sidebar / status_bar /
+    skill_column / skill_card / toast
+  - main.py 不再支援 --v1 opt-in，直接進 V2
+  - app_core.py 清掉 V1-only show_skill_detail（V2 SkillCardV2 直呼 V2 dialog）
+  - src/ui/ 只留 V2 共用基礎：app_core / dispatcher / hotkey_manager /
+    window_manager / overlay_manager / skill_window / overlay_window /
+    skill_pixmap_cache / theme
+  - 文件同步：PROJECT.md / ARCHITECTURE.md
+
+v4.1.9 (2026-04-24)
+-------------------
+🐛 修復：點卡片預覽時 AttributeError: V2Theme has no attribute 'BG_BASE'
+  - _PreviewDialog 誤用不存在的 T.BG_BASE，改為 T.BG_WINDOW
+
+v4.1.8 (2026-04-24)
+-------------------
+🔧 V2 資源中心分類 chip 改用 FlowLayout，視窗變窄時自動折行
+  - 新增 src/ui_v2/flow_layout.py（Qt 官方 FlowLayout 範例 Python 版）
+
+v4.1.7 (2026-04-24)
+-------------------
+✨ V2 資源中心新增掃描進度條（QProgressBar, indeterminate → 0-100）
+  - scanner on_progress 簽章改為 (msg, pct)；pct=-1 視為 indeterminate
+  - Unity 掃描直接回報百分比；Web 掃描 Phase 1 / Phase 2 各佔 50%
+
+v4.1.6 (2026-04-24)
+-------------------
+🔧 分類 cache 加 version 欄位（v2 schema：{"version": 2, "tags": {...}}）
+  - 未來 CATEGORIES 變動只要 +1 version 即可全量失效重分類
+  - 完全相容 v1 純 dict 舊檔；下次存檔自動升級
+
+v4.1.5 (2026-04-24)
+-------------------
+🔧 重構：拆分 mapleworld_page_v2.py（897 行 → 573 行）
+  - 新增 mapleworld_widgets_v2.py：_PreviewDialog / _AssetCard / _ThumbBox /
+    _TabBtn / _CatChip / _LRUPixCache / 分類色表 / classify cache I/O
+  - 原頁面只留 layout / 掃描 / filter 主流程
+
+v4.1.4 (2026-04-24)
+-------------------
+🔧 V2 資源中心縮圖快取改 LRU（上限 800 張），避免長時瀏覽記憶體無限膨脹
+
+v4.1.3 (2026-04-24)
+-------------------
+✨ V2 資源中心掃描支援取消
+  - scanner 新增 should_cancel callback，Unity 每 500 檔 / Web Phase 1 每 100 檔、Phase 2 每 50 URL 檢查一次
+  - 掃描中按鈕切換為「取消」，再按一次會中止 worker 並回報已存張數
+  - 取消後仍重掃目錄顯示已儲存的檔案
+
 v4.1.2 (2026-04-24)
 -------------------
 🔧 分類 cache 檔案移出 images/mapleworld/，放至 exe 同層（mapleworld_classify_cache.json）
