@@ -226,7 +226,7 @@ class PreviewWindow(QMainWindow):
                 print(f"[v2-update] no update: {err}")
             return
         try:
-            from src.ui.dialogs.update_dialog import UpdateDialog
+            from src.ui_v2.dialogs.update_dialog_v2 import UpdateDialog
             dlg = UpdateDialog(self, update_info)
             dlg.exec()
         except Exception as e:

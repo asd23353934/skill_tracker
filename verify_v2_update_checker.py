@@ -73,7 +73,7 @@ def _patched_updater(return_value):
 
 @contextlib.contextmanager
 def _patched_dialog(dialog_cls):
-    with patch("src.ui.dialogs.update_dialog.UpdateDialog", dialog_cls):
+    with patch("src.ui_v2.dialogs.update_dialog_v2.UpdateDialog", dialog_cls):
         yield
 
 
