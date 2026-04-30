@@ -1,4 +1,4 @@
-# 重設 sandbox 到指定版本，方便測試自動更新流程（本機 dry-run）
+﻿# 重設 sandbox 到指定版本，方便測試自動更新流程（本機 dry-run）
 #
 # 用法：
 #   .\scripts\reset_sandbox.ps1 -Version v4.3.5

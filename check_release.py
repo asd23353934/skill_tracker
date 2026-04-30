@@ -139,19 +139,51 @@ def check_icon_file():
         print("  ❌ 圖示文件不存在")
         return False
 
+
+def check_ps1_bom():
+    """檢查所有 .ps1 都帶 UTF-8 BOM
+
+    PS 5.1 預設用系統 ANSI codepage 讀檔，含中文的 .ps1 缺 BOM 會 silent
+    parse fail（[3/4] block 整段被跳過不報錯）。實機升級必踩雷。
+    Edit 工具偶會 strip BOM，pre-flight 主動驗。
+    """
+    print("\n🔍 檢查 .ps1 file UTF-8 BOM...")
+    targets = ['update_launcher.ps1']
+    for sub in ('scripts', '.'):
+        if os.path.isdir(sub):
+            for name in os.listdir(sub):
+                if name.endswith('.ps1'):
+                    rel = name if sub == '.' else os.path.join(sub, name)
+                    if rel not in targets:
+                        targets.append(rel)
+    all_passed = True
+    for path in targets:
+        if not os.path.exists(path):
+            continue
+        with open(path, 'rb') as f:
+            head = f.read(3)
+        if head == b'\xef\xbb\xbf':
+            print(f"  ✅ {path}")
+        else:
+            print(f"  ❌ {path} 缺 BOM（前 3 bytes: {head.hex()}）")
+            all_passed = False
+    return all_passed
+
+
 def main():
     """主函數"""
     print("=" * 50)
     print("📦 技能追蹤器 - 發布前檢查")
     print("=" * 50)
     print()
-    
+
     results = {
         'config.json': check_config_json(),
         'profiles/': check_profiles_dir(),
         'images/': check_images_dir(),
         'overlays/': check_overlays_dir(),
         'icon.ico': check_icon_file(),
+        '.ps1 BOM': check_ps1_bom(),
     }
     
     print("\n" + "=" * 50)

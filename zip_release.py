@@ -89,6 +89,15 @@ def zip_release() -> int:
         dest_launcher = os.path.join(src_dir, launcher_name)
         if os.path.exists(src_launcher):
             shutil.copy2(src_launcher, dest_launcher)
+            # PS 5.1 必需 UTF-8 BOM 才能正確 parse 中文 .ps1，否則 [3/4] block
+            # 整段 silent skip。Edit 工具偶爾會 strip BOM，build pipeline 主動補。
+            if launcher_name.endswith(".ps1"):
+                with open(dest_launcher, "rb") as f:
+                    content = f.read()
+                if not content.startswith(b"\xef\xbb\xbf"):
+                    with open(dest_launcher, "wb") as f:
+                        f.write(b"\xef\xbb\xbf" + content)
+                    print(f"  📝  {launcher_name} 補 UTF-8 BOM")
             print(f"  🔧  已複製 {launcher_name} → {dest_launcher}")
         else:
             print(f"  ⚠️  找不到 {launcher_name}，跳過")
