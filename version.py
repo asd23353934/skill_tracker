@@ -4,10 +4,30 @@
 """
 
 # 當前版本
-VERSION = "4.3.5"
+VERSION = "4.3.6"
 
 # 版本歷史
 CHANGELOG = """
+v4.3.6 (2026-04-30)
+-------------------
+✨ 新增三個 buff 道具
+  - 經驗加倍（cooldown 1800s）
+  - 掉寶加倍（cooldown 1800s）
+  - HT加倍（Hot Time，cooldown 3600s）
+✨ 道具類提前提示預設啟用
+  - SkillService.is_alert_enabled fallback：dict 無 key 時，category=item 走 True，
+    其他走 False。既有 profile 升上 v4.3.6 後新加道具自動帶提前提示
+🎨 技能倒數小窗時間 >600s 改用「Xm」分鐘顯示
+  - SkillWindow._fmt_seconds（>600 嚴格大於才轉分鐘；600 仍以「600」秒顯示）
+  - 避免長 buff 倒數時整排數字塞滿小窗
+🔒 SkillPixmapCache._index_all_paths 加 path traversal 防禦
+  - reject `..` / `/` / `\\` / Windows drive-letter 開頭的 icon 字串，
+    防同 user 改 config.json 寫惡意路徑
+✅ 新增 tests/test_skill_window_fmt.py（5 cases）+ test_services.py 5 個
+   alert_enabled fallback 測試（item / player / boss / explicit-set / unknown-id）
+🔧 scripts/gen_buff_icons.py — Pillow placeholder generator（一次性）
+   含 --force 旗標，預設不覆蓋既有圖避免蓋掉使用者真實 icon
+
 v4.3.5 (2026-04-30)
 -------------------
 🐛 修復 v4.3.0+ 自動更新流程下載完不重啟的 bug

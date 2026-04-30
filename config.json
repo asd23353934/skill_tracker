@@ -401,6 +401,30 @@
       "cooldown": 1200,
       "category": "item",
       "subcategory": "道具"
+    },
+    {
+      "id": "exp-x2",
+      "name": "經驗加倍",
+      "icon": "經驗加倍.png",
+      "cooldown": 1800,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "drop-x2",
+      "name": "掉寶加倍",
+      "icon": "掉寶加倍.png",
+      "cooldown": 1800,
+      "category": "item",
+      "subcategory": "道具"
+    },
+    {
+      "id": "ht-x2",
+      "name": "HT加倍",
+      "icon": "HT加倍.png",
+      "cooldown": 3600,
+      "category": "item",
+      "subcategory": "道具"
     }
   ],
   "settings": {

@@ -58,8 +58,19 @@ class SkillService:
         return self._loop.get(skill_id, False)
 
     def is_alert_enabled(self, skill_id: str) -> bool:
-        """查詢技能是否啟用提前提示"""
-        return self._alert_enabled.get(skill_id, False)
+        """查詢技能是否啟用提前提示
+
+        fallback 規則：dict 無此 key 時（既有 profile 沒 sync 到新加的 sid），
+        道具類（category=item）預設 True，其他預設 False。
+        因道具 buff cooldown 通常較短、玩家普遍需要提前提示，預設 enabled
+        比預設 disabled 更貼近使用者預期。
+        """
+        if skill_id in self._alert_enabled:
+            return self._alert_enabled[skill_id]
+        skill = self._skill_loader.get_skill(skill_id) if self._skill_loader else None
+        if skill and skill.get("category") == "item":
+            return True
+        return False
 
     def get_effective_cooldown(self, skill_id: str) -> int:
         """取得有效冷卻時間（覆寫值或原始值）"""

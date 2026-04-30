@@ -150,7 +150,7 @@ class SkillWindow(QWidget):
         self._closed = False
 
         # 當前顯示文字
-        self._current_display_text = "0" if count_up else str(self.remaining)
+        self._current_display_text = "0" if count_up else self._fmt_seconds(self.remaining)
 
         # 計算視窗尺寸
         self._calc_dimensions()
@@ -547,13 +547,13 @@ class SkillWindow(QWidget):
 
         if elapsed >= self.total:
             self.remaining = self.total
-            self._update_display_text(str(self.total))
+            self._update_display_text(self._fmt_seconds(self.total))
             self._update_overlay(1.0)
             self._on_finish()
         else:
             if elapsed_sec != self.remaining:
                 self.remaining = elapsed_sec
-                self._update_display_text(str(self.remaining))
+                self._update_display_text(self._fmt_seconds(self.remaining))
             self._timer.start(100)
 
     def _tick_count_down(self, elapsed: float):
@@ -672,8 +672,25 @@ class SkillWindow(QWidget):
 
     def _update_display(self):
         """根據 self.remaining 更新顯示文字"""
-        text = "0" if self.remaining <= 0 else str(self.remaining)
+        text = "0" if self.remaining <= 0 else self._fmt_seconds(self.remaining)
         self._update_display_text(text)
+
+    @staticmethod
+    def _fmt_seconds(seconds: int) -> str:
+        """>600 秒切換為分鐘顯示（ceil），避免長 buff 倒數時整排數字塞滿小窗
+
+        嚴格大於 600 才轉分鐘（剛好 600 秒仍以「600」顯示）；切換瞬間是
+        「11m」→「600」這種跳變，刻意維持，避免「10m」→「600」更突兀。
+
+        Args:
+            seconds: 剩餘秒數整數
+
+        Returns:
+            ≤600 → 純秒數字串（例如 "599"）；>600 → 分鐘字串（例如 "11m"）
+        """
+        if seconds > 600:
+            return f"{math.ceil(seconds / 60)}m"
+        return str(seconds)
 
     def _update_display_text(self, text: str):
         """更新顯示文字並觸發重繪

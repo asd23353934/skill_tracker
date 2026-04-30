@@ -374,3 +374,62 @@ def test_monster_save_delegates_to_cm():
     svc, cm = _make_monster_service()
     assert svc.save() is True
     assert cm.saved is True
+
+
+# ── is_alert_enabled fallback：item 類預設 True、其他預設 False ────────────
+
+def _make_service_mixed_categories() -> SkillService:
+    """建立含 player / item / boss 三類的 SkillService（fallback 邏輯測試用）"""
+    skills = {
+        "p1": {"id": "p1", "name": "P1", "icon": "p.png", "cooldown": 30},
+        "i1": {"id": "i1", "name": "I1", "icon": "i.png", "cooldown": 1800},
+        "b1": {"id": "b1", "name": "B1", "icon": "b.png", "cooldown": 600},
+    }
+    categories = {"p1": "player", "i1": "item", "b1": "boss"}
+    metas = {
+        sid: SkillMetadata(
+            id=s["id"], name=s["name"], icon=s["icon"],
+            cooldown=s["cooldown"], category=categories[sid], subcategory="",
+        )
+        for sid, s in skills.items()
+    }
+    # SkillLoader fake 也要回傳 category 給 fallback 用
+    class _CategoryAwareLoader:
+        def __init__(self, skills, cats):
+            self.skills = {sid: {**s, "category": cats[sid]} for sid, s in skills.items()}
+        def get_skill(self, sid):
+            return self.skills.get(sid)
+        def get_all_skills(self):
+            return self.skills
+    return SkillService(_FakeSkillRepo(metas), _CategoryAwareLoader(skills, categories))
+
+
+def test_alert_enabled_fallback_item_returns_true():
+    """道具類在 dict 無 key 時 fallback 為 True（v4.3.6 新行為）"""
+    svc = _make_service_mixed_categories()
+    assert svc.is_alert_enabled("i1") is True
+
+
+def test_alert_enabled_fallback_player_returns_false():
+    svc = _make_service_mixed_categories()
+    assert svc.is_alert_enabled("p1") is False
+
+
+def test_alert_enabled_fallback_boss_returns_false():
+    svc = _make_service_mixed_categories()
+    assert svc.is_alert_enabled("b1") is False
+
+
+def test_alert_enabled_explicit_set_overrides_fallback():
+    """user 主動 disable item 後不應被 fallback 蓋回 True"""
+    svc = _make_service_mixed_categories()
+    svc.set_alert_enabled("i1", False)
+    assert svc.is_alert_enabled("i1") is False
+    svc.set_alert_enabled("p1", True)
+    assert svc.is_alert_enabled("p1") is True
+
+
+def test_alert_enabled_unknown_skill_returns_false():
+    """未知 skill_id（loader 找不到）fallback 走 False"""
+    svc = _make_service_mixed_categories()
+    assert svc.is_alert_enabled("nonexistent") is False

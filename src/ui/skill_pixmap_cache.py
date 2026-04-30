@@ -97,11 +97,21 @@ class SkillPixmapCache:
         self._index_all_paths()
 
     def _index_all_paths(self) -> None:
-        """只登錄檔案路徑，不開檔；開檔留給 lazy load。"""
+        """只登錄檔案路徑，不開檔；開檔留給 lazy load。
+
+        config.json 雖屬靜態唯讀區，但 file 在 disk 上同 user 仍可竄改。
+        防 path traversal — reject `..` / 路徑分隔符 / Windows 絕對路徑後才 join。
+        """
         for skill_id, skill_data in self.skill_loader.get_all_skills().items():
-            self.skill_image_paths[skill_id] = resource_path(
-                f"images/{skill_data['icon']}"
-            )
+            icon = skill_data["icon"]
+            if (
+                ".." in icon
+                or "/" in icon
+                or "\\" in icon
+                or (len(icon) >= 2 and icon[1] == ":")  # Windows drive-letter abs path
+            ):
+                continue
+            self.skill_image_paths[skill_id] = resource_path(f"images/{icon}")
 
     def _load_skill_pixmaps(self, skill_id: str) -> None:
         """為單一 skill_id 解出四種尺寸並寫入四個快取 dict。
