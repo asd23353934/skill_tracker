@@ -1,4 +1,4 @@
-# update_launcher.ps1
+﻿# update_launcher.ps1
 # 更新替換腳本：等待舊程式關閉 → 備份 → 解壓 → 驗證 → 重啟
 param(
     [string]$DownloadFile,
@@ -13,7 +13,8 @@ if (-not $DownloadFile -or -not $AppDir) { exit 1 }
 $logFile = Join-Path $AppDir "update_log.txt"
 function Write-Log($msg) {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    "$ts  $msg" | Out-File -FilePath $logFile -Append -Encoding utf8
+    $line = "$ts  $msg`r`n"
+    [System.IO.File]::AppendAllText($logFile, $line, [System.Text.Encoding]::UTF8)
 }
 
 # ── Failure handling ──
@@ -173,7 +174,9 @@ try {
     }
     elseif ($AppExe -and (Test-Path $AppExe)) {
         Start-Process -FilePath $AppExe
-        Write-Log "  Started $AppExe (fallback)"
+        # PS 5.1 對 Write-Log (expression) 的 expression group 有 parse quirk；用變數預建避開
+        $startedMsg = "  Started $AppExe [fallback]"
+        Write-Log $startedMsg
     }
     else {
         Write-Log "  ERROR: No exe found to restart"
@@ -181,7 +184,8 @@ try {
         Show-FailureDialog "更新失敗：找不到可重啟的執行檔。" "請從 GitHub 手動下載 skill_tracker 最新版並解壓覆蓋。"
     }
 
-    Write-Log "=== Update finished (success=$success) ==="
+    $finishedMsg = "=== Update finished, success=$success ==="
+    Write-Log $finishedMsg
 }
 catch {
     Write-Log "UNHANDLED ERROR: $_"
