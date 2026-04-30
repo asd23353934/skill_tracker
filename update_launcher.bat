@@ -56,6 +56,8 @@ if exist "%APP_DIR%\%EXE_NAME%.exe" (
     move /y "%APP_DIR%\%EXE_NAME%.exe" "%APP_DIR%\%EXE_NAME%.exe.bak" >nul 2>&1
     if errorlevel 1 (
         echo %date% %time%    ERROR: Failed to backup exe >> "%LOG_FILE%"
+        call :write_marker "備份舊版失敗（exe 可能被防毒或其他程式鎖定）"
+        call :show_dialog "無法備份舊版執行檔，可能有其他程式正在使用它。" "請關閉所有 skill_tracker 視窗後重試。"
         goto :restart
     )
     echo %date% %time%    Backup created >> "%LOG_FILE%"
@@ -124,6 +126,8 @@ if exist "%APP_DIR%\%EXE_NAME%.exe.bak" (
     move /y "%APP_DIR%\%EXE_NAME%.exe.bak" "%APP_DIR%\%EXE_NAME%.exe" >nul 2>&1
     echo %date% %time%    Backup restored >> "%LOG_FILE%"
 )
+call :write_marker "更新安裝失敗（已自動還原舊版）"
+call :show_dialog "更新安裝失敗，已還原為舊版。" "建議從 GitHub 手動下載最新版。"
 
 :restart
 REM [4/4] 重新啟動應用程式
@@ -131,6 +135,8 @@ echo %date% %time%  [4/4] Restarting app... >> "%LOG_FILE%"
 if exist "%APP_DIR%\%EXE_NAME%.exe" goto :restart_primary
 if exist "%APP_EXE%" goto :restart_fallback
 echo %date% %time%    ERROR: No exe found to restart >> "%LOG_FILE%"
+call :write_marker "更新後找不到任何可重啟的 exe"
+call :show_dialog "更新失敗：找不到可重啟的執行檔。" "請從 GitHub 手動下載最新版並解壓覆蓋。"
 goto :restart_done
 
 :restart_primary
@@ -146,4 +152,25 @@ goto :restart_done
 :restart_done
 
 echo %date% %time%  === Update finished (BAT) === >> "%LOG_FILE%"
+exit /b 0
+
+REM =========================================================
+REM Sub-routines: write marker + show MessageBox（失敗時提示用戶）
+REM =========================================================
+:write_marker
+REM %~1 = reason
+set "MARKER_PATH=%APP_DIR%\update_failed.txt"
+echo timestamp: %date% %time%> "%MARKER_PATH%"
+echo reason: %~1>> "%MARKER_PATH%"
+echo %date% %time%    Failure marker written: %MARKER_PATH% >> "%LOG_FILE%"
+exit /b 0
+
+:show_dialog
+REM %~1 = reason, %~2 = instruction
+REM 用 env var 傳遞訊息，避免 PowerShell 字串拼接被單引號 / 換行 break（注入防禦）
+set "DLG_REASON=%~1"
+set "DLG_INSTRUCTION=%~2"
+powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show($env:DLG_REASON + [Environment]::NewLine + [Environment]::NewLine + $env:DLG_INSTRUCTION, '自動更新失敗', 'OK', 'Warning')" >nul 2>&1
+set "DLG_REASON="
+set "DLG_INSTRUCTION="
 exit /b 0

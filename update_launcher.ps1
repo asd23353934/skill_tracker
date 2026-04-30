@@ -16,6 +16,40 @@ function Write-Log($msg) {
     "$ts  $msg" | Out-File -FilePath $logFile -Append -Encoding utf8
 }
 
+# ── Failure handling ──
+# 兩道防線：
+#   1. 立即跳 MessageBox 告知使用者（同步，使用者按 OK 才會回來）
+#   2. 寫 update_failed.txt 到 AppDir，主程式下次啟動時讀此檔顯示 toast
+function Write-FailureMarker {
+    param([string]$reason, [string]$detail = "")
+    try {
+        $markerPath = Join-Path $AppDir "update_failed.txt"
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $lines = @("timestamp: $ts", "reason: $reason")
+        if ($detail) { $lines += "detail: $detail" }
+        $lines | Out-File -FilePath $markerPath -Encoding utf8
+        Write-Log "  Failure marker written: $markerPath"
+    } catch {
+        Write-Log "  Write-FailureMarker failed: $_"
+    }
+}
+
+function Show-FailureDialog {
+    param([string]$reason, [string]$instruction = "")
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        $msg = "技能追蹤器自動更新失敗：`r`n`r`n$reason"
+        if ($instruction) { $msg += "`r`n`r`n$instruction" }
+        [System.Windows.Forms.MessageBox]::Show(
+            $msg, "自動更新失敗",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+    } catch {
+        Write-Log "  Show-FailureDialog failed: $_"
+    }
+}
+
 try {
     Write-Log "=== Update started ==="
     Write-Log "DownloadFile=$DownloadFile"
@@ -68,6 +102,8 @@ try {
         } catch {
             Write-Log "  ERROR: Failed to backup exe: $_"
             Write-Log "  Aborting update - exe may still be locked"
+            Write-FailureMarker "備份舊版失敗（exe 可能被防毒或其他程式鎖定）" "$_"
+            Show-FailureDialog "無法備份舊版執行檔，可能有其他程式正在使用它。" "請關閉所有 skill_tracker 視窗後重試，或從 GitHub 手動下載最新版。"
             if (Test-Path $oldExe) { Start-Process -FilePath $oldExe }
             exit 1
         }
@@ -79,6 +115,7 @@ try {
     Write-Log "[3/4] Installing update..."
     $ext = [System.IO.Path]::GetExtension($DownloadFile).ToLower()
     $success = $false
+    $installError = ""
 
     try {
         if ($ext -eq ".exe") {
@@ -96,16 +133,19 @@ try {
                 Write-Log "  Extraction OK, new exe verified at $oldExe"
             } else {
                 Write-Log "  ERROR: Extraction completed but exe not found at $oldExe"
+                $installError = "解壓 ZIP 完成但找不到新版 exe（ZIP 結構可能異常）"
                 $success = $false
             }
         }
         else {
             Write-Log "  ERROR: Unsupported format: $ext"
+            $installError = "不支援的更新檔格式：$ext"
             $success = $false
         }
     }
     catch {
         Write-Log "  ERROR: Installation failed: $_"
+        $installError = "安裝過程發生錯誤：$_"
         $success = $false
     }
 
@@ -115,6 +155,8 @@ try {
             Move-Item $bakExe $oldExe -Force -ErrorAction SilentlyContinue
             Write-Log "  Backup restored"
         }
+        Write-FailureMarker $installError
+        Show-FailureDialog $installError "已自動還原舊版。建議從 GitHub 手動下載最新版。"
     }
     else {
         # 清理暫存與備份
@@ -135,6 +177,8 @@ try {
     }
     else {
         Write-Log "  ERROR: No exe found to restart"
+        Write-FailureMarker "更新後找不到任何可重啟的 exe"
+        Show-FailureDialog "更新失敗：找不到可重啟的執行檔。" "請從 GitHub 手動下載 skill_tracker 最新版並解壓覆蓋。"
     }
 
     Write-Log "=== Update finished (success=$success) ==="
@@ -142,6 +186,8 @@ try {
 catch {
     Write-Log "UNHANDLED ERROR: $_"
     Write-Log $_.ScriptStackTrace
+    Write-FailureMarker "更新過程發生未處理錯誤" "$_"
+    Show-FailureDialog "更新過程發生未預期錯誤。" "已嘗試還原舊版。請從 GitHub 手動下載最新版。"
     # 嘗試還原並重啟
     $oldExe = Join-Path $AppDir "$exeFileName.exe"
     $bakExe = Join-Path $AppDir "$exeFileName.exe.bak"

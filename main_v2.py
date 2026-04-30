@@ -8,6 +8,7 @@ V2 UI 入口 — Soft Purple Gradient Dashboard（V2 為預設 UI）
 import os
 import sys
 import threading
+from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
 )
@@ -28,7 +29,7 @@ from src.ui_v2.pages.potion_page_v2 import PotionPageV2
 from src.ui_v2.pages.mapleworld_page_v2 import MapleWorldPageV2
 
 from src.infrastructure.config_manager import ConfigManager
-from src.infrastructure.helpers import resource_path
+from src.infrastructure.helpers import resource_path, user_data_path
 from src.ui.app_core import AppCoreMixin
 
 
@@ -90,6 +91,31 @@ PAGES = [
     ("mapleworld", "資源中心"),
 ]
 
+# 跨 launcher（ps1 / bat）的 marker 契約 — 一旦修改需要同步更新
+# update_launcher.{ps1,bat} 內的 update_failed.txt 寫入路徑
+_UPDATE_MARKER_FILENAME = "update_failed.txt"
+_UPDATE_MARKER_FALLBACK_REASON = "未知原因"
+_UPDATE_MARKER_REASON_MAX_LEN = 200
+
+
+def _sanitize_marker_reason(raw: str) -> str:
+    """過濾 marker 內 reason 字串，避免 marker 偽造攻擊。
+
+    AppDir 是同 user 可寫，惡意 process 可在 update_failed.txt 寫入帶 URL 的
+    釣魚訊息，讓我們的 toast 看起來像合法更新提示。reason 只保留純文字短摘要：
+    剔除控制字元、含 URL 標記直接 fallback、過長截斷。
+    """
+    if not raw:
+        return _UPDATE_MARKER_FALLBACK_REASON
+    if "://" in raw.lower():
+        return _UPDATE_MARKER_FALLBACK_REASON
+    cleaned = "".join(c for c in raw if c.isprintable()).strip()
+    if not cleaned:
+        return _UPDATE_MARKER_FALLBACK_REASON
+    if len(cleaned) > _UPDATE_MARKER_REASON_MAX_LEN:
+        cleaned = cleaned[:_UPDATE_MARKER_REASON_MAX_LEN] + "…"
+    return cleaned
+
 
 class PreviewWindow(QMainWindow):
     """V2 主視窗 — 無框 1240x760"""
@@ -108,6 +134,8 @@ class PreviewWindow(QMainWindow):
         self.app_ctx.toast = ToastManagerV2(self)
         # 安裝全域事件過濾器：攔截邊框附近滑鼠事件以實現原生 resize
         QApplication.instance().installEventFilter(self)
+        # 500ms 等主視窗 paint 完成 + toast 容器 layout 完成，避免 toast 動畫 jitter
+        QTimer.singleShot(500, self._check_update_failure_marker)
         # 啟動 1 秒後背景檢查 GitHub Release（與 V1 等價）
         self._schedule_update_check()
 
@@ -231,6 +259,41 @@ class PreviewWindow(QMainWindow):
             dlg.exec()
         except Exception as e:
             print(f"[v2-update] dialog error: {type(e).__name__}: {e}")
+
+    def _check_update_failure_marker(self):
+        """偵測 launcher 寫的 update_failed.txt → toast 提示 + 刪除
+
+        雙保險之一：MessageBox 在 launcher 端立刻彈出；marker 是備援，
+        確保使用者即使 miss 了 MessageBox（例如下班才回來）也會被告知。
+        utf-8-sig 防禦 PS 5.1 Out-File -Encoding utf8 寫入的 BOM。
+        SKILL_TRACKER_DISABLE_UPDATE_CHECK=1 同時抑制 update check 與 marker scan，
+        讓 test 環境留下的 stale marker 不污染下次啟動。
+        讀檔失敗（OSError）→ toast 仍以 fallback reason 觸發；意圖讓使用者知道
+        launcher 曾經失敗，即使我們無法解讀詳細原因。
+        """
+        if os.environ.get("SKILL_TRACKER_DISABLE_UPDATE_CHECK") == "1":
+            return
+        marker_path = Path(user_data_path(_UPDATE_MARKER_FILENAME))
+        if not marker_path.exists():
+            return
+        raw_reason = ""
+        try:
+            # 只取第一筆 reason: 行；未來欄位需避開此 prefix（例如 reason_code 等）
+            for line in marker_path.read_text(encoding="utf-8-sig").splitlines():
+                if line.lower().startswith("reason:"):
+                    raw_reason = line.split(":", 1)[1].strip()
+                    break
+        except OSError as e:
+            print(f"[v2-update] read marker failed: {e}")
+        try:
+            marker_path.unlink(missing_ok=True)
+        except OSError as e:
+            # missing_ok 只吞 FileNotFoundError；防毒鎖檔等 PermissionError 走這裡
+            print(f"[v2-update] unlink marker failed: {e}")
+        reason = _sanitize_marker_reason(raw_reason)
+        toast = getattr(self.app_ctx, "toast", None)
+        if toast is not None:
+            toast.show(f"上次自動更新失敗：{reason}，請手動下載", "warning")
 
     # --------------------------------------------------
     # 無邊框視窗 Resize（QApplication 全域事件過濾 + startSystemResize）

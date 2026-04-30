@@ -40,3 +40,4 @@ mapleworld_classify_cache.json
 # V2 預覽截圖（開發用，不入 repo）
 _shot_*.png
 _preview_shot.png
+update_e2e_screenshots/

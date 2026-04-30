@@ -4,10 +4,26 @@
 """
 
 # 當前版本
-VERSION = "4.3.4"
+VERSION = "4.3.5"
 
 # 版本歷史
 CHANGELOG = """
+v4.3.5 (2026-04-30)
+-------------------
+🛡️ 自動更新失敗時雙保險提示
+  - launcher (ps1 / bat) 失敗路徑（解壓失敗 / exe 鎖定 / 無法重啟 / unhandled）會：
+    1) 立即跳 Windows MessageBox 告知使用者
+    2) 寫 update_failed.txt marker 到 AppDir
+  - 主程式啟動讀 marker → toast warning 顯示 reason → 刪檔
+  - SKILL_TRACKER_DISABLE_UPDATE_CHECK=1 同時抑制 update check 與 marker scan
+🔒 Marker 偽造防禦
+  - reason 限 200 字、剔除控制字元、含 URL 直接 fallback「未知原因」
+  - 防同 user 惡意 process 用 marker 寫釣魚訊息
+🔧 launcher bat :show_dialog 改用 env var 傳遞訊息（避免 PowerShell 單引號注入）
+🔧 main_v2 marker 讀檔走 utf-8-sig 防禦 PS 5.1 Out-File 的 BOM
+✅ 新增 verify_update_failure_marker.py（9 cases）+ verify_update_e2e.py
+   tmp dir + monkeypatch user_data_path 避免 stale marker 污染
+
 v4.3.4 (2026-04-27)
 -------------------
 🐛 召喚銀隼 icon 再修正：改用 skill 3221005 (Frostprey 藍色冰鳥)
