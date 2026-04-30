@@ -10,7 +10,16 @@ VERSION = "4.3.5"
 CHANGELOG = """
 v4.3.5 (2026-04-30)
 -------------------
-🛡️ 自動更新失敗時雙保險提示
+🐛 修復 v4.3.0+ 自動更新流程下載完不重啟的 bug
+  - update_dialog_v2 啟動 launcher 時用 DETACHED_PROCESS | CREATE_NO_WINDOW，
+    DETACHED_PROCESS 讓 powershell.exe 啟動後立刻死亡（exit 0 但 script body
+    完全沒執行），導致 launcher 從未跑 → ZIP 沒解、新 exe 沒被啟動
+  - 改成只用 CREATE_NO_WINDOW；launcher [1/4]–[4/4] 全程跑通
+✨ 偵測到新版不再自動跳 modal dialog
+  - 改用 header 右側橘色提示 chip（lucide arrow-up-circle + 「v4.3.5」）
+  - toast 同步通知「有新版本 v4.3.5 可下載 — 點頂部按鈕開始更新」
+  - 使用者點 chip 才開 UpdateDialog（自動 modal 太擾）
+🛡️ launcher 失敗時雙保險提示
   - launcher (ps1 / bat) 失敗路徑（解壓失敗 / exe 鎖定 / 無法重啟 / unhandled）會：
     1) 立即跳 Windows MessageBox 告知使用者
     2) 寫 update_failed.txt marker 到 AppDir
@@ -22,6 +31,7 @@ v4.3.5 (2026-04-30)
 🔧 launcher bat :show_dialog 改用 env var 傳遞訊息（避免 PowerShell 單引號注入）
 🔧 main_v2 marker 讀檔走 utf-8-sig 防禦 PS 5.1 Out-File 的 BOM
 ✅ 新增 verify_update_failure_marker.py（9 cases）+ verify_update_e2e.py
+   verify_v2_update_checker.py 擴 7 cases（chip + _open_update_dialog 路徑）
    tmp dir + monkeypatch user_data_path 避免 stale marker 污染
 
 v4.3.4 (2026-04-27)

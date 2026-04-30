@@ -203,11 +203,16 @@ class UpdateDialog(BaseDialogV2):
         T.apply_font(self.status_label, T.FONT_CAPTION, color_override=color)
 
     def _try_launch(self, argv: list, label: str) -> bool:
-        """嘗試以 DETACHED_PROCESS 啟動 launcher；失敗只 log。"""
+        """嘗試以 CREATE_NO_WINDOW 啟動 launcher；失敗只 log。
+
+        不可加 DETACHED_PROCESS：DETACHED_PROCESS 會讓 powershell.exe 啟動後
+        立刻死亡（exit 0 但完全沒執行 script body），導致 launcher 從未跑。
+        親自實測在 sandbox v4.3.4 → v4.3.5 升級會卡死於此。
+        """
         try:
             subprocess.Popen(
                 argv,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             return True
         except OSError as e:

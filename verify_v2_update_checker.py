@@ -5,10 +5,10 @@
     python verify_v2_update_checker.py
 
 涵蓋 6 個 case：
-    A. 有新版           → UpdateDialog 被建構，父視窗為傳入的 self（PreviewWindow）
-    B. 無新版           → UpdateDialog 不被建構
+    A. 有新版           → header chip 顯示 + toast info，UpdateDialog **不**自動建構
+    B. 無新版           → chip 不亮、toast 不叫、UpdateDialog 不被建構
     C. 網路失敗         → 不彈窗、不 raise、stdout 含錯誤訊息
-    D. Dialog 建構錯誤  → 主流程不 crash、stdout 含 dialog error 與 RuntimeError
+    D. Dialog 建構錯誤  → 主流程不 crash（在 _open_update_dialog 觸發時被吞）
     E. env=1 排程模式   → _schedule_update_check 不註冊 QTimer
     F. env 未設排程模式 → _schedule_update_check 註冊 QTimer.singleShot(1000, _run_update_check)
 """
@@ -46,13 +46,19 @@ class _SyncThread:
 
 
 def _make_fake():
-    """建立一個 fake PreviewWindow：只綁定我們要測的方法 + app_ctx.after stub"""
+    """建立一個 fake PreviewWindow：方法 + app_ctx.after + header chip + toast 收集器"""
     fake = SimpleNamespace()
     # after(0, fn) → 同步呼叫，模擬已 marshalled 到主執行緒
     fake.app_ctx = SimpleNamespace(after=lambda ms, fn: fn())
+    fake.app_ctx.toast = SimpleNamespace(_calls=[])
+    fake.app_ctx.toast.show = lambda msg, kind="info": fake.app_ctx.toast._calls.append((msg, kind))
+    fake.header = SimpleNamespace(_chip_calls=[])
+    fake.header.set_update_available = lambda v: fake.header._chip_calls.append(v)
+    fake._pending_update_info = None
     fake._schedule_update_check = types.MethodType(PreviewWindow._schedule_update_check, fake)
     fake._run_update_check      = types.MethodType(PreviewWindow._run_update_check, fake)
     fake._on_update_result      = types.MethodType(PreviewWindow._on_update_result, fake)
+    fake._open_update_dialog    = types.MethodType(PreviewWindow._open_update_dialog, fake)
     return fake
 
 
@@ -82,7 +88,7 @@ def _patched_dialog(dialog_cls):
 # --------------------------------------------------
 
 def case_a_new_version():
-    """有新版 → UpdateDialog 被建構，父視窗為傳入的 self"""
+    """有新版 → header chip 顯示 + toast info、_pending_update_info 被存；UpdateDialog 不自動建構"""
     fake = _make_fake()
     update_info = {
         "available": True,
@@ -91,58 +97,86 @@ def case_a_new_version():
         "download_url": "https://example/x.exe",
         "release_notes": "",
     }
-    calls = []
+    dialog_calls = []
 
     class FakeDialog:
         def __init__(self, parent, info):
-            calls.append(("init", parent, info))
-
+            dialog_calls.append(("init", parent, info))
         def exec(self):
-            calls.append(("exec",))
+            dialog_calls.append(("exec",))
 
     with patch("main_v2.threading.Thread", _SyncThread), \
          _patched_updater(update_info), \
          _patched_dialog(FakeDialog):
         fake._run_update_check()
 
-    assert len(calls) == 2, f"expected 2 calls (init + exec), got {calls}"
-    kind, parent, info = calls[0]
-    assert kind == "init"
-    assert parent is fake, f"parent must be the PreviewWindow self, got {parent!r}"
-    assert info is update_info, "update_info must pass through unchanged"
-    assert calls[1] == ("exec",), "dialog.exec() must be called"
-    print("[A] PASS — new version → dialog opened with self as parent")
+    assert dialog_calls == [], f"UpdateDialog 不應在偵測階段建構；got {dialog_calls}"
+    assert fake.header._chip_calls == ["99.0.0"], f"header chip 應 set 到 99.0.0；got {fake.header._chip_calls}"
+    assert len(fake.app_ctx.toast._calls) == 1, f"toast 應呼叫一次；got {fake.app_ctx.toast._calls}"
+    msg, kind = fake.app_ctx.toast._calls[0]
+    assert "99.0.0" in msg, f"toast 訊息應含版本；got {msg!r}"
+    assert kind == "info"
+    assert fake._pending_update_info is update_info, "_pending_update_info 應保留以供之後點擊使用"
+    print("[A] PASS — 有新版 → chip + toast，dialog 不自動跳")
+
+
+def case_a2_open_dialog_after_chip_click():
+    """使用者點 chip → _open_update_dialog → UpdateDialog 被建構 + exec"""
+    fake = _make_fake()
+    fake._pending_update_info = {
+        "available": True,
+        "current": "1.0.0",
+        "latest": "99.0.0",
+        "download_url": "https://example/x.exe",
+        "release_notes": "",
+    }
+    dialog_calls = []
+
+    class FakeDialog:
+        def __init__(self, parent, info):
+            dialog_calls.append(("init", parent, info))
+        def exec(self):
+            dialog_calls.append(("exec",))
+
+    with _patched_dialog(FakeDialog):
+        fake._open_update_dialog()
+
+    assert len(dialog_calls) == 2, f"預期 init + exec；got {dialog_calls}"
+    kind, parent, info = dialog_calls[0]
+    assert kind == "init" and parent is fake
+    assert info is fake._pending_update_info
+    assert dialog_calls[1] == ("exec",)
+    print("[A2] PASS — 點 chip → _open_update_dialog 開啟 UpdateDialog")
 
 
 def case_b_no_update():
-    """無新版 → UpdateDialog 不被建構，無 exception"""
+    """無新版 → chip 不亮、toast 不叫、UpdateDialog 不被建構"""
     fake = _make_fake()
-    calls = []
+    dialog_calls = []
 
     class FakeDialog:
         def __init__(self, *a, **k):
-            calls.append("init")
-
-        def exec(self):
-            calls.append("exec")
+            dialog_calls.append("init")
 
     with patch("main_v2.threading.Thread", _SyncThread), \
          _patched_updater({"available": False}), \
          _patched_dialog(FakeDialog):
         fake._run_update_check()
 
-    assert calls == [], f"UpdateDialog must not be constructed; got {calls}"
-    print("[B] PASS — no update → no dialog, no exception")
+    assert dialog_calls == []
+    assert fake.header._chip_calls == [], f"無新版不應動 chip；got {fake.header._chip_calls}"
+    assert fake.app_ctx.toast._calls == [], f"無新版不應發 toast；got {fake.app_ctx.toast._calls}"
+    print("[B] PASS — 無新版 → chip 不亮、無 toast、無 dialog")
 
 
 def case_c_network_failure():
     """網路失敗 → 不彈窗、不 raise、stdout 含錯誤訊息"""
     fake = _make_fake()
-    calls = []
+    dialog_calls = []
 
     class FakeDialog:
         def __init__(self, *a, **k):
-            calls.append("init")
+            dialog_calls.append("init")
 
     with _capture_stdout() as buf, \
          patch("main_v2.threading.Thread", _SyncThread), \
@@ -151,37 +185,34 @@ def case_c_network_failure():
         fake._run_update_check()
 
     output = buf.getvalue()
-    assert calls == [], f"UpdateDialog must not be constructed; got {calls}"
-    assert "network unreachable" in output, f"stdout must mention error; got: {output!r}"
-    print("[C] PASS — network failure → no dialog, error printed")
+    assert dialog_calls == []
+    assert "network unreachable" in output
+    print("[C] PASS — 網路失敗 → 無 dialog、stdout 印錯")
 
 
 def case_d_dialog_error():
-    """Dialog 建構錯誤 → 主流程不 crash、stdout 含 dialog error 與 RuntimeError"""
+    """_open_update_dialog 內 Dialog 建構錯誤 → 主流程不 crash、stdout 含錯誤"""
     fake = _make_fake()
-
-    class BoomDialog:
-        def __init__(self, *a, **k):
-            raise RuntimeError("boom")
-
-    update_info = {
+    fake._pending_update_info = {
         "available": True,
         "current": "1.0.0",
         "latest": "99.0.0",
         "download_url": "https://example/x.exe",
         "release_notes": "",
     }
-    with _capture_stdout() as buf, \
-         patch("main_v2.threading.Thread", _SyncThread), \
-         _patched_updater(update_info), \
-         _patched_dialog(BoomDialog):
+
+    class BoomDialog:
+        def __init__(self, *a, **k):
+            raise RuntimeError("boom")
+
+    with _capture_stdout() as buf, _patched_dialog(BoomDialog):
         # 不應 raise
-        fake._run_update_check()
+        fake._open_update_dialog()
 
     output = buf.getvalue()
-    assert "dialog error" in output, f"stdout must contain 'dialog error'; got: {output!r}"
-    assert "RuntimeError" in output, f"stdout must mention RuntimeError; got: {output!r}"
-    print("[D] PASS — dialog error → swallowed, error printed")
+    assert "dialog error" in output
+    assert "RuntimeError" in output
+    print("[D] PASS — _open_update_dialog 建構錯誤被吞")
 
 
 def case_e_env_disabled():
@@ -229,6 +260,7 @@ def case_f_env_enabled():
 def main():
     cases = [
         case_a_new_version,
+        case_a2_open_dialog_after_chip_click,
         case_b_no_update,
         case_c_network_failure,
         case_d_dialog_error,

@@ -124,6 +124,7 @@ class PreviewWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self._pending_update_info = None
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setWindowIcon(QIcon(resource_path("icon.ico")))
         self.resize(1240, 760)
@@ -132,6 +133,8 @@ class PreviewWindow(QMainWindow):
         self._build()
         # 替換 console bridge 為真實 ToastManagerV2（要求 PreviewWindow 已存在）
         self.app_ctx.toast = ToastManagerV2(self)
+        # header 更新 chip 點擊 → 開 UpdateDialog
+        self.header.update_requested.connect(self._open_update_dialog)
         # 安裝全域事件過濾器：攔截邊框附近滑鼠事件以實現原生 resize
         QApplication.instance().installEventFilter(self)
         # 500ms 等主視窗 paint 完成 + toast 容器 layout 完成，避免 toast 動畫 jitter
@@ -247,15 +250,33 @@ class PreviewWindow(QMainWindow):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_update_result(self, update_info):
-        """主執行緒 handler：有新版才開 UpdateDialog；錯誤/無新版只寫 console"""
+        """主執行緒 handler：有新版時亮 header chip + toast 通知，不主動跳 dialog。
+
+        使用者點 header 右側 chip 才開 UpdateDialog（自動 modal 太擾）。
+        """
         if not update_info or not update_info.get("available"):
             err = (update_info or {}).get("error")
             if err:
                 print(f"[v2-update] no update: {err}")
             return
+        self._pending_update_info = update_info
+        latest = update_info.get("latest", "")
+        try:
+            self.header.set_update_available(latest)
+        except Exception as e:
+            print(f"[v2-update] header chip error: {type(e).__name__}: {e}")
+        toast = getattr(self.app_ctx, "toast", None)
+        if toast is not None:
+            toast.show(f"有新版本 v{latest} 可下載 — 點頂部按鈕開始更新", "info")
+
+    def _open_update_dialog(self):
+        """header chip clicked → 開 UpdateDialog 走完整流程"""
+        info = getattr(self, "_pending_update_info", None)
+        if not info:
+            return
         try:
             from src.ui_v2.dialogs.update_dialog_v2 import UpdateDialog
-            dlg = UpdateDialog(self, update_info)
+            dlg = UpdateDialog(self, info)
             dlg.exec()
         except Exception as e:
             print(f"[v2-update] dialog error: {type(e).__name__}: {e}")
