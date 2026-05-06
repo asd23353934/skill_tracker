@@ -239,22 +239,47 @@ class SkillPageV2(QWidget):
         lbl.setContentsMargins(8, 0, 8, 0)
         return lbl
 
-    def _make_hotkey_chip(self, name: str, key: str, accent: str) -> QLabel:
-        """單一 chip：`key · name`，accent 染色"""
-        chip = QLabel(f"{key} · {name}")
+    def _make_hotkey_chip(self, sid: str, name: str, key: str,
+                          accent: str) -> QFrame:
+        """單一 chip：[技能 icon] [key]，accent 染色，技能名給 tooltip"""
+        chip = QFrame()
         chip.setStyleSheet(
-            f"QLabel {{ color: {accent};"
-            f" background: {T.alpha(accent, 50)};"
-            f" border-radius: {T.CHIP_H // 2}px;"
-            f" padding: 0 10px; font-size: 11px; font-weight: 600;"
-            f" min-height: 22px; max-height: 22px; }}"
+            f"QFrame {{ background: {T.alpha(accent, 50)};"
+            f" border-radius: {T.CHIP_H // 2}px; }}"
         )
-        chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        chip.setMaximumWidth(160)
+        chip.setFixedHeight(22)
+        chip.setToolTip(f"{name} · {key}")
+
+        h = QHBoxLayout(chip)
+        h.setContentsMargins(4, 0, 8, 0)
+        h.setSpacing(4)
+
+        icon_lbl = QLabel()
+        icon_lbl.setFixedSize(16, 16)
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_lbl.setStyleSheet("background: transparent;")
+        sm = self.app.skill_manager
+        cache = (getattr(sm, "qpixmaps_card", None)
+                 or getattr(sm, "qpixmaps_medium", None))
+        pixmap = cache.get(sid) if cache else None
+        if pixmap is not None and not pixmap.isNull():
+            icon_lbl.setPixmap(pixmap.scaled(
+                16, 16,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            ))
+        h.addWidget(icon_lbl)
+
+        key_lbl = QLabel(key)
+        key_lbl.setStyleSheet(
+            f"color: {accent}; background: transparent;"
+            f" font-size: 11px; font-weight: 700;"
+        )
+        h.addWidget(key_lbl)
         return chip
 
     def _iter_set_hotkeys(self):
-        """yield (name, hotkey, accent)，依三欄與子分類序"""
+        """yield (sid, name, hotkey, accent)，依三欄與子分類序"""
         sm = self.app.skill_manager
         for category_key, _, _, accent in _CATEGORY_DEFS:
             for ids in (sm.get_categories(category_key) or {}).values():
@@ -265,7 +290,7 @@ class SkillPageV2(QWidget):
                     hotkey = meta.get("hotkey", "") or ""
                     if not hotkey:
                         continue
-                    yield meta.get("name", sid), hotkey, accent
+                    yield sid, meta.get("name", sid), hotkey, accent
 
     def _refresh_hotkey_bar(self):
         """重建頁首橫軸所有 chip"""
@@ -277,8 +302,8 @@ class SkillPageV2(QWidget):
 
         _clear_layout_widgets(layout)
         has_any = False
-        for name, hotkey, accent in self._iter_set_hotkeys():
-            layout.addWidget(self._make_hotkey_chip(name, hotkey, accent))
+        for sid, name, hotkey, accent in self._iter_set_hotkeys():
+            layout.addWidget(self._make_hotkey_chip(sid, name, hotkey, accent))
             has_any = True
         if not has_any:
             layout.addWidget(self._hotkey_bar_placeholder())
