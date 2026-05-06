@@ -4,10 +4,23 @@
 """
 
 # 當前版本
-VERSION = "4.3.6"
+VERSION = "4.3.7"
 
 # 版本歷史
 CHANGELOG = """
+v4.3.7 (2026-05-06)
+-------------------
+✨ 資源中心支援 RWD（依視窗寬度動態調整每行欄數）
+  - mapleworld_page_v2._compute_cols 依 viewport().width() / CARD_W / spacing 計算
+  - resizeEvent 80ms debounce → cols 變動才整頁重畫,避免 resize 抖動
+  - 各寬度欄數實測：320→2 / 800→5 / 1280→8 / 1920→12 / 2560→16
+✨ 資源中心滾動到底部自動加載
+  - QScrollBar.valueChanged 監聽,距底部 200px 內 trigger _load_more
+  - _loading_more 旗標 + token 失效時整頁重畫分支重置,防止連續 emit 重複觸發
+  - 渲染最後一 chunk 後若 viewport 仍未填滿（無捲動軸）主動補載一輪
+  - 「載入更多」按鈕保留為 fallback,文字改「繼續向下捲動以自動載入 · 還有 X 張」
+✅ 新增 tests/test_mapleworld_rwd.py（_compute_cols 在 9 個寬度下的 smoke test）
+
 v4.3.6 (2026-04-30)
 -------------------
 ✨ 新增三個 buff 道具

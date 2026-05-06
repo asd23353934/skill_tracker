@@ -78,6 +78,7 @@ class MapleWorldPageV2(QWidget):
         self._classify_token = 0
         self._render_token = 0
         self._render_limit = _RENDER_STEP
+        self._render_total = 0
         self._append_from: int | None = None
         self._more_btn: QPushButton | None = None
         self._cancel_evt: threading.Event | None = None
@@ -85,14 +86,32 @@ class MapleWorldPageV2(QWidget):
         self._files: dict[str, list[str]] = {"unity": [], "web": []}
         # fname → category；從磁碟 cache 預載，避免每次進頁重分類
         self._tags: dict[str, str] = load_classify_cache()
+        # RWD：依 viewport 寬度動態算出的每行欄數，resize 後重排
+        self._cols = 7
+        # 自動加載閘門：避免 valueChanged 連續 emit 時重複觸發 load_more
+        self._loading_more = False
+        # resize debounce — 視窗縮放會 emit 多次,避免每次都重排 grid
+        self._resize_timer = QTimer(self)
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.setInterval(80)
+        self._resize_timer.timeout.connect(self._on_resize_done)
         self._build()
 
     def showEvent(self, e):  # noqa: N802
         super().showEvent(e)
         if not self._loaded:
             self._loaded = True
+            # 第一次顯示時 viewport 已有實際寬度，先依此算 cols 避免初次以預設值排錯
+            self._cols = self._compute_cols()
             self._scan_dir()
             self._render_grid()
+
+    def resizeEvent(self, e):  # noqa: N802
+        super().resizeEvent(e)
+        if not self._loaded:
+            return
+        # debounce — 連續 resize 期間不立刻重排，等使用者放手 80ms 後再算
+        self._resize_timer.start()
 
     # ──────────────────────────────────────────
     def _build(self):
@@ -193,6 +212,8 @@ class MapleWorldPageV2(QWidget):
         self._grid.setVerticalSpacing(T.S_SM)
         self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         scroll.setWidget(self._inner)
+        # 滾動到接近底部時自動加載下一批，取代純手動「載入更多」按鈕
+        scroll.verticalScrollBar().valueChanged.connect(self._on_scroll)
         root.addWidget(scroll, 1)
 
     def _build_path_card(self) -> QFrame:
@@ -379,6 +400,55 @@ class MapleWorldPageV2(QWidget):
         self._render_limit += _RENDER_STEP
         self._render_grid()
 
+    def _compute_cols(self) -> int:
+        """依 scroll viewport 寬度動態算每行欄數（RWD）"""
+        if not getattr(self, "_scroll", None):
+            return self._cols or 1
+        w = self._scroll.viewport().width()
+        if w <= 0:
+            return self._cols or 1
+        gap = self._grid.horizontalSpacing() or T.S_SM
+        margin_right = self._grid.contentsMargins().right()
+        avail = max(0, w - margin_right)
+        cols = (avail + gap) // (_AssetCard.CARD_W + gap)
+        return max(1, int(cols))
+
+    def _on_resize_done(self):
+        """resize debounce timer 觸發 — cols 變了才重排，避免無謂重畫"""
+        new_cols = self._compute_cols()
+        if new_cols == self._cols:
+            return
+        self._cols = new_cols
+        # cols 變動 → 整頁重畫（append 模式 row/col 算法會錯位）
+        self._render_grid()
+
+    def _on_scroll(self, value: int):
+        """捲到接近底部時自動 load_more —
+        讓 200px 安全距離保證使用者捲到底前就已開始載下一批"""
+        if self._loading_more:
+            return
+        if self._render_limit >= self._render_total:
+            return
+        sb = self._scroll.verticalScrollBar()
+        if sb.maximum() <= 0:
+            return
+        if value < sb.maximum() - 200:
+            return
+        self._loading_more = True
+        self._load_more()
+
+    def _maybe_autoload(self):
+        """渲染完一輪後，若 viewport 仍未填滿（沒有捲動軸）就主動再載一輪，
+        否則使用者沒捲動觸發不到 valueChanged"""
+        if self._loading_more:
+            return
+        if self._render_limit >= self._render_total:
+            return
+        sb = self._scroll.verticalScrollBar()
+        if sb.maximum() == 0:
+            self._loading_more = True
+            self._load_more()
+
     def _on_scan(self):
         """Unity 資源掃描 — 委派給 infrastructure.mapleworld_scanner
 
@@ -497,13 +567,15 @@ class MapleWorldPageV2(QWidget):
         shown = min(total, self._render_limit)
 
         if append_from is None:
-            # 整頁重畫 — 清空 grid
+            # 整頁重畫 — 清空 grid + 解開自動加載閘門
+            # （tab/搜尋/chip 切換時舊 chunk token 失效會早退，不會跑到 chunk 結尾解鎖）
             while self._grid.count():
                 item = self._grid.takeAt(0)
                 w = item.widget()
                 if w is not None:
                     w.deleteLater()
             self._more_btn = None
+            self._loading_more = False
             start = 0
         else:
             # append 模式 — 先鎖住 inner 高度（避免移除 more_btn 造成 scroll 跳動），
@@ -526,7 +598,7 @@ class MapleWorldPageV2(QWidget):
                 f"color: {T.TEXT_MUTED}; font-size: 13px;"
                 f" background: transparent; padding: 40px;"
             )
-            self._grid.addWidget(empty, 0, 0, 1, 7)
+            self._grid.addWidget(empty, 0, 0, 1, max(1, self._cols))
             return
 
         # 拆批渲染：每 CHUNK 張讓一次主執行緒，避免整批 QPixmap 阻塞 UI
@@ -554,7 +626,7 @@ class MapleWorldPageV2(QWidget):
         if token != self._render_token:
             return
         CHUNK = 24
-        cols = 7
+        cols = max(1, self._cols)
         accent = next((a for k, _, _, a in TABS if k == self._current_tab),
                       T.PURPLE)
         end = min(self._render_idx + CHUNK, len(self._render_queue))
@@ -574,12 +646,12 @@ class MapleWorldPageV2(QWidget):
             QTimer.singleShot(0, lambda: self._render_chunk(token))
             return
 
-        # 全部畫完 — 補「載入更多」按鈕
+        # 全部畫完 — 補「載入更多」按鈕（保留作 fallback；自動加載走 _on_scroll）
         self._stat_lbl.setText(self._stat_tmpl)
         total = self._render_total
         shown = self._render_shown
         if shown < total:
-            more_btn = QPushButton(f"載入更多（{total - shown} 張剩餘）")
+            more_btn = QPushButton(f"繼續向下捲動以自動載入 · 還有 {total - shown} 張")
             more_btn.setFixedHeight(34)
             more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             more_btn.setStyleSheet(
@@ -595,5 +667,8 @@ class MapleWorldPageV2(QWidget):
                                  Qt.AlignmentFlag.AlignCenter)
             self._more_btn = more_btn
 
-        # 渲染完成後解除高度鎖定
+        # 渲染完成後解除高度鎖定 + 解開自動加載閘門
         self._inner.setMinimumHeight(0)
+        self._loading_more = False
+        # 若 viewport 仍未塞滿（沒有捲動軸）→ 直接再載一輪，讓使用者一進頁就有足夠內容可捲
+        QTimer.singleShot(0, self._maybe_autoload)
