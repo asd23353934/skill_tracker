@@ -22,7 +22,7 @@ from PySide6.QtGui import QPainter, QPixmap
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_pixmap, lucide_icon
-from src.infrastructure.helpers import user_data_path
+from src.infrastructure.helpers import atomic_write_json, user_data_path
 from src.infrastructure import mapleworld_scanner
 
 
@@ -148,11 +148,10 @@ def save_classify_cache(tags: dict):
     """原子寫入；worker thread / 主執行緒皆可呼叫"""
     try:
         os.makedirs(os.path.dirname(CLASSIFY_CACHE_PATH) or ".", exist_ok=True)
-        payload = {"version": CLASSIFY_CACHE_VERSION, "tags": tags}
-        tmp = CLASSIFY_CACHE_PATH + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False)
-        os.replace(tmp, CLASSIFY_CACHE_PATH)
+        atomic_write_json(
+            CLASSIFY_CACHE_PATH,
+            {"version": CLASSIFY_CACHE_VERSION, "tags": tags},
+        )
     except Exception:
         pass
 

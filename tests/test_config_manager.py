@@ -56,6 +56,23 @@ def cm(tmp_path):
     ("AUX",              False),
     ("NUL",              False),
     ("notcon",           True),
+    # S5：Windows 不允許字元
+    ("a<bad",            False),
+    ("a>bad",            False),
+    (' "quoted"',        False),
+    ("pipe|bad",         False),
+    ("ques?",            False),
+    ("star*",            False),
+    ("ads:stream",       False),    # NTFS Alternate Data Stream
+    # S5：開頭空白
+    (" leading",         False),
+    # S5：控制字元（含 NUL）
+    ("name\x00null",     False),
+    ("name\x01ctrl",     False),
+    ("name\x1fdel",      False),
+    # S5：過長
+    ("a" * 201,          False),
+    ("a" * 200,          True),
 ])
 def test_validate_filename(name, ok):
     assert ConfigManager._validate_filename(name) is ok
@@ -259,3 +276,62 @@ def test_potion_autosave_corrupt_returns_none(cm, tmp_path):
     path = tmp_path / "potion_autosave.json"
     path.write_text("not json {{", encoding="utf-8")
     assert cm.load_potion_autosave() is None
+
+
+# ── atomic write（_atomic_write_json） ──────────────────────
+
+def test_atomic_write_does_not_touch_target_on_failure(cm, tmp_path, monkeypatch):
+    """json.dump 失敗時，原檔不變，且 tmp 已清理。"""
+    from src.infrastructure import helpers as helpers_mod
+
+    cm.save_profile("victim", {"hotkeys": {"a": "F1"}})
+    profile_path = tmp_path / "profiles" / "victim.json"
+    original = profile_path.read_text(encoding="utf-8")
+
+    def _bad_dump(*args, **kwargs):
+        raise OSError("disk full")
+    monkeypatch.setattr(helpers_mod.json, "dump", _bad_dump)
+
+    assert cm.save_profile("victim", {"hotkeys": {"b": "F2"}}) is False
+
+    assert profile_path.read_text(encoding="utf-8") == original
+    leftovers = [p for p in (tmp_path / "profiles").iterdir()
+                 if p.name.startswith(".tmp_")]
+    assert leftovers == []
+
+
+def test_atomic_write_user_config_preserves_old_on_failure(tmp_path, monkeypatch):
+    """_write_user_config 失敗時，舊 config_user.json 不被截斷。"""
+    from src.infrastructure import helpers as helpers_mod
+
+    cfg = _write_config(tmp_path)
+    cm = ConfigManager(cfg)
+    user_path = tmp_path / "config_user.json"
+    original = user_path.read_text(encoding="utf-8")
+
+    def _bad_dump(*args, **kwargs):
+        raise OSError("disk full")
+    monkeypatch.setattr(helpers_mod.json, "dump", _bad_dump)
+
+    cm.set_settings("player_name", "should_not_persist")
+    assert cm.save() is False
+    assert user_path.read_text(encoding="utf-8") == original
+
+
+def test_atomic_write_uses_replace_not_truncate(tmp_path, monkeypatch):
+    """確認 atomic_write_json 走 os.replace 而非直接 open(w)。"""
+    from src.infrastructure import helpers as helpers_mod
+
+    calls = []
+    real_replace = os.replace
+
+    def _spy_replace(src, dst):
+        calls.append((src, dst))
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(helpers_mod.os, "replace", _spy_replace)
+
+    cm = ConfigManager(_write_config(tmp_path))
+    cm.save_profile("foo", {"hotkeys": {}})
+
+    assert any(dst.endswith("foo.json") for _, dst in calls)

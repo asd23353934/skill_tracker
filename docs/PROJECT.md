@@ -33,7 +33,7 @@ src/infrastructure/      # 外部邊界（檔案 I/O、OS、第三方）
   skill_loader.py        # 技能元資料載入
   repositories.py        # SkillRepository / 其他資料存取
   sound_manager.py       # 音效播放 / 清單 / 匯入
-  helpers.py             # resource_path / user_data_path / lucide_pixmap 等
+  helpers.py             # resource_path / user_data_path / atomic_write_json 等
   updater.py             # 版本更新檢查
   mapleworld_scanner.py  # MapleWorld 資源掃描（Unity / Web，背景執行緒 + callback）
 src/domain/              # 純 Python 領域層（零 Qt 依賴）
@@ -51,6 +51,7 @@ src/ui/                  # V1/V2 共用控制層（V1 已下架；保留共用�
   skill_window.py        # 單一技能倒數視窗（QWidget frameless）
   overlay_window.py      # 浮動圖片視窗（QWidget frameless, 透明）
   theme.py               # 共用主題常量 AppTheme（浮動視窗 / hotkey manager 等使用）
+  window_geometry.py     # 視窗位置 clamp helper（浮動視窗載入時用，防多螢幕拔除後座標看不見）
 src/ui_v2/               # V2 UI（正式 UI）
   theme_v2.py            # V2 主題常量 V2Theme
   header_v2.py           # V2 頁首（精簡為視窗控制 + 拖曳區）

@@ -12,8 +12,8 @@ try:
     from version import get_version
     CURRENT_VERSION = get_version()
 except ImportError:
-    # 如果無法導入，使用默認值
-    CURRENT_VERSION = "1.0.8"
+    # 不硬編 fallback 版本，避免被誤判為「有新版」而觸發降級流程
+    CURRENT_VERSION = None
 
 # GitHub Release API
 GITHUB_API_URL = "https://api.github.com/repos/asd23353934/skill_tracker/releases/latest"
@@ -56,6 +56,13 @@ class Updater:
                 'release_notes': str
             }
         """
+        if not self.current_version:
+            return {
+                'available': False,
+                'current': None,
+                'error': 'current version unknown'
+            }
+
         # 檢查依賴
         if not HAS_REQUESTS:
             return {

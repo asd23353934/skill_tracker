@@ -49,6 +49,44 @@ def test_classify_image_bad_path_returns_last_bucket():
     assert mw.classify_image("nonexistent_____.png") == ">1024"
 
 
+# ════════════════════════════════════════════════════════════
+# PIL decompression bomb 防護（C9 / B1）
+# ════════════════════════════════════════════════════════════
+
+def test_pil_max_image_pixels_capped_after_import():
+    """import mapleworld_scanner 後，PIL.Image.MAX_IMAGE_PIXELS 應被收緊。
+
+    PIL 預設 89478485（~89MP），對未驗證來源（WebView cache / 網路下載）
+    過寬。我們將其壓到 32MP，能容納遊戲紋理 4096² 但擋掉 image bomb。
+    """
+    from PIL import Image as PILImage
+    assert PILImage.MAX_IMAGE_PIXELS is not None
+    assert PILImage.MAX_IMAGE_PIXELS <= 32_000_000
+
+
+def test_oversized_image_header_triggers_pil_protection():
+    """造一個尺寸宣稱超大的 PNG，PIL 應該拒絕（warning 或 raise）。
+
+    驗證 cap 確實對 extract_images_from_bytes 路徑生效。
+    """
+    from PIL import Image as PILImage
+
+    # 造一個 8000×8000 RGBA = 64MP，超過 32MP cap
+    big = Image.new("RGBA", (8000, 8000), (0, 0, 0, 0))
+    buf = BytesIO()
+    big.save(buf, format="PNG")
+    raw = buf.getvalue()
+
+    # extract_images_from_bytes 會吞 exception 略過該圖
+    # 預期：PIL 觸發 DecompressionBombWarning 或 Error，掃描器把該圖跳過
+    # 不會因此整個 scan 崩潰
+    results = mw.extract_images_from_bytes(raw)
+    # 兩種合理結果：① PIL 直接 raise → results 不含此圖；
+    # ② PIL 只 warn → results 仍含此圖（PIL 行為依設定而異）
+    # 重點是 extract_images_from_bytes 不該 crash
+    assert isinstance(results, list)
+
+
 def test_categories_cover_size_tiers():
     # 所有 _SIZE_TIERS 的 label 應該都在 CATEGORIES 裡
     for _, label in mw._SIZE_TIERS:

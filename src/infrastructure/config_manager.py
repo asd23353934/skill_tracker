@@ -7,7 +7,10 @@ import json
 import logging
 import os
 
+from src.infrastructure.helpers import atomic_write_json
+
 logger = logging.getLogger(__name__)
+
 
 # Windows 保留檔名（含副檔名也視為保留；含 COM0 / LPT0）
 _RESERVED_WINDOWS_NAMES = frozenset({
@@ -15,6 +18,12 @@ _RESERVED_WINDOWS_NAMES = frozenset({
     *(f"COM{i}" for i in range(10)),
     *(f"LPT{i}" for i in range(10)),
 })
+
+# Windows 不允許作為檔名一部分的字元（除了 / \ 已在 path traversal 檢查擋掉）
+_BAD_FILENAME_CHARS = frozenset('<>:"|?*')
+
+# 檔名長度上限（NTFS 單一 component 限 255；保留 .json 副檔名 + 安全 buffer）
+_MAX_FILENAME_LEN = 200
 
 
 class ConfigManager:
@@ -106,17 +115,16 @@ class ConfigManager:
 
     def _write_user_config(self):
         """把 self.config 的 settings/monsters/overlays 寫成 config_user.json。"""
+        user = {
+            'settings': self.config.get('settings', {}),
+            'monsters': self.config.get('monsters', []),
+            'overlays': self.config.get('overlays', []),
+        }
         try:
-            user = {
-                'settings': self.config.get('settings', {}),
-                'monsters': self.config.get('monsters', []),
-                'overlays': self.config.get('overlays', []),
-            }
-            with open(self.user_config_path, 'w', encoding='utf-8') as f:
-                json.dump(user, f, ensure_ascii=False, indent=2)
+            atomic_write_json(self.user_config_path, user)
             return True
-        except Exception as e:
-            print(f"保存 config_user.json 失敗: {e}")
+        except Exception:
+            logger.exception("保存 config_user.json 失敗")
             return False
 
     def _ensure_profiles_dir(self):
@@ -150,7 +158,16 @@ class ConfigManager:
 
     @staticmethod
     def _validate_filename(name: str) -> bool:
-        """驗證存檔名稱安全性，防止 Path Traversal 攻擊
+        """驗證存檔名稱安全性，防止 Path Traversal 攻擊與 Windows 寫檔失敗
+
+        擋住：
+            - 空 / 過長（> 200 char）
+            - path traversal：`/` / `\\` / `..`
+            - 結尾 `.` 或空白（Windows trim 規則導致歧義）
+            - 開頭空白（Windows 視為非法）
+            - Windows 不允許字元：`< > : " | ? *`
+            - 控制字元（含 NUL 與 RTL override）
+            - Windows 保留名：CON / PRN / AUX / NUL / COM0-9 / LPT0-9
 
         Args:
             name: 待驗證的名稱（不含副檔名）
@@ -160,9 +177,17 @@ class ConfigManager:
         """
         if not name:
             return False
+        if len(name) > _MAX_FILENAME_LEN:
+            return False
+        if name.startswith(" "):
+            return False
         if any(c in name for c in ("/", "\\", "..")):
             return False
         if name[-1] in (" ", "."):
+            return False
+        if any(c in _BAD_FILENAME_CHARS for c in name):
+            return False
+        if any(ord(c) < 0x20 for c in name):
             return False
         stem = name.split(".", 1)[0].upper()
         if stem in _RESERVED_WINDOWS_NAMES:
@@ -196,8 +221,7 @@ class ConfigManager:
             return False
         profile_path = os.path.join(self.profiles_dir, f"{profile_name}.json")
         try:
-            with open(profile_path, 'w', encoding='utf-8') as f:
-                json.dump(skill_settings, f, ensure_ascii=False, indent=2)
+            atomic_write_json(profile_path, skill_settings)
             return True
         except Exception:
             logger.exception("save_profile: 儲存失敗 name=%r", profile_name)
@@ -341,8 +365,7 @@ class ConfigManager:
             return False
         path = os.path.join(self._potion_saves_dir(), f"{name}.json")
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            atomic_write_json(path, data)
             return True
         except Exception:
             logger.exception("save_potion_record: 儲存失敗 name=%r", name)
@@ -397,8 +420,7 @@ class ConfigManager:
     def save_potion_autosave(self, data: dict) -> bool:
         """寫入練功水錢自動保存"""
         try:
-            with open(self._potion_autosave_path(), "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            atomic_write_json(self._potion_autosave_path(), data)
             return True
         except Exception:
             logger.exception("save_potion_autosave: 寫入失敗")

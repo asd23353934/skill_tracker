@@ -3,8 +3,29 @@
 提供通用的輔助函數
 """
 
+import json
 import os
 import sys
+import tempfile
+
+
+def atomic_write_json(path: str, data) -> None:
+    """原子寫 JSON：tempfile + os.replace，避免寫到一半留半截檔。
+
+    失敗時 raise（含 tmp 已清理）；呼叫端負責 log 與回傳 bool。
+    """
+    parent = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def resource_path(relative_path):

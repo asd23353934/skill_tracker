@@ -6,7 +6,11 @@ daemon thread 呼叫 `app.after(ms, fn)`，由本類別將 callable 排回 Qt
 主執行緒執行。
 """
 
+import logging
+
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
+
+logger = logging.getLogger(__name__)
 
 
 class Dispatcher(QObject):
@@ -28,4 +32,7 @@ class Dispatcher(QObject):
             self._call.emit(lambda: QTimer.singleShot(ms, func))
 
     def _dispatch(self, func):
-        func()
+        try:
+            func()
+        except Exception:
+            logger.exception("Dispatcher: 排隊回呼執行失敗")

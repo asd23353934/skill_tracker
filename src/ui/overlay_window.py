@@ -9,6 +9,8 @@ from PySide6.QtCore import Qt, QTimer, QRect, QPoint
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QPixmap, QImage
 from PIL import Image, ImageSequence
 
+from src.ui.window_geometry import clamp_to_screen
+
 
 class OverlayWindow(QWidget):
     """覆蓋圖片浮動視窗 — 支援 PNG / JPG / GIF（含動畫）
@@ -19,6 +21,8 @@ class OverlayWindow(QWidget):
     _CLOSE_R      = 10  # 關閉按鈕圓形半徑（px）
     _RESIZE_STEP  = 10  # 方向鍵縮放步長（px）
     _HANDLE_SIZE  = 20  # 右下角滑鼠縮放區塊大小（px）
+    # GIF 幀數上限；防惡意 GIF（frame × area × 4B 可達 GB 級記憶體）
+    _MAX_GIF_FRAMES = 200
 
     def __init__(
         self,
@@ -94,10 +98,10 @@ class OverlayWindow(QWidget):
         # 接受鍵盤焦點（方向鍵調整大小）
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
-        # 顯示
         self.setWindowOpacity(max(0.1, min(1.0, alpha)))
         self.resize(self.img_w, self.img_h)
-        self.move(position[0], position[1])
+        cx, cy = clamp_to_screen(position[0], position[1], self.img_w, self.img_h)
+        self.move(cx, cy)
         self.show()
 
         # 啟動 GIF 動畫
@@ -132,7 +136,9 @@ class OverlayWindow(QWidget):
 
             if is_gif:
                 raw_frames = []
-                for frame in ImageSequence.Iterator(src):
+                for i, frame in enumerate(ImageSequence.Iterator(src)):
+                    if i >= self._MAX_GIF_FRAMES:
+                        break
                     raw_frames.append(frame.copy())
                     self._delays.append(max(frame.info.get("duration", 100), 30))
                 self._pil_frames = [f.convert("RGBA") for f in raw_frames]

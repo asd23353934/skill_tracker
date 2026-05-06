@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, QTimer, QRect, QRectF
 from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPixmap, QImage, QBrush
 
 from src.ui.theme import AppTheme
+from src.ui.window_geometry import clamp_to_screen
 from src.ui_v2.theme_v2 import V2Theme
 from src.ui_v2.lucide import lucide_pixmap
 
@@ -161,7 +162,10 @@ class SkillWindow(QWidget):
         # 套用透明度並顯示（播放 0 → window_alpha 淡入動畫）
         self.setWindowOpacity(0.0)
         self.resize(self._canvas_width, self._total_height)
-        self.move(position[0], position[1])
+        cx, cy = clamp_to_screen(
+            position[0], position[1], self._canvas_width, self._total_height
+        )
+        self.move(cx, cy)
         self.show()
 
         self._enter_anim = AppTheme.make_anim(

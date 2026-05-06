@@ -28,7 +28,13 @@ import threading
 from io import BytesIO
 from typing import Callable, Iterator
 
+from PIL import Image as _PILImage
+
 from src.infrastructure.helpers import user_data_path
+
+# 限制 PIL 解圖上限至 ~5800×5800：足夠遊戲紋理 4096²，擋掉宣稱超大尺寸的惡意圖片
+# （PIL 預設 89MP 過寬）。為 module-level 全域設定。
+_PILImage.MAX_IMAGE_PIXELS = 32_000_000
 
 
 # 輸出目錄（exe 同層 images/mapleworld/）
