@@ -111,6 +111,16 @@ class V2Theme:
         r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
         return f"rgba({r},{g},{b},{alpha_int})"
 
+    @classmethod
+    def mix_hex(cls, base: str, accent: str, ratio: float) -> str:
+        """合成不透明 hex 色：ratio=0 → base；ratio=1 → accent"""
+        b = base.lstrip("#")
+        a = accent.lstrip("#")
+        return "#" + "".join(
+            f"{int(int(b[i:i+2], 16) * (1 - ratio) + int(a[i:i+2], 16) * ratio):02x}"
+            for i in (0, 2, 4)
+        )
+
     # ═════════════ 字型套用 ═════════════
     @classmethod
     def apply_font(cls, label: QLabel, spec: tuple, color_override: str = None):

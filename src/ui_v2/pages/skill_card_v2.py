@@ -286,11 +286,7 @@ class SkillCardV2(QFrame):
 
         self.setObjectName("skill_card")
         self.setFixedHeight(self.HEIGHT)
-        self.setStyleSheet(
-            f"QFrame#skill_card {{ background: {T.BG_ELEVATED};"
-            f" border: none; border-radius: {T.R_MD}px; }}"
-            f"QFrame#skill_card:hover {{ background: {T.BG_HOVER}; }}"
-        )
+        self._bg_has_hotkey: bool | None = None
         self._build()
         self._register_widgets()
         self.refresh()
@@ -459,6 +455,7 @@ class SkillCardV2(QFrame):
         has_hotkey = bool(hotkey)
         self._hk_chip.value_btn.setText(hotkey if has_hotkey else "未設")
         self._hk_chip.set_accent(T.YELLOW if has_hotkey else None)
+        self._apply_card_bg(has_hotkey)
 
         # 三 checkbox
         self._set_checked_silent(self._cb_perm,
@@ -484,6 +481,27 @@ class SkillCardV2(QFrame):
             cb.setChecked(value)
         finally:
             cb.blockSignals(False)
+
+    def _apply_card_bg(self, has_hotkey: bool):
+        """依「是否已設熱鍵」切換卡片背景：已設用 accent 微染、未設保持原樣
+
+        Qt setStyleSheet 會觸發 polish/style recompute，refresh() 每次冷卻 tick
+        都會跑，因此用 _bg_has_hotkey 做 short-circuit。
+        """
+        if self._bg_has_hotkey == has_hotkey:
+            return
+        self._bg_has_hotkey = has_hotkey
+        if has_hotkey:
+            bg       = T.mix_hex(T.BG_ELEVATED, self._accent, 0.10)
+            bg_hover = T.mix_hex(T.BG_ELEVATED, self._accent, 0.18)
+        else:
+            bg       = T.BG_ELEVATED
+            bg_hover = T.BG_HOVER
+        self.setStyleSheet(
+            f"QFrame#skill_card {{ background: {bg};"
+            f" border: none; border-radius: {T.R_MD}px; }}"
+            f"QFrame#skill_card:hover {{ background: {bg_hover}; }}"
+        )
 
     # --------------------------------------------------
     # Callbacks（全部委派 App 方法）

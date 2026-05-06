@@ -603,6 +603,8 @@ class PotionPageV2(QWidget):
         L.addWidget(self._build_trio_row(
             "商店收益", self._shop_before_input, self._shop_after_input, T.GREEN))
 
+        self._mesos_end_input.textChanged.connect(self._sync_shop_before)
+
         self._exp_start_input = _input("", w=120)
         self._exp_end_input   = _input("", w=120)
         L.addWidget(self._build_trio_row(
@@ -819,6 +821,17 @@ class PotionPageV2(QWidget):
             return
         self._recalc_all()
         self._schedule_autosave()
+
+    def _sync_shop_before(self, text: str):
+        """鏡射撿取楓幣「後」→ 商店收益「前」
+
+        使用者通常拾取完錢幣就直接進商店，兩者初始金額相同。
+        text 相等時早退避免 setText 觸發的 textChanged 二次回灌（雖然第二次也會
+        在這裡因相等而早退，但省一次 signal 派送）。
+        """
+        if self._loading or self._shop_before_input.text() == text:
+            return
+        self._shop_before_input.setText(text)
 
     def _recalc_all(self):
         """重算摘要、區塊小計、trio 差值"""

@@ -38,7 +38,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QFrame, QLabel, QScrollArea,
 )
 from PySide6.QtCore import Qt
 
@@ -53,6 +53,16 @@ _CATEGORY_DEFS = [
     ("boss",   "BOSS 技能", "skull",         T.RED),
     ("item",   "道具",     "flask-conical", T.GREEN),
 ]
+
+
+def _clear_layout_widgets(layout):
+    """清空 QLayout 內所有 widget（detach + deleteLater）"""
+    while layout.count():
+        item = layout.takeAt(0)
+        w = item.widget()
+        if w is not None:
+            w.setParent(None)
+            w.deleteLater()
 
 
 class SkillPageV2(QWidget):
@@ -82,6 +92,8 @@ class SkillPageV2(QWidget):
         bar.addSpacing(T.S_MD)
         bar.addWidget(self._build_profile_selector())
         bar.addStretch()
+        bar.addWidget(self._build_hotkey_bar(), 0)
+        bar.addSpacing(T.S_SM)
         bar.addWidget(T.make_label("快速切換", T.FONT_LABEL))
         for label, color, key in (
             ("常駐", T.YELLOW, "permanent"),
@@ -185,6 +197,94 @@ class SkillPageV2(QWidget):
         return btn
 
     # --------------------------------------------------
+    # 頁首右側：當前已設按鍵 橫軸
+    # --------------------------------------------------
+    def _build_hotkey_bar(self) -> QWidget:
+        """頁首右側「當前已設按鍵」橫軸容器（QScrollArea + chip flow）"""
+        wrap = QFrame()
+        wrap.setObjectName("hk_bar")
+        wrap.setStyleSheet(
+            f"QFrame#hk_bar {{ background: {T.BG_SURFACE};"
+            f" border: 1px solid {T.BORDER_SOFT};"
+            f" border-radius: {T.R_SM}px; }}"
+        )
+        wrap.setFixedHeight(30)
+        wrap.setMaximumWidth(480)
+
+        outer = QHBoxLayout(wrap)
+        outer.setContentsMargins(6, 0, 6, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("background: transparent;")
+
+        inner = QWidget()
+        inner.setStyleSheet("background: transparent;")
+        self._hotkey_bar_layout = QHBoxLayout(inner)
+        self._hotkey_bar_layout.setContentsMargins(0, 0, 0, 0)
+        self._hotkey_bar_layout.setSpacing(T.S_XS)
+        self._hotkey_bar_layout.addWidget(self._hotkey_bar_placeholder())
+        self._hotkey_bar_layout.addStretch()
+
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        return wrap
+
+    def _hotkey_bar_placeholder(self) -> QLabel:
+        lbl = T.make_label("尚無設置按鍵", T.FONT_CAPTION)
+        lbl.setContentsMargins(8, 0, 8, 0)
+        return lbl
+
+    def _make_hotkey_chip(self, name: str, key: str, accent: str) -> QLabel:
+        """單一 chip：`key · name`，accent 染色"""
+        chip = QLabel(f"{key} · {name}")
+        chip.setStyleSheet(
+            f"QLabel {{ color: {accent};"
+            f" background: {T.alpha(accent, 50)};"
+            f" border-radius: {T.CHIP_H // 2}px;"
+            f" padding: 0 10px; font-size: 11px; font-weight: 600;"
+            f" min-height: 22px; max-height: 22px; }}"
+        )
+        chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        chip.setMaximumWidth(160)
+        return chip
+
+    def _iter_set_hotkeys(self):
+        """yield (name, hotkey, accent)，依三欄與子分類序"""
+        sm = self.app.skill_manager
+        for category_key, _, _, accent in _CATEGORY_DEFS:
+            for ids in (sm.get_categories(category_key) or {}).values():
+                for sid in ids:
+                    meta = sm.get_skill(sid)
+                    if not meta:
+                        continue
+                    hotkey = meta.get("hotkey", "") or ""
+                    if not hotkey:
+                        continue
+                    yield meta.get("name", sid), hotkey, accent
+
+    def _refresh_hotkey_bar(self):
+        """重建頁首橫軸所有 chip"""
+        layout = getattr(self, "_hotkey_bar_layout", None)
+        if layout is None or self.app is None:
+            return
+        if getattr(self.app, "skill_manager", None) is None:
+            return
+
+        _clear_layout_widgets(layout)
+        has_any = False
+        for name, hotkey, accent in self._iter_set_hotkeys():
+            layout.addWidget(self._make_hotkey_chip(name, hotkey, accent))
+            has_any = True
+        if not has_any:
+            layout.addWidget(self._hotkey_bar_placeholder())
+        layout.addStretch()
+
+    # --------------------------------------------------
     # rebuild / clear
     # --------------------------------------------------
     def rebuild(self):
@@ -193,26 +293,21 @@ class SkillPageV2(QWidget):
             return
         self._clear_layout()
         self._populate_layout()
+        self._refresh_hotkey_bar()
         self._built = True
 
     def refresh_status_counts(self):
-        """重算所有欄位的「已設按鍵 / 總數」chip 文字（hotkey 變動後呼叫）"""
+        """重算所有欄位的「已設按鍵 / 總數」chip 文字 + 頁首橫軸（hotkey 變動後呼叫）"""
         for col in self._columns:
             col.refresh_status()
+        self._refresh_hotkey_bar()
 
     def _clear_layout(self):
         # 清除 App dict 內的殘留 widget 註冊
         for sid in list(self._registered_ids):
             SkillCardV2.unregister_from_app(self.app, sid)
         self._registered_ids.clear()
-
-        # 清除 column widget
-        while self._content_layout.count():
-            item = self._content_layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.setParent(None)
-                w.deleteLater()
+        _clear_layout_widgets(self._content_layout)
         self._columns.clear()
 
     def _populate_layout(self):
