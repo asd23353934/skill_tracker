@@ -610,9 +610,7 @@ class SkillWindow(QWidget):
 
         if self.is_loop:
             self.running = False
-            import random
-            delay = random.randint(50, 500)
-            QTimer.singleShot(delay, self._loop_restart)
+            self._loop_restart()
 
         elif self.is_permanent and self.count_up:
             # 常駐怪物：時間到後重置為 idle（等待下次按鍵）
@@ -637,8 +635,16 @@ class SkillWindow(QWidget):
             self._update_overlay(0)
 
     def _loop_restart(self):
-        """循環模式：重新開始"""
-        self.start_time      = time.perf_counter()
+        """循環模式：重新開始
+
+        排程錨定：start_time 接續「上一輪的理論結束點」(end_time)，吸收每輪的
+        偵測延遲，避免誤差逐輪累積成秒差（長時間循環不漂移）。若落後超過一個
+        完整週期（休眠 / 卡頓 / debugger 暫停），重新對齊到當下，避免一次爆衝補進度。
+        """
+        now = time.perf_counter()
+        self.start_time      = self.end_time
+        if now - self.start_time > self.total:
+            self.start_time  = now
         self.end_time        = self.start_time + self.total
         self.remaining       = 0 if self.count_up else self.total
         self.alert_triggered = False
