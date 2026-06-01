@@ -34,7 +34,9 @@ class ConfigManager:
         "player_name":          "玩家1",
         "skill_start_x":        200,
         "skill_start_y":        200,
-        "enable_sound":         True,
+        "enable_sound":         True,                  # 舊版相容（= 完成或提前任一開啟）
+        "enable_end_sound":     True,                  # 完成提示音開關
+        "enable_alert_sound":   True,                  # 提前提示音開關
         "sound_volume":         100,
         "window_size":          96,                    # 大
         "alert_before_seconds": 10,
@@ -42,6 +44,9 @@ class ConfigManager:
         "hint_position_y":      0,
         "global_sound":         "alert_urgent.wav",    # 緊急提示
         "global_alert_sound":   "alert_urgent.wav",
+        "hotkey_app_filter_enabled": False,            # 快捷鍵僅在指定視窗前景時觸發
+        "hotkey_app_target_exe":     "",               # 目標程式 exe（小寫 basename）
+        "hotkey_app_target_label":   "",               # 目標視窗顯示標題
         "current_profile":      "預設配置",
     }
 

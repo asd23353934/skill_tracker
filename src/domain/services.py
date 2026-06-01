@@ -8,6 +8,11 @@
 from __future__ import annotations
 
 
+# 每技能音效「靜音（不播放）」的 sentinel；與 ""（使用全域）明確區分。
+# 不含副檔名，不會與真實音效檔名衝突。
+MUTE_SENTINEL = "__mute__"
+
+
 class SkillService:
     """技能業務邏輯服務 — 狀態查詢、互斥變更、覆寫管理、配置序列化
 
@@ -86,12 +91,25 @@ class SkillService:
         )
 
     def get_sound(self, skill_id: str) -> str:
-        """取得提示音（覆寫值或全域預設）"""
-        return self._sound_overrides.get(skill_id) or self.global_sound
+        """取得完成提示音檔名（覆寫 / 靜音 / 全域）
+
+        三態：sentinel → 靜音（回空字串）；非空檔名 → 該檔；空 → 全域。
+        全域開關是否關閉由播放端（SkillWindow.enable_end_sound）把關。
+        """
+        override = self._sound_overrides.get(skill_id)
+        if override == MUTE_SENTINEL:
+            return ""
+        return override or self.global_sound
 
     def get_alert_sound(self, skill_id: str) -> str:
-        """取得提前提示音（覆寫值或全域預設）"""
-        return self._alert_sound_overrides.get(skill_id) or self.global_alert_sound
+        """取得提前提示音檔名（覆寫 / 靜音 / 全域）
+
+        三態同 get_sound；全域開關由 SkillWindow.enable_alert_sound 把關。
+        """
+        override = self._alert_sound_overrides.get(skill_id)
+        if override == MUTE_SENTINEL:
+            return ""
+        return override or self.global_alert_sound
 
     def get_hotkey(self, skill_id: str) -> str:
         """取得技能快捷鍵"""

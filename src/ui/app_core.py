@@ -177,12 +177,21 @@ class AppCoreMixin:
         # 這裡第一次跑才以 primary screen 計算 fallback；`or` 處理 None / 0 / 缺席
         self.skill_start_x        = settings.get("skill_start_x") or default_x
         self.skill_start_y        = settings.get("skill_start_y") or default_y
-        self.enable_sound         = settings.get("enable_sound", True)
+        # 完成音 / 提前音各自獨立開關；舊檔僅有 enable_sound 時兩者沿用其值（遷移）
+        _legacy_enable_sound      = settings.get("enable_sound", True)
+        self.enable_end_sound     = settings.get("enable_end_sound", _legacy_enable_sound)
+        self.enable_alert_sound   = settings.get("enable_alert_sound", _legacy_enable_sound)
+        self.enable_sound         = self.enable_end_sound or self.enable_alert_sound
         self.sound_volume         = settings.get("sound_volume", 100)
         self.sound_manager.set_volume(self.sound_volume / 100.0)
         self.window_alpha         = 0.95
         self.window_size          = settings.get("window_size", 64)
         self.alert_before_seconds = settings.get("alert_before_seconds", 0)
+
+        # 快捷鍵限定前景視窗
+        self.hotkey_app_filter_enabled = settings.get("hotkey_app_filter_enabled", False)
+        self.hotkey_app_target_exe     = settings.get("hotkey_app_target_exe", "")
+        self.hotkey_app_target_label   = settings.get("hotkey_app_target_label", "")
 
         # 音效設定（遷移舊檔名）
         self.global_sound = self.sound_manager.migrate_sound_filename(
@@ -615,9 +624,9 @@ class AppCoreMixin:
     def apply_settings(self, result: dict) -> None:
         """套用 SettingsDialog 結果（V1 / V2 共用）
 
-        result 必須含 V1 SettingsDialog.result 的 8 個 key：
-            x / y / sound / alert_before_seconds / window_size /
-            global_sound / global_alert_sound / sound_volume
+        result 必須含以下 key：
+            x / y / enable_end_sound / enable_alert_sound / alert_before_seconds /
+            window_size / global_sound / global_alert_sound / sound_volume
         """
         old_window_size = self.window_size
         old_xy          = (self.skill_start_x, self.skill_start_y)
@@ -625,12 +634,20 @@ class AppCoreMixin:
         # 1. 寫回 self
         self.skill_start_x        = result["x"]
         self.skill_start_y        = result["y"]
-        self.enable_sound         = result["sound"]
+        self.enable_end_sound     = result.get("enable_end_sound", True)
+        self.enable_alert_sound   = result.get("enable_alert_sound", True)
+        self.enable_sound         = self.enable_end_sound or self.enable_alert_sound
         self.alert_before_seconds = result["alert_before_seconds"]
         self.window_size          = result["window_size"]
         self.global_sound         = result.get("global_sound", "")
         self.global_alert_sound   = result.get("global_alert_sound", "")
         self.sound_volume         = result.get("sound_volume", 100)
+        self.hotkey_app_filter_enabled = result.get(
+            "hotkey_app_filter_enabled", self.hotkey_app_filter_enabled)
+        self.hotkey_app_target_exe     = result.get(
+            "hotkey_app_target_exe", self.hotkey_app_target_exe)
+        self.hotkey_app_target_label   = result.get(
+            "hotkey_app_target_label", self.hotkey_app_target_label)
 
         # 2. 音量同步
         self.sound_manager.set_volume(self.sound_volume / 100.0)
@@ -645,11 +662,16 @@ class AppCoreMixin:
         cm.set_settings("skill_start_x",        self.skill_start_x)
         cm.set_settings("skill_start_y",        self.skill_start_y)
         cm.set_settings("enable_sound",         self.enable_sound)
+        cm.set_settings("enable_end_sound",     self.enable_end_sound)
+        cm.set_settings("enable_alert_sound",   self.enable_alert_sound)
         cm.set_settings("alert_before_seconds", self.alert_before_seconds)
         cm.set_settings("window_size",          self.window_size)
         cm.set_settings("global_sound",         self.global_sound)
         cm.set_settings("global_alert_sound",   self.global_alert_sound)
         cm.set_settings("sound_volume",         self.sound_volume)
+        cm.set_settings("hotkey_app_filter_enabled", self.hotkey_app_filter_enabled)
+        cm.set_settings("hotkey_app_target_exe",     self.hotkey_app_target_exe)
+        cm.set_settings("hotkey_app_target_label",   self.hotkey_app_target_label)
         cm.save()
 
         # 5. 更新使用全域預設的提前秒數按鈕（沒被個別 override 的）
@@ -663,7 +685,8 @@ class AppCoreMixin:
             self.window_manager.initialize_persistent_skills()
         else:
             for sid, win in self.window_manager.active_windows.items():
-                win.enable_sound = self.enable_sound
+                win.enable_end_sound   = self.enable_end_sound
+                win.enable_alert_sound = self.enable_alert_sound
                 self.window_manager.refresh_window_sound_params(sid)
             if (self.skill_start_x, self.skill_start_y) != old_xy:
                 self.window_manager.reposition_all()

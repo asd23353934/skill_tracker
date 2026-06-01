@@ -86,6 +86,24 @@ class HotkeyManager:
             AppTheme.ACCENT_YELLOW,
         )
 
+    def _app_filter_blocks(self) -> bool:
+        """快捷鍵限定：已啟用且前景視窗 exe 不符目標時回 True（應忽略此次觸發）。
+
+        只在「已比對到註冊快捷鍵之後」才呼叫，平常按鍵不付出查前景的成本。
+        僅用 ctypes（window_enum），無 Qt，於 pynput daemon thread 安全。
+        未啟用或未設定目標時一律放行（回 False）。
+        """
+        if not getattr(self.app, "hotkey_app_filter_enabled", False):
+            return False
+        target = (getattr(self.app, "hotkey_app_target_exe", "") or "").lower()
+        if not target:
+            return False
+        try:
+            from src.infrastructure.window_enum import get_foreground_exe
+            return get_foreground_exe() != target
+        except Exception:
+            return False  # 查詢失敗時不阻擋，避免快捷鍵整個失效
+
     def _on_key_press(self, key):
         """按鍵處理（pynput daemon thread 回呼）
 
@@ -108,6 +126,8 @@ class HotkeyManager:
             # 先檢查技能快捷鍵
             skill_id = self.app.skill_manager.get_skill_by_hotkey(key_name)
             if skill_id:
+                if self._app_filter_blocks():
+                    return
                 self.app.after(
                     0, lambda sid=skill_id: self.app.window_manager.trigger_skill(sid)
                 )
@@ -116,6 +136,8 @@ class HotkeyManager:
             # 再檢查怪物快捷鍵
             monster_id = self.app.get_monster_by_hotkey(key_name)
             if monster_id:
+                if self._app_filter_blocks():
+                    return
                 self.app.after(
                     0, lambda mid=monster_id: self.app.window_manager.trigger_monster(mid)
                 )

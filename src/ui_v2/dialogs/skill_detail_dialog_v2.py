@@ -34,9 +34,11 @@ from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.components import ArrowComboBox
 from src.ui_v2.dialogs.base_dialog_v2 import BaseDialogV2
 from src.ui_v2.lucide import lucide_pixmap
+from src.domain.services import MUTE_SENTINEL
 
 
 _NO_OVERRIDE_LABEL = "使用全域設定"
+_MUTE_LABEL = "靜音（不播放）"
 
 
 class _PlayBtn(QPushButton):
@@ -85,7 +87,8 @@ class SkillDetailDialogV2(BaseDialogV2):
     # 音效選項
     # --------------------------------------------------
     def _build_sound_options(self):
-        self._sound_label_map = {_NO_OVERRIDE_LABEL: ""}
+        # 三態：使用全域（""）/ 靜音（sentinel）/ 指定音效檔名
+        self._sound_label_map = {_NO_OVERRIDE_LABEL: "", _MUTE_LABEL: MUTE_SENTINEL}
         sm = getattr(self.app, "sound_manager", None)
         if sm is None:
             return
@@ -236,6 +239,8 @@ class SkillDetailDialogV2(BaseDialogV2):
     # --------------------------------------------------
     def _effective_filename(self, combo: ArrowComboBox, fallback: str) -> str:
         filename = self._sound_label_map.get(combo.currentText(), "")
+        if filename == MUTE_SENTINEL:
+            return ""          # 靜音：試聽不播放
         return filename if filename else fallback
 
     def _preview_completion(self):

@@ -36,6 +36,7 @@ src/infrastructure/      # 外部邊界（檔案 I/O、OS、第三方）
   helpers.py             # resource_path / user_data_path / atomic_write_json 等
   updater.py             # 版本更新檢查
   mapleworld_scanner.py  # MapleWorld 資源掃描（Unity / Web，背景執行緒 + callback）
+  window_enum.py         # 視窗列舉 / 前景 exe / PrintWindow 縮圖（Windows ctypes，快捷鍵限定用）
 src/domain/              # 純 Python 領域層（零 Qt 依賴）
   models.py              # 領域資料模型
   services.py            # SkillService / MonsterService
@@ -68,7 +69,8 @@ src/ui_v2/               # V2 UI（正式 UI）
   dialogs/
     base_dialog_v2.py
     skill_detail_dialog_v2.py
-    settings_dialog_v2.py          # 全域設定（音量 / 視窗位置 / 全域聲音…）
+    settings_dialog_v2.py          # 全域設定（完成/提前音開關 / 音量 / 視窗位置 / 快捷鍵限定…）
+    window_picker_dialog_v2.py     # 視窗挑選器（縮圖卡片網格，選快捷鍵限定的目標視窗）
     profile_manager_dialog_v2.py   # 配置管理（切換 / 新增 / 複製 / 重命名 / 刪除）
     potion_save_dialog_v2.py / potion_load_dialog_v2.py
 docs/DESIGN_V2.md        # V2 設計規範（顏色、間距、元件契約）

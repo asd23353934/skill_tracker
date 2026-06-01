@@ -57,6 +57,8 @@ class SkillWindow(QWidget):
         count_up       = False,
         title          = None,
         idle_start     = False,
+        enable_end_sound   = None,
+        enable_alert_sound = None,
     ):
         """初始化倒數視窗
 
@@ -103,6 +105,9 @@ class SkillWindow(QWidget):
         self.player              = player
         self.on_close            = on_close
         self.enable_sound        = enable_sound
+        # 完成音 / 提前音各自開關；未指定時沿用 enable_sound（相容舊呼叫端）
+        self.enable_end_sound    = enable_sound if enable_end_sound is None else enable_end_sound
+        self.enable_alert_sound  = enable_sound if enable_alert_sound is None else enable_alert_sound
         self.skill_id            = skill_id
         self.is_permanent        = is_permanent
         self.is_loop             = is_loop
@@ -605,7 +610,7 @@ class SkillWindow(QWidget):
         if self.alert_enabled and not self.alert_triggered and self.alert_before_seconds == 0:
             self._trigger_alert()
 
-        if self.enable_sound:
+        if self.enable_end_sound:
             self._play_sound()
 
         if self.is_loop:
@@ -670,7 +675,7 @@ class SkillWindow(QWidget):
         self._flash_timer.start()
         self.update()
 
-        if self.enable_sound and self.sound_manager and self.alert_sound_filename:
+        if self.enable_alert_sound and self.sound_manager and self.alert_sound_filename:
             self.sound_manager.play_alert(self.alert_sound_filename)
 
         if self.on_alert:

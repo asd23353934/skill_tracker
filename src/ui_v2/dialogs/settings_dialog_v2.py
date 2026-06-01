@@ -110,7 +110,7 @@ class SettingsDialogV2(BaseDialogV2):
     """V2 設定對話框（8 欄與 V1 SettingsDialog 等價）"""
 
     def __init__(self, parent, app):
-        super().__init__(parent, title="設定", width=460, height=540)
+        super().__init__(parent, title="設定", width=460, height=620)
         self.app = app
         self._end_label_map: dict[str, str] = {}
         self._alert_label_map: dict[str, str] = {}
@@ -135,14 +135,25 @@ class SettingsDialogV2(BaseDialogV2):
         xy_h.addWidget(self.y_spin, 1)
         body.addWidget(_row("技能視窗位置", xy_wrap))
 
-        # 啟用聲音
-        self.sound_cb = QCheckBox("啟用聲音")
-        self.sound_cb.setChecked(bool(a.enable_sound))
-        self.sound_cb.setStyleSheet(
+        # 完成 / 提前提示音各自開關
+        self.end_sound_cb   = QCheckBox("完成提示音")
+        self.alert_sound_cb = QCheckBox("提前提示音")
+        self.end_sound_cb.setChecked(bool(getattr(a, "enable_end_sound", True)))
+        self.alert_sound_cb.setChecked(bool(getattr(a, "enable_alert_sound", True)))
+        _cb_qss = (
             f"QCheckBox {{ color: {T.TEXT}; background: transparent;"
             f" font-size: 12px; }}"
         )
-        body.addWidget(_row("音效開關", self.sound_cb))
+        self.end_sound_cb.setStyleSheet(_cb_qss)
+        self.alert_sound_cb.setStyleSheet(_cb_qss)
+        sound_wrap = QWidget()
+        sound_h = QHBoxLayout(sound_wrap)
+        sound_h.setContentsMargins(0, 0, 0, 0)
+        sound_h.setSpacing(T.S_MD)
+        sound_h.addWidget(self.end_sound_cb)
+        sound_h.addWidget(self.alert_sound_cb)
+        sound_h.addStretch()
+        body.addWidget(_row("音效開關", sound_wrap))
 
         # 全域提前提示秒
         self.alert_spin = _spin(a.alert_before_seconds, 0, 99, suffix=" 秒")
@@ -210,7 +221,50 @@ class SettingsDialogV2(BaseDialogV2):
         vh.addWidget(self.volume_label)
         body.addWidget(_row("音量", vol_wrap))
 
+        # 快捷鍵限定前景視窗
+        self._hotkey_target_exe   = getattr(a, "hotkey_app_target_exe", "") or ""
+        self._hotkey_target_label = getattr(a, "hotkey_app_target_label", "") or ""
+        self.hotkey_filter_cb = QCheckBox("只在指定視窗觸發快捷鍵")
+        _has_target = bool(self._hotkey_target_exe)
+        # 未選目標前不可啟用，避免「啟用卻無目標 → 靜默全域觸發」的矛盾狀態
+        self.hotkey_filter_cb.setChecked(bool(getattr(a, "hotkey_app_filter_enabled", False)) and _has_target)
+        self.hotkey_filter_cb.setEnabled(_has_target)
+        self.hotkey_filter_cb.setStyleSheet(_cb_qss)
+        body.addWidget(_row("快捷鍵限定", self.hotkey_filter_cb))
+
+        self.hotkey_target_lbl = QLabel(self._hotkey_target_label or "未選擇")
+        self.hotkey_target_lbl.setTextFormat(Qt.TextFormat.PlainText)  # 標題來自外部程式，防 rich-text 解讀
+        self.hotkey_target_lbl.setStyleSheet(
+            f"color: {T.TEXT_HI}; background: transparent; font-size: 11px;")
+        pick_btn = QPushButton("選擇視窗…")
+        pick_btn.setFixedHeight(28)
+        pick_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        pick_btn.setStyleSheet(
+            f"QPushButton {{ background: {T.BG_INPUT}; color: {T.TEXT_DIM};"
+            f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
+            f" padding: 0 12px; font-size: 11px; }}"
+            f"QPushButton:hover {{ background: {T.BG_HOVER}; color: {T.TEXT_HI}; }}"
+        )
+        pick_btn.clicked.connect(self._open_window_picker)
+        target_wrap = QWidget()
+        target_h = QHBoxLayout(target_wrap)
+        target_h.setContentsMargins(0, 0, 0, 0)
+        target_h.setSpacing(T.S_SM)
+        target_h.addWidget(self.hotkey_target_lbl, 1)
+        target_h.addWidget(pick_btn)
+        body.addWidget(_row("目標視窗", target_wrap))
+
         body.addStretch()
+
+    def _open_window_picker(self):
+        """開啟視窗挑選器，選定後更新待套用的目標 exe / 標題。"""
+        from src.ui_v2.dialogs.window_picker_dialog_v2 import WindowPickerDialogV2
+        dlg = WindowPickerDialogV2(self, self.app)
+        if dlg.exec():
+            self._hotkey_target_exe   = dlg.selected_exe()
+            self._hotkey_target_label = dlg.selected_label()
+            self.hotkey_target_lbl.setText(self._hotkey_target_label or "未選擇")
+            self.hotkey_filter_cb.setEnabled(bool(self._hotkey_target_exe))
 
     def _wrap_combo_with_preview(self, combo: QComboBox, label_map: dict) -> QWidget:
         wrap = QWidget()
@@ -279,12 +333,16 @@ class SettingsDialogV2(BaseDialogV2):
         return {
             "x":                  int(self.x_spin.value()),
             "y":                  int(self.y_spin.value()),
-            "sound":              bool(self.sound_cb.isChecked()),
+            "enable_end_sound":   bool(self.end_sound_cb.isChecked()),
+            "enable_alert_sound": bool(self.alert_sound_cb.isChecked()),
             "alert_before_seconds": int(self.alert_spin.value()),
             "window_size":        self._size_map.get(self.size_combo.currentText(), 96),
             "global_sound":       self._end_label_map.get(self.end_combo.currentText(), ""),
             "global_alert_sound": self._alert_label_map.get(self.alert_combo.currentText(), ""),
             "sound_volume":       int(self.volume_slider.value()),
+            "hotkey_app_filter_enabled": bool(self.hotkey_filter_cb.isChecked()) and bool(self._hotkey_target_exe),
+            "hotkey_app_target_exe":     self._hotkey_target_exe,
+            "hotkey_app_target_label":   self._hotkey_target_label,
         }
 
     def _on_confirm(self):
