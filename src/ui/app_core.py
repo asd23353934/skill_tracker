@@ -130,6 +130,9 @@ class AppCoreMixin:
         )
         self.monster_service = MonsterService(config_manager)
 
+        # 為 boss 類技能背景生成 TTS（缺檔才生）；提供「{name}」/「{name}準備」兩段
+        self._ensure_boss_tts()
+
         # 2. 第一次啟動：用 mixin factory default 自建「預設配置」；之後都跳過
         default_name = "預設配置"
         if default_name not in config_manager.list_profiles():
@@ -219,6 +222,24 @@ class AppCoreMixin:
             self.skill_service.load_from_profile(migrated_data)
         else:
             self.skill_service.reset_all_to_defaults()
+
+    def _ensure_boss_tts(self):
+        """為所有 boss 類技能預備 TTS 音檔（背景生成，缺檔才生）
+
+        產生兩段：
+            「{name}」     → 冷卻歸零時播放
+            「{name}準備」 → 提前提示時播放
+        對應 SkillService._category_default_sound 的查找規則。
+        """
+        texts = set()
+        for meta in self.skill_loader.get_all_skills().values():
+            if meta.get("category") == "boss":
+                name = (meta.get("name") or "").strip()
+                if name:
+                    texts.add(name)
+                    texts.add(f"{name}準備")
+        if texts:
+            self.sound_manager.ensure_tts(texts)
 
     # --------------------------------------------------
     # 內部 UI helper（V1 widget styling；V2 chip 走自有 _v2_apply_accent）

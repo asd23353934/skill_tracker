@@ -7,12 +7,14 @@ MP3 使用 Windows MCI (winmm.dll) 播放
 """
 
 import os
+import re
 import wave
 import struct
 import math
 import threading
 import ctypes
 from src.infrastructure.helpers import user_data_path
+from src.infrastructure.tts import generate_tts_batch
 
 try:
     import winsound
@@ -384,3 +386,47 @@ class SoundManager:
             label = self.get_sound_label(filename)
             options.append((filename, label))
         return options
+
+    # --------------------------------------------------
+    # TTS (文字轉語音) — 由 SkillService 的 boss 預設音效規則對應
+    # --------------------------------------------------
+
+    @staticmethod
+    def tts_filename(text):
+        """TTS WAV 檔名規則：tts_{文字}.wav
+
+        剝除 NTFS 非法字元；空字串回 ""。
+        須與 domain/services.py 的 tts_filename_for() 對應。
+        """
+        cleaned = re.sub(r'[\\/:\*\?"<>\|\r\n]', "", text or "").strip()
+        return f"tts_{cleaned}.wav" if cleaned else ""
+
+    def ensure_tts(self, texts):
+        """確保多段文字的 TTS WAV 存在；缺檔則背景批次生成
+
+        生成完成後 invalidate sounds cache，UI dropdown 下次重整時看得到新檔。
+
+        Args:
+            texts: iterable of str
+        """
+        pending = []
+        for text in texts:
+            fname = self.tts_filename(text)
+            if not fname:
+                continue
+            fpath = os.path.join(self.sounds_dir, fname)
+            if not os.path.exists(fpath):
+                pending.append((text, fpath))
+
+        if not pending:
+            return
+
+        def _worker():
+            try:
+                n = generate_tts_batch(pending)
+                if n > 0:
+                    self._invalidate_sounds_cache()
+            except Exception:
+                pass
+
+        threading.Thread(target=_worker, daemon=True).start()

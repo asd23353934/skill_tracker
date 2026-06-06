@@ -290,7 +290,7 @@
     },
     {
       "id": "暗黑龍王-右頭狂暴",
-      "name": "右頭狂暴",
+      "name": "大電",
       "icon": "f06986e6-c5f2-4097-88d0-182a9f6a186a.jpg",
       "cooldown": 80,
       "category": "boss",
@@ -300,7 +300,7 @@
       "id": "暗黑龍王-輕踩",
       "name": "輕踩",
       "icon": "7a38508f-a3b5-47ed-9e88-c3d58d224ec8.jpg",
-      "cooldown": 20,
+      "cooldown": 40,
       "category": "boss",
       "subcategory": "暗黑龍王"
     },
@@ -322,9 +322,25 @@
     },
     {
       "id": "暗黑龍王-鎖鏈",
-      "name": "鎖鏈",
+      "name": "黑鎖",
       "icon": "98074efa-a069-4142-bb19-19795db14b51.jpg",
       "cooldown": 30,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
+    },
+    {
+      "id": "暗黑龍王-吐火",
+      "name": "吐火",
+      "icon": "吐火.jpg",
+      "cooldown": 60,
+      "category": "boss",
+      "subcategory": "暗黑龍王"
+    },
+    {
+      "id": "暗黑龍王-魅惑",
+      "name": "魅惑",
+      "icon": "魅惑.jpg",
+      "cooldown": 85,
       "category": "boss",
       "subcategory": "暗黑龍王"
     }

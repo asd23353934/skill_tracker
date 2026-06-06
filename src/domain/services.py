@@ -7,10 +7,23 @@
 
 from __future__ import annotations
 
+import re
+
 
 # 每技能音效「靜音（不播放）」的 sentinel；與 ""（使用全域）明確區分。
 # 不含副檔名，不會與真實音效檔名衝突。
 MUTE_SENTINEL = "__mute__"
+
+
+def tts_filename_for(text: str) -> str:
+    """TTS WAV 檔名規則（與 SoundManager.tts_filename 對應）
+
+    boss 類技能預設用此規則查找音效檔：
+        sound       → tts_{name}.wav
+        alert_sound → tts_{name}準備.wav
+    """
+    cleaned = re.sub(r'[\\/:\*\?"<>\|\r\n]', "", text or "").strip()
+    return f"tts_{cleaned}.wav" if cleaned else ""
 
 
 class SkillService:
@@ -91,25 +104,43 @@ class SkillService:
         )
 
     def get_sound(self, skill_id: str) -> str:
-        """取得完成提示音檔名（覆寫 / 靜音 / 全域）
+        """取得完成提示音檔名（覆寫 / 靜音 / 類別預設 / 全域）
 
-        三態：sentinel → 靜音（回空字串）；非空檔名 → 該檔；空 → 全域。
+        四態：sentinel → 靜音；非空覆寫檔名 → 該檔；空覆寫 → 類別預設（boss 走 TTS）→ 全域。
         全域開關是否關閉由播放端（SkillWindow.enable_end_sound）把關。
         """
         override = self._sound_overrides.get(skill_id)
         if override == MUTE_SENTINEL:
             return ""
-        return override or self.global_sound
+        if override:
+            return override
+        return self._category_default_sound(skill_id, alert=False) or self.global_sound
 
     def get_alert_sound(self, skill_id: str) -> str:
-        """取得提前提示音檔名（覆寫 / 靜音 / 全域）
+        """取得提前提示音檔名（覆寫 / 靜音 / 類別預設 / 全域）
 
-        三態同 get_sound；全域開關由 SkillWindow.enable_alert_sound 把關。
+        四態同 get_sound；全域開關由 SkillWindow.enable_alert_sound 把關。
         """
         override = self._alert_sound_overrides.get(skill_id)
         if override == MUTE_SENTINEL:
             return ""
-        return override or self.global_alert_sound
+        if override:
+            return override
+        return self._category_default_sound(skill_id, alert=True) or self.global_alert_sound
+
+    def _category_default_sound(self, skill_id: str, *, alert: bool) -> str:
+        """類別感知的預設音效；目前僅 boss 類回傳 TTS 檔名
+
+        Args:
+            alert: True 為提前提示音（接「準備」後綴）；False 為完成提示音
+        """
+        if self._skill_repo is None:
+            return ""
+        meta = self._skill_repo.get(skill_id)
+        if not meta or meta.category != "boss":
+            return ""
+        text = f"{meta.name}準備" if alert else meta.name
+        return tts_filename_for(text)
 
     def get_hotkey(self, skill_id: str) -> str:
         """取得技能快捷鍵"""

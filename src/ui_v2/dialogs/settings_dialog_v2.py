@@ -135,25 +135,21 @@ class SettingsDialogV2(BaseDialogV2):
         xy_h.addWidget(self.y_spin, 1)
         body.addWidget(_row("技能視窗位置", xy_wrap))
 
-        # 完成 / 提前提示音各自開關
-        self.end_sound_cb   = QCheckBox("完成提示音")
-        self.alert_sound_cb = QCheckBox("提前提示音")
-        self.end_sound_cb.setChecked(bool(getattr(a, "enable_end_sound", True)))
-        self.alert_sound_cb.setChecked(bool(getattr(a, "enable_alert_sound", True)))
-        _cb_qss = (
+        # 完成 / 提前提示音 mute 旗標（移到聲音下拉列右邊；行為等同舊版兩個 enable checkbox）
+        # 與技能詳細設定對齊：勾起 = 靜音 / 不勾 = 啟用
+        self._cb_qss = (
             f"QCheckBox {{ color: {T.TEXT}; background: transparent;"
-            f" font-size: 12px; }}"
+            f" font-size: 12px; spacing: 4px; }}"
         )
-        self.end_sound_cb.setStyleSheet(_cb_qss)
-        self.alert_sound_cb.setStyleSheet(_cb_qss)
-        sound_wrap = QWidget()
-        sound_h = QHBoxLayout(sound_wrap)
-        sound_h.setContentsMargins(0, 0, 0, 0)
-        sound_h.setSpacing(T.S_MD)
-        sound_h.addWidget(self.end_sound_cb)
-        sound_h.addWidget(self.alert_sound_cb)
-        sound_h.addStretch()
-        body.addWidget(_row("音效開關", sound_wrap))
+        self.end_mute_cb = QCheckBox("靜音")
+        self.end_mute_cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.end_mute_cb.setStyleSheet(self._cb_qss)
+        self.end_mute_cb.setChecked(not bool(getattr(a, "enable_end_sound", True)))
+        self.alert_mute_cb = QCheckBox("靜音")
+        self.alert_mute_cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.alert_mute_cb.setStyleSheet(self._cb_qss)
+        self.alert_mute_cb.setChecked(not bool(getattr(a, "enable_alert_sound", True)))
+        _cb_qss = self._cb_qss
 
         # 全域提前提示秒
         self.alert_spin = _spin(a.alert_before_seconds, 0, 99, suffix=" 秒")
@@ -191,14 +187,18 @@ class SettingsDialogV2(BaseDialogV2):
         self.end_combo, self._end_label_map = _build_sound_combo(
             sound_mgr, a.global_sound or ""
         )
-        end_wrap = self._wrap_combo_with_preview(self.end_combo, self._end_label_map)
+        end_wrap = self._wrap_combo_with_preview(
+            self.end_combo, self._end_label_map, self.end_mute_cb,
+        )
         body.addWidget(_row("全域結束聲音", end_wrap))
 
         # 全域提前聲音
         self.alert_combo, self._alert_label_map = _build_sound_combo(
             sound_mgr, a.global_alert_sound or ""
         )
-        alert_wrap = self._wrap_combo_with_preview(self.alert_combo, self._alert_label_map)
+        alert_wrap = self._wrap_combo_with_preview(
+            self.alert_combo, self._alert_label_map, self.alert_mute_cb,
+        )
         body.addWidget(_row("全域提前聲音", alert_wrap))
 
         # 音量
@@ -221,16 +221,15 @@ class SettingsDialogV2(BaseDialogV2):
         vh.addWidget(self.volume_label)
         body.addWidget(_row("音量", vol_wrap))
 
-        # 快捷鍵限定前景視窗
+        # 快捷鍵限定前景視窗（checkbox + 目標標籤 + 選擇按鈕 三件併同一行）
         self._hotkey_target_exe   = getattr(a, "hotkey_app_target_exe", "") or ""
         self._hotkey_target_label = getattr(a, "hotkey_app_target_label", "") or ""
-        self.hotkey_filter_cb = QCheckBox("只在指定視窗觸發快捷鍵")
+        self.hotkey_filter_cb = QCheckBox("啟用")
         _has_target = bool(self._hotkey_target_exe)
         # 未選目標前不可啟用，避免「啟用卻無目標 → 靜默全域觸發」的矛盾狀態
         self.hotkey_filter_cb.setChecked(bool(getattr(a, "hotkey_app_filter_enabled", False)) and _has_target)
         self.hotkey_filter_cb.setEnabled(_has_target)
         self.hotkey_filter_cb.setStyleSheet(_cb_qss)
-        body.addWidget(_row("快捷鍵限定", self.hotkey_filter_cb))
 
         self.hotkey_target_lbl = QLabel(self._hotkey_target_label or "未選擇")
         self.hotkey_target_lbl.setTextFormat(Qt.TextFormat.PlainText)  # 標題來自外部程式，防 rich-text 解讀
@@ -246,13 +245,14 @@ class SettingsDialogV2(BaseDialogV2):
             f"QPushButton:hover {{ background: {T.BG_HOVER}; color: {T.TEXT_HI}; }}"
         )
         pick_btn.clicked.connect(self._open_window_picker)
-        target_wrap = QWidget()
-        target_h = QHBoxLayout(target_wrap)
-        target_h.setContentsMargins(0, 0, 0, 0)
-        target_h.setSpacing(T.S_SM)
-        target_h.addWidget(self.hotkey_target_lbl, 1)
-        target_h.addWidget(pick_btn)
-        body.addWidget(_row("目標視窗", target_wrap))
+        hotkey_wrap = QWidget()
+        hotkey_h = QHBoxLayout(hotkey_wrap)
+        hotkey_h.setContentsMargins(0, 0, 0, 0)
+        hotkey_h.setSpacing(T.S_SM)
+        hotkey_h.addWidget(self.hotkey_filter_cb)
+        hotkey_h.addWidget(self.hotkey_target_lbl, 1)
+        hotkey_h.addWidget(pick_btn)
+        body.addWidget(_row("快捷鍵限定", hotkey_wrap))
 
         body.addStretch()
 
@@ -266,7 +266,8 @@ class SettingsDialogV2(BaseDialogV2):
             self.hotkey_target_lbl.setText(self._hotkey_target_label or "未選擇")
             self.hotkey_filter_cb.setEnabled(bool(self._hotkey_target_exe))
 
-    def _wrap_combo_with_preview(self, combo: QComboBox, label_map: dict) -> QWidget:
+    def _wrap_combo_with_preview(self, combo: QComboBox, label_map: dict,
+                                 mute_cb: QCheckBox) -> QWidget:
         wrap = QWidget()
         h = QHBoxLayout(wrap)
         h.setContentsMargins(0, 0, 0, 0)
@@ -284,6 +285,15 @@ class SettingsDialogV2(BaseDialogV2):
         )
         preview.clicked.connect(lambda: self._preview(combo, label_map))
         h.addWidget(preview)
+        h.addWidget(mute_cb)
+
+        # 靜音 → 禁用下拉與試聽（與技能詳細設定一致）
+        def _sync():
+            muted = mute_cb.isChecked()
+            combo.setEnabled(not muted)
+            preview.setEnabled(not muted)
+        _sync()
+        mute_cb.toggled.connect(lambda _: _sync())
         return wrap
 
     def _preview(self, combo: QComboBox, label_map: dict):
@@ -333,8 +343,9 @@ class SettingsDialogV2(BaseDialogV2):
         return {
             "x":                  int(self.x_spin.value()),
             "y":                  int(self.y_spin.value()),
-            "enable_end_sound":   bool(self.end_sound_cb.isChecked()),
-            "enable_alert_sound": bool(self.alert_sound_cb.isChecked()),
+            # 靜音 checkbox 與舊版 enable checkbox 為相反語意
+            "enable_end_sound":   not bool(self.end_mute_cb.isChecked()),
+            "enable_alert_sound": not bool(self.alert_mute_cb.isChecked()),
             "alert_before_seconds": int(self.alert_spin.value()),
             "window_size":        self._size_map.get(self.size_combo.currentText(), 96),
             "global_sound":       self._end_label_map.get(self.end_combo.currentText(), ""),

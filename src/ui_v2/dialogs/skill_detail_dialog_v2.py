@@ -38,7 +38,6 @@ from src.domain.services import MUTE_SENTINEL
 
 
 _NO_OVERRIDE_LABEL = "使用全域設定"
-_MUTE_LABEL = "靜音（不播放）"
 
 
 class _PlayBtn(QPushButton):
@@ -75,11 +74,13 @@ class SkillDetailDialogV2(BaseDialogV2):
         if app is not None and skill_id and hasattr(app, "skill_manager"):
             meta = app.skill_manager.get_skill(skill_id)
         self._meta = meta or {}
+        # boss 類技能：下拉預設顯示對應 TTS 檔；不提供「使用全域設定」（預設就是 TTS）
+        self._is_boss = (self._meta.get("category") == "boss")
         skill_name = self._meta.get("name", skill_id or "技能")
         self._build_sound_options()
 
         super().__init__(parent, title=f"技能設定 — {skill_name}",
-                         width=440, height=560)
+                         width=460, height=560)
         self._build_body()
         self._build_footer()
 
@@ -87,21 +88,49 @@ class SkillDetailDialogV2(BaseDialogV2):
     # 音效選項
     # --------------------------------------------------
     def _build_sound_options(self):
-        # 三態：使用全域（""）/ 靜音（sentinel）/ 指定音效檔名
-        self._sound_label_map = {_NO_OVERRIDE_LABEL: "", _MUTE_LABEL: MUTE_SENTINEL}
+        # 靜音 不再放入下拉（改由獨立 checkbox 控制）
+        # 非 boss：第一項為「使用全域設定」；boss：直接列音檔（預設 = 對應 TTS）
+        self._sound_label_map = {}
+        if not self._is_boss:
+            self._sound_label_map[_NO_OVERRIDE_LABEL] = ""
         sm = getattr(self.app, "sound_manager", None)
         if sm is None:
             return
         for filename in sm.list_sounds():
             self._sound_label_map[sm.get_sound_label(filename)] = filename
 
-    def _label_for_filename(self, filename: str) -> str:
-        if not filename:
+    def _default_filename(self, *, alert: bool) -> str:
+        """無 override 時應顯示的預設音檔；非 boss 一律為空（走全域）"""
+        if not self._is_boss:
+            return ""
+        name = (self._meta.get("name") or "").strip()
+        if not name:
+            return ""
+        text = f"{name}準備" if alert else name
+        sm = getattr(self.app, "sound_manager", None)
+        if sm is None:
+            return ""
+        return sm.tts_filename(text)
+
+    def _label_for_filename(self, filename: str, *, alert: bool = False) -> str:
+        """檔名 → 下拉顯示 label
+
+        - MUTE_SENTINEL / 空字串：boss 顯示對應 TTS；非 boss 顯示「使用全域設定」
+        - 指定檔名：對映 label；找不到 fallback 到預設
+        """
+        if filename in ("", MUTE_SENTINEL):
+            if self._is_boss:
+                default_file = self._default_filename(alert=alert)
+                for label, fname in self._sound_label_map.items():
+                    if fname == default_file:
+                        return label
+                return next(iter(self._sound_label_map.keys()), "")
             return _NO_OVERRIDE_LABEL
         for label, fname in self._sound_label_map.items():
             if fname == filename:
                 return label
-        return _NO_OVERRIDE_LABEL
+        # override 指向已刪除檔 → fallback 到預設
+        return self._label_for_filename("", alert=alert)
 
     # --------------------------------------------------
     # 主內容
@@ -152,13 +181,23 @@ class SkillDetailDialogV2(BaseDialogV2):
             cur_end = app.skill_sound_overrides.get(sid, "")
             cur_alert = app.skill_alert_sound_overrides.get(sid, "")
 
-        end_row, self.sound_combo, end_play = self._sound_row("冷卻完成")
-        self.sound_combo.setCurrentText(self._label_for_filename(cur_end))
+        end_row, self.sound_combo, end_play, self.end_mute_cb = self._sound_row("冷卻完成")
+        self.sound_combo.setCurrentText(self._label_for_filename(cur_end, alert=False))
+        self.end_mute_cb.setChecked(cur_end == MUTE_SENTINEL)
+        self._apply_mute_state(self.sound_combo, end_play, self.end_mute_cb.isChecked())
+        self.end_mute_cb.toggled.connect(
+            lambda checked: self._apply_mute_state(self.sound_combo, end_play, checked)
+        )
         end_play.clicked.connect(self._preview_completion)
         L.addLayout(end_row)
 
-        alert_sound_row, self.alert_sound_combo, alert_play = self._sound_row("提前提示")
-        self.alert_sound_combo.setCurrentText(self._label_for_filename(cur_alert))
+        alert_sound_row, self.alert_sound_combo, alert_play, self.alert_mute_cb = self._sound_row("提前提示")
+        self.alert_sound_combo.setCurrentText(self._label_for_filename(cur_alert, alert=True))
+        self.alert_mute_cb.setChecked(cur_alert == MUTE_SENTINEL)
+        self._apply_mute_state(self.alert_sound_combo, alert_play, self.alert_mute_cb.isChecked())
+        self.alert_mute_cb.toggled.connect(
+            lambda checked: self._apply_mute_state(self.alert_sound_combo, alert_play, checked)
+        )
         alert_play.clicked.connect(self._preview_alert)
         L.addLayout(alert_sound_row)
 
@@ -220,7 +259,7 @@ class SkillDetailDialogV2(BaseDialogV2):
     def _caption(self, text: str) -> QLabel:
         return T.make_label(text, T.FONT_CAPTION)
 
-    def _sound_row(self, label: str) -> tuple[QHBoxLayout, ArrowComboBox, _PlayBtn]:
+    def _sound_row(self, label: str) -> tuple[QHBoxLayout, ArrowComboBox, _PlayBtn, QCheckBox]:
         h = QHBoxLayout()
         h.setSpacing(T.S_SM)
         lbl = T.make_label(label, T.FONT_BODY)
@@ -232,7 +271,20 @@ class SkillDetailDialogV2(BaseDialogV2):
         h.addWidget(combo, 1)
         play = _PlayBtn()
         h.addWidget(play)
-        return h, combo, play
+        mute = QCheckBox("靜音")
+        mute.setCursor(Qt.CursorShape.PointingHandCursor)
+        mute.setStyleSheet(
+            f"QCheckBox {{ color: {T.TEXT}; background: transparent;"
+            f" font-size: 12px; spacing: 4px; }}"
+        )
+        h.addWidget(mute)
+        return h, combo, play, mute
+
+    @staticmethod
+    def _apply_mute_state(combo: ArrowComboBox, play: _PlayBtn, muted: bool):
+        """靜音切換：禁用下拉與試聽，視覺上半透明表達 disabled"""
+        combo.setEnabled(not muted)
+        play.setEnabled(not muted)
 
     # --------------------------------------------------
     # 聲音操作
@@ -282,9 +334,15 @@ class SkillDetailDialogV2(BaseDialogV2):
         self.sound_combo.clear(); self.sound_combo.addItems(values)
         self.alert_sound_combo.clear(); self.alert_sound_combo.addItems(values)
         new_label = self.app.sound_manager.get_sound_label(new_name)
-        self.sound_combo.setCurrentText(new_label if cur_end == _NO_OVERRIDE_LABEL
-                                        else cur_end)
-        self.alert_sound_combo.setCurrentText(cur_alert)
+        # 若使用者目前還停在「預設」/「使用全域」狀態，自動切到剛匯入的檔；否則維持原選擇
+        default_end_label = self._label_for_filename("", alert=False)
+        default_alert_label = self._label_for_filename("", alert=True)
+        self.sound_combo.setCurrentText(
+            new_label if cur_end == default_end_label else cur_end
+        )
+        self.alert_sound_combo.setCurrentText(
+            new_label if cur_alert == default_alert_label else cur_alert
+        )
         if hasattr(self.app, "toast"):
             self.app.toast.show(f"已匯入音效：{new_name}", "success")
 
@@ -309,19 +367,30 @@ class SkillDetailDialogV2(BaseDialogV2):
             app.skill_alert_seconds_overrides[sid] = max(0, self.alert_spin.value())
 
         # 完成音效
-        end_file = self._sound_label_map.get(self.sound_combo.currentText(), "")
-        if end_file:
-            app.skill_sound_overrides[sid] = end_file
+        if self.end_mute_cb.isChecked():
+            app.skill_sound_overrides[sid] = MUTE_SENTINEL
         else:
-            app.skill_sound_overrides.pop(sid, None)
+            end_file = self._sound_label_map.get(self.sound_combo.currentText(), "")
+            # boss 選的就是預設 TTS → 不寫 override，讓 SkillService 走類別預設
+            if self._is_boss and end_file == self._default_filename(alert=False):
+                app.skill_sound_overrides.pop(sid, None)
+            elif end_file:
+                app.skill_sound_overrides[sid] = end_file
+            else:
+                app.skill_sound_overrides.pop(sid, None)
 
         # 提前音效
-        alert_file = self._sound_label_map.get(
-            self.alert_sound_combo.currentText(), "")
-        if alert_file:
-            app.skill_alert_sound_overrides[sid] = alert_file
+        if self.alert_mute_cb.isChecked():
+            app.skill_alert_sound_overrides[sid] = MUTE_SENTINEL
         else:
-            app.skill_alert_sound_overrides.pop(sid, None)
+            alert_file = self._sound_label_map.get(
+                self.alert_sound_combo.currentText(), "")
+            if self._is_boss and alert_file == self._default_filename(alert=True):
+                app.skill_alert_sound_overrides.pop(sid, None)
+            elif alert_file:
+                app.skill_alert_sound_overrides[sid] = alert_file
+            else:
+                app.skill_alert_sound_overrides.pop(sid, None)
 
         # 自動套用（與 V1 一致：常駐與循環互斥）
         new_perm = self.auto_perm.isChecked()
