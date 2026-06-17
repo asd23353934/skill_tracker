@@ -524,4 +524,5 @@ class SkillCardV2(QFrame):
 
     def _on_open_detail(self):
         # V1 show_skill_detail 會開 V1 dialog；V2 卡片直接使用 V2 dialog。
-        SkillDetailDialogV2(self.window(), self.app, self.skill_id).exec()
+        # 非 modal：開著仍可操作主視窗 / 遊戲（WA_DeleteOnClose 關閉即清理）
+        SkillDetailDialogV2(self.window(), self.app, self.skill_id).show()

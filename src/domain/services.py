@@ -114,7 +114,7 @@ class SkillService:
             return ""
         if override:
             return override
-        return self._category_default_sound(skill_id, alert=False) or self.global_sound
+        return self._default_tts_sound(skill_id, alert=False) or self.global_sound
 
     def get_alert_sound(self, skill_id: str) -> str:
         """取得提前提示音檔名（覆寫 / 靜音 / 類別預設 / 全域）
@@ -126,10 +126,10 @@ class SkillService:
             return ""
         if override:
             return override
-        return self._category_default_sound(skill_id, alert=True) or self.global_alert_sound
+        return self._default_tts_sound(skill_id, alert=True) or self.global_alert_sound
 
-    def _category_default_sound(self, skill_id: str, *, alert: bool) -> str:
-        """類別感知的預設音效；目前僅 boss 類回傳 TTS 檔名
+    def _default_tts_sound(self, skill_id: str, *, alert: bool) -> str:
+        """所有技能的預設音效＝念出技能名稱的 TTS 檔名
 
         Args:
             alert: True 為提前提示音（接「準備」後綴）；False 為完成提示音
@@ -137,7 +137,7 @@ class SkillService:
         if self._skill_repo is None:
             return ""
         meta = self._skill_repo.get(skill_id)
-        if not meta or meta.category != "boss":
+        if not meta or not meta.name:
             return ""
         text = f"{meta.name}準備" if alert else meta.name
         return tts_filename_for(text)

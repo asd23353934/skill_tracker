@@ -13,8 +13,7 @@ pip install -r requirements.txt
 
 ### 2. 運行程式
 ```bash
-python main.py        # V2 UI（預設）
-python main.py --v1   # V1 舊版 UI（保留 opt-in）
+python main.py
 ```
 
 ---
@@ -36,6 +35,7 @@ python main.py --v1   # V1 舊版 UI（保留 opt-in）
 - ✅ 配置管理
 - ✅ 技能重置
 - ✅ 提示音禁音（完成 / 提前分別開關，每技能可單獨靜音）
+- ✅ 語音提示（所有技能完成 / 提前自動念出名稱，可改音效或靜音）
 - ✅ 快捷鍵限定前景視窗（只在指定遊戲視窗觸發）
 
 ---

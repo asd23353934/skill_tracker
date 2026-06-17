@@ -37,9 +37,6 @@ from src.ui_v2.lucide import lucide_pixmap
 from src.domain.services import MUTE_SENTINEL
 
 
-_NO_OVERRIDE_LABEL = "使用全域設定"
-
-
 class _PlayBtn(QPushButton):
     """自繪播放三角按鈕"""
     def __init__(self, parent=None):
@@ -74,8 +71,7 @@ class SkillDetailDialogV2(BaseDialogV2):
         if app is not None and skill_id and hasattr(app, "skill_manager"):
             meta = app.skill_manager.get_skill(skill_id)
         self._meta = meta or {}
-        # boss 類技能：下拉預設顯示對應 TTS 檔；不提供「使用全域設定」（預設就是 TTS）
-        self._is_boss = (self._meta.get("category") == "boss")
+        # 所有技能預設念名稱（TTS）：下拉預設顯示對應 TTS 檔，無「使用全域設定」選項
         skill_name = self._meta.get("name", skill_id or "技能")
         self._build_sound_options()
 
@@ -89,10 +85,8 @@ class SkillDetailDialogV2(BaseDialogV2):
     # --------------------------------------------------
     def _build_sound_options(self):
         # 靜音 不再放入下拉（改由獨立 checkbox 控制）
-        # 非 boss：第一項為「使用全域設定」；boss：直接列音檔（預設 = 對應 TTS）
+        # 所有技能直接列音檔，預設 = 對應 TTS（無「使用全域設定」項）
         self._sound_label_map = {}
-        if not self._is_boss:
-            self._sound_label_map[_NO_OVERRIDE_LABEL] = ""
         sm = getattr(self.app, "sound_manager", None)
         if sm is None:
             return
@@ -100,9 +94,7 @@ class SkillDetailDialogV2(BaseDialogV2):
             self._sound_label_map[sm.get_sound_label(filename)] = filename
 
     def _default_filename(self, *, alert: bool) -> str:
-        """無 override 時應顯示的預設音檔；非 boss 一律為空（走全域）"""
-        if not self._is_boss:
-            return ""
+        """無 override 時應顯示的預設音檔（念技能名稱的 TTS）"""
         name = (self._meta.get("name") or "").strip()
         if not name:
             return ""
@@ -115,17 +107,15 @@ class SkillDetailDialogV2(BaseDialogV2):
     def _label_for_filename(self, filename: str, *, alert: bool = False) -> str:
         """檔名 → 下拉顯示 label
 
-        - MUTE_SENTINEL / 空字串：boss 顯示對應 TTS；非 boss 顯示「使用全域設定」
+        - MUTE_SENTINEL / 空字串：顯示對應的預設 TTS
         - 指定檔名：對映 label；找不到 fallback 到預設
         """
         if filename in ("", MUTE_SENTINEL):
-            if self._is_boss:
-                default_file = self._default_filename(alert=alert)
-                for label, fname in self._sound_label_map.items():
-                    if fname == default_file:
-                        return label
-                return next(iter(self._sound_label_map.keys()), "")
-            return _NO_OVERRIDE_LABEL
+            default_file = self._default_filename(alert=alert)
+            for label, fname in self._sound_label_map.items():
+                if fname == default_file:
+                    return label
+            return next(iter(self._sound_label_map.keys()), "")
         for label, fname in self._sound_label_map.items():
             if fname == filename:
                 return label
@@ -371,8 +361,8 @@ class SkillDetailDialogV2(BaseDialogV2):
             app.skill_sound_overrides[sid] = MUTE_SENTINEL
         else:
             end_file = self._sound_label_map.get(self.sound_combo.currentText(), "")
-            # boss 選的就是預設 TTS → 不寫 override，讓 SkillService 走類別預設
-            if self._is_boss and end_file == self._default_filename(alert=False):
+            # 選的就是預設 TTS → 不寫 override，讓 SkillService 走預設
+            if end_file == self._default_filename(alert=False):
                 app.skill_sound_overrides.pop(sid, None)
             elif end_file:
                 app.skill_sound_overrides[sid] = end_file
@@ -385,7 +375,7 @@ class SkillDetailDialogV2(BaseDialogV2):
         else:
             alert_file = self._sound_label_map.get(
                 self.alert_sound_combo.currentText(), "")
-            if self._is_boss and alert_file == self._default_filename(alert=True):
+            if alert_file == self._default_filename(alert=True):
                 app.skill_alert_sound_overrides.pop(sid, None)
             elif alert_file:
                 app.skill_alert_sound_overrides[sid] = alert_file

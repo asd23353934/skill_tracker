@@ -89,6 +89,7 @@ class SkillPageV2(QWidget):
         bar = QHBoxLayout()
         bar.setSpacing(T.S_SM)
         bar.addWidget(T.make_label("技能倒數", T.FONT_SECTION))
+        bar.addWidget(self._build_help_btn())
         bar.addSpacing(T.S_MD)
         bar.addWidget(self._build_profile_selector())
         bar.addStretch()
@@ -163,6 +164,57 @@ class SkillPageV2(QWidget):
         h.addWidget(manage_btn)
         return wrap
 
+    # --------------------------------------------------
+    # 頁首「!」使用說明
+    # --------------------------------------------------
+    def _build_help_btn(self) -> QPushButton:
+        """頁首 info 鈕 → 開「技能倒數使用說明」"""
+        from src.ui_v2.lucide import lucide_icon
+        from PySide6.QtCore import QSize
+        btn = QPushButton()
+        btn.setIcon(lucide_icon("info", T.ORANGE, 16, stroke=1.8))
+        btn.setIconSize(QSize(16, 16))
+        btn.setFixedSize(26, 26)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setToolTip("技能倒數說明")
+        btn.setStyleSheet(
+            "QPushButton { background: transparent; border: none; padding: 0; }"
+            f"QPushButton:hover {{ background: {T.BG_HOVER}; border-radius: {T.R_SM}px; }}"
+        )
+        btn.clicked.connect(self._show_help)
+        return btn
+
+    def _show_help(self):
+        """開技能倒數使用說明（非 modal）"""
+        from src.ui_v2.dialogs.base_dialog_v2 import BaseDialogV2
+        dlg = BaseDialogV2(self.window(), title="技能倒數 — 使用說明",
+                           width=480, height=460)
+        body = dlg.body_layout()
+        items = [
+            ("點技能圖示", "開始倒數；倒數中再點可關閉（常駐／循環則改為重新計時）。"),
+            ("常駐", "技能視窗固定顯示不關閉，按快捷鍵重新計時。"),
+            ("循環", "倒數歸零後自動重新開始倒數。"),
+            ("提前提示", "剩 N 秒時邊框閃爍並語音／音效提醒（秒數在技能詳細設定調整）。"),
+            ("快捷鍵", "在技能詳細設定按一個鍵，遊戲中按該鍵即觸發倒數。"),
+            ("語音", "每個技能完成／提前提示會念出名稱；可在詳細設定改回音效或靜音。"),
+            ("快捷鍵限定", "設定中可指定「只在某遊戲視窗為前景時」快捷鍵才會觸發。"),
+        ]
+        for title, desc in items:
+            row = QLabel(f"{title}　{desc}")
+            row.setWordWrap(True)
+            row.setTextFormat(Qt.TextFormat.PlainText)
+            row.setStyleSheet(
+                f"color: {T.TEXT}; background: transparent; font-size: 12px;")
+            body.addWidget(row)
+        body.addStretch()
+        close_btn = QPushButton("我知道了")
+        close_btn.setProperty("kind", "primary")
+        close_btn.setFixedHeight(T.BTN_H)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(dlg.accept)
+        dlg.footer_layout().addWidget(close_btn)
+        dlg.show()
+
     def refresh_profile_selector(self):
         """CRUD 後重整 dropdown（不觸發 switch_profile）"""
         combo = getattr(self, "_profile_combo", None)
@@ -181,7 +233,7 @@ class SkillPageV2(QWidget):
         if self.app is None:
             return
         from src.ui_v2.dialogs import ProfileManagerDialogV2
-        ProfileManagerDialogV2(self.window(), self.app).exec()
+        ProfileManagerDialogV2(self.window(), self.app).show()  # 非 modal
 
     def _toggle_chip(self, label: str, color: str) -> QPushButton:
         btn = QPushButton(label)

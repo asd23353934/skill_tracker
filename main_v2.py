@@ -207,9 +207,9 @@ class PreviewWindow(QMainWindow):
     def _open_settings(self):
         try:
             dlg = SettingsDialogV2(self, self.app_ctx)
+            dlg.show()           # 非 modal：開著仍可操作主視窗 / 遊戲
             dlg.raise_()
             dlg.activateWindow()
-            dlg.exec()
         except Exception as e:
             # exe console=False；把錯誤寫到檔案方便 debug
             import traceback

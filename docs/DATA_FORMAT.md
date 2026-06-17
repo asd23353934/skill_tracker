@@ -28,7 +28,8 @@ cooldown_overrides, alert_seconds_overrides,
 sound_overrides, alert_sound_overrides
 ```
 
-> `sound_overrides` / `alert_sound_overrides` 的值為三態：缺鍵或 `""` = 使用全域；
+> `sound_overrides` / `alert_sound_overrides` 的值為三態：缺鍵或 `""` = 使用預設
+> （所有技能預設為念出名稱的 TTS 語音，無對應 TTS 時 fallback 全域聲音）；
 > 實際檔名 = 指定音效；保留字 `"__mute__"`（`MUTE_SENTINEL`）= 靜音（該技能此類音效永不播放）。
 
 ---

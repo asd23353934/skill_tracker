@@ -156,6 +156,8 @@ def list_windows() -> list[dict]:
                 return True
             pid = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value == os.getpid():
+                return True  # 排除本程式自己的視窗（主視窗 / dialog / 浮動技能窗）
             results.append({
                 "hwnd": int(hwnd),
                 "title": title,

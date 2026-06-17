@@ -188,7 +188,7 @@ class SoundManager:
     def _ensure_builtin_sounds(self):
         """確保內建音效檔案存在，版本更新時重新產生"""
         # 版本標記：若音效格式有更新則遞增此數字
-        _SOUND_VERSION = 6
+        _SOUND_VERSION = 7   # v7：內建音振幅 0.5 → 0.95（更大聲）
         version_file = os.path.join(self.sounds_dir, ".builtin_version")
 
         # 讀取已安裝版本
@@ -217,7 +217,7 @@ class SoundManager:
             filepath = os.path.join(self.sounds_dir, filename)
             if need_regen or not os.path.exists(filepath):
                 try:
-                    _generate_wav(filepath, info["tones"])
+                    _generate_wav(filepath, info["tones"], volume=0.95)
                 except Exception:
                     pass
 

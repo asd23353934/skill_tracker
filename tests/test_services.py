@@ -79,12 +79,13 @@ def test_get_alert_seconds_falls_back_to_global():
 def test_get_sound_override_wins_over_global():
     svc = _make_service()
     svc.global_sound = "g.wav"
-    assert svc.get_sound("a") == "g.wav"
+    # 無 override → 技能名稱 TTS 預設（所有技能預設念名稱）
+    assert svc.get_sound("a") == "tts_A.wav"
     svc.set_sound_override("a", "s.wav")
     assert svc.get_sound("a") == "s.wav"
-    # 空字串 override 視為未設定，fallback global
+    # 空字串 override 視為未設定 → 回 TTS 預設
     svc.set_sound_override("a", "")
-    assert svc.get_sound("a") == "g.wav"
+    assert svc.get_sound("a") == "tts_A.wav"
 
 
 # ── 互斥規則 ────────────────────────────────────────────────

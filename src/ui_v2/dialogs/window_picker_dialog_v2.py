@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
     QScrollArea, QFrame,
 )
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage, QPixmap, QFont, QFontMetrics
+from PySide6.QtCore import Qt, QRect, QRectF
+from PySide6.QtGui import QImage, QPixmap, QFont, QFontMetrics, QPainter, QColor, QPen
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.dialogs.base_dialog_v2 import BaseDialogV2
@@ -48,7 +48,12 @@ def _thumb_pixmap(data_wh) -> QPixmap | None:
 
 
 class _WindowCard(QFrame):
-    """單一視窗卡片：縮圖 + 標題，可點選 / 雙擊確認"""
+    """單一視窗卡片：縮圖 + 標題
+
+    全部自繪、**完全不放任何子 widget**，整張卡片任意位置的點擊都由 mousePressEvent
+    處理。（本對話框已關閉 WA_TranslucentBackground 改為不透明視窗，見
+    WindowPickerDialogV2.__init__，否則截圖縮圖 alpha=0 區會發生點擊穿透。）
+    """
 
     def __init__(self, info: dict, pixmap: QPixmap | None, on_select, on_confirm):
         super().__init__()
@@ -59,48 +64,48 @@ class _WindowCard(QFrame):
         self.setFixedSize(_CARD_W, _CARD_H)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(6)
-
-        thumb = QLabel()
-        thumb.setFixedSize(_THUMB_W, _THUMB_H)
-        thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb.setStyleSheet(f"background: {T.BG_INPUT}; border-radius: {T.R_SM}px;")
+        # 縮圖：縮放置中；無則用 lucide 退回圖示（最小化 / 擷取失敗）
         if pixmap is not None and not pixmap.isNull():
-            scaled = pixmap.scaled(
+            self._pix = pixmap.scaled(
                 _THUMB_W, _THUMB_H,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-            thumb.setPixmap(scaled)
         else:
-            # 最小化 / 擷取失敗 → lucide 圖示退回（不自繪、不用 Unicode 符號）
-            thumb.setPixmap(lucide_pixmap("image", T.TEXT_DIM, 40))
-        lay.addWidget(thumb)
+            self._pix = lucide_pixmap("image", T.TEXT_DIM, 40)
 
-        title_lbl = QLabel()
-        title_lbl.setTextFormat(Qt.TextFormat.PlainText)  # 視窗標題來自外部程式，防 rich-text 解讀
         fm = QFontMetrics(QFont(T.FONT_FAMILY, 11))
-        title_lbl.setText(fm.elidedText(info.get("title", ""), Qt.TextElideMode.ElideRight, _THUMB_W))
-        title_lbl.setStyleSheet(
-            f"color: {T.TEXT}; background: transparent; font-size: 11px;")
-        title_lbl.setFixedWidth(_THUMB_W)
-        lay.addWidget(title_lbl)
-
-        self._apply_style()
-
-    def _apply_style(self):
-        border = T.ORANGE if self._selected else T.BORDER
-        bg = T.BG_HOVER if self._selected else T.BG_ELEVATED
-        self.setStyleSheet(
-            f"_WindowCard {{ background: {bg}; border: 1px solid {border};"
-            f" border-radius: {T.R_SM}px; }}"
-        )
+        self._title = fm.elidedText(info.get("title", ""),
+                                    Qt.TextElideMode.ElideRight, _THUMB_W)
 
     def set_selected(self, value: bool):
         self._selected = value
-        self._apply_style()
+        self.update()
+
+    def paintEvent(self, e):  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # 卡片底 + 邊框（選取時橘框）
+        p.setPen(QPen(QColor(T.ORANGE if self._selected else T.BORDER), 1))
+        p.setBrush(QColor(T.BG_HOVER if self._selected else T.BG_ELEVATED))
+        p.drawRoundedRect(QRectF(0.5, 0.5, self.width() - 1, self.height() - 1),
+                          T.R_SM, T.R_SM)
+        # 縮圖底
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(T.BG_INPUT))
+        p.drawRoundedRect(QRectF(8, 8, _THUMB_W, _THUMB_H), T.R_SM, T.R_SM)
+        # 縮圖（置中）
+        if self._pix and not self._pix.isNull():
+            px = 8 + (_THUMB_W - self._pix.width()) // 2
+            py = 8 + (_THUMB_H - self._pix.height()) // 2
+            p.drawPixmap(int(px), int(py), self._pix)
+        # 標題
+        p.setPen(QColor(T.TEXT))
+        p.setFont(QFont(T.FONT_FAMILY, 11))
+        p.drawText(QRect(8, 8 + _THUMB_H + 4, _THUMB_W, 22),
+                   int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                   self._title)
+        p.end()
 
     def mousePressEvent(self, e):  # noqa: N802
         self._on_select(self)
@@ -116,6 +121,12 @@ class WindowPickerDialogV2(BaseDialogV2):
 
     def __init__(self, parent=None, app=None):
         super().__init__(parent, title="選擇目標視窗", width=620, height=560)
+        # 本對話框需「整片卡片皆可點」。半透明視窗（WA_TranslucentBackground）在 alpha=0
+        # 的區域（如 PrintWindow 截圖縮圖）會發生 Windows 視窗層級的「點擊穿透」——事件
+        # 直接落到背後視窗、根本到不了挑選器，導致截圖卡片選不到（純文字/退回圖示卡因
+        # 不透明而正常）。故關閉半透明、改為不透明視窗（標準矩形命中測試，全區可點）。
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self.setStyleSheet(f"QDialog {{ background: {T.BG_SURFACE}; }}")
         self.app = app
         self._cards: list[_WindowCard] = []
         self._selected_info: dict | None = None

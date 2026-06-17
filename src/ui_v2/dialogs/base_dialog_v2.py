@@ -55,6 +55,9 @@ class BaseDialogV2(QDialog):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        # 非 modal 開啟（.show()）時關閉即銷毀，避免隱藏實例累積；
+        # modal（.exec()）讀結果在 exec 返回後同步進行，DeferredDelete 尚未處理，安全。
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.resize(width, height)
         self._drag_pos = None
         self._build(title)
