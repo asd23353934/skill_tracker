@@ -55,7 +55,7 @@ sound_overrides, alert_sound_overrides
 ```
 
 - `skills` / `items`：唯讀，`ConfigManager` 以初始快照覆寫以防意外修改
-- `settings`：僅存跨配置的全域設定（視窗位置、完成/提前提示音開關 `enable_end_sound` / `enable_alert_sound`、音量、快捷鍵限定 `hotkey_app_filter_enabled` / `hotkey_app_target_exe` / `hotkey_app_target_label`、current_profile 等）
+- `settings`：僅存跨配置的全域設定（視窗位置、完成/提前提示音開關 `enable_end_sound` / `enable_alert_sound`、音量、快捷鍵限定 `hotkey_app_filter_enabled` / `hotkey_app_target_exe` / `hotkey_app_target_label`、指令頁最近使用玩家名稱 `command_recent_names`、current_profile 等）
 - `monsters` / `overlays`：各自的狀態完整存於此，不拆到 profiles
 
 ## config_user.json（user 可變區實際儲存位置）

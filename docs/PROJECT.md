@@ -65,6 +65,7 @@ src/ui_v2/               # V2 UI（正式 UI）
     skill_page_v2.py / skill_column_v2.py / skill_card_v2.py
     monster_page_v2.py / overlay_page_v2.py /
     potion_page_v2.py / mapleworld_page_v2.py
+    command_page_v2.py        # 指令快速複製（資料驅動 _COMMANDS；需名稱者填入+記憶）
     mapleworld_widgets_v2.py  # 資源中心卡片 / chip / 縮圖 LRU / 分類 cache
   dialogs/
     base_dialog_v2.py

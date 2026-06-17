@@ -25,6 +25,28 @@ _BAD_FILENAME_CHARS = frozenset('<>:"|?*')
 # 檔名長度上限（NTFS 單一 component 限 255；保留 .json 副檔名 + 安全 buffer）
 _MAX_FILENAME_LEN = 200
 
+# 指令頁「最近使用的玩家名稱」清單上限
+_MAX_RECENT_COMMAND_NAMES = 20
+
+
+def promote_recent(names: list[str], name: str,
+                   cap: int = _MAX_RECENT_COMMAND_NAMES) -> list[str]:
+    """把 name 提到清單最前、去重、截斷到 cap（純函式，供指令頁名稱記憶用）
+
+    Args:
+        names: 既有清單（最近在前）
+        name: 要加入 / 提前的名稱（呼叫端應已去前後空白）
+        cap: 清單長度上限
+
+    Returns:
+        新清單（最近在前、無重複、長度 ≤ cap）；name 為空字串時不新增、僅回傳去重後的既有清單
+    """
+    result = [name] if name else []
+    for n in names:
+        if n and n != name and n not in result:
+            result.append(n)
+    return result[:cap]
+
 
 class ConfigManager:
     """配置管理器"""
@@ -158,7 +180,29 @@ class ConfigManager:
         if 'settings' not in self.config:
             self.config['settings'] = {}
         self.config['settings'][key] = value
-    
+
+    def get_recent_command_names(self) -> list[str]:
+        """取得指令頁記住的「最近使用玩家名稱」清單
+
+        缺鍵時回空清單（向後相容舊 config_user.json）；防禦性過濾非字串元素。
+        """
+        names = self.get_settings('command_recent_names', [])
+        if not isinstance(names, list):
+            return []
+        return [n for n in names if isinstance(n, str) and n]
+
+    def add_recent_command_name(self, name: str):
+        """記錄一個玩家名稱：去空白後提到最前、去重、截斷上限，寫入 config_user.json
+
+        名稱為空白則不動作。名稱含「#代碼」原樣保存。
+        """
+        name = (name or "").strip()
+        if not name:
+            return
+        new_list = promote_recent(self.get_recent_command_names(), name)
+        self.set_settings('command_recent_names', new_list)
+        self.save()
+
     # ==================== 內部工具 ====================
 
     @staticmethod

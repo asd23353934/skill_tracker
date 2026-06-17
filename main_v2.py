@@ -27,6 +27,7 @@ from src.ui_v2.pages.monster_page_v2 import MonsterPageV2
 from src.ui_v2.pages.overlay_page_v2 import OverlayPageV2
 from src.ui_v2.pages.potion_page_v2 import PotionPageV2
 from src.ui_v2.pages.mapleworld_page_v2 import MapleWorldPageV2
+from src.ui_v2.pages.command_page_v2 import CommandPageV2
 
 from src.infrastructure.config_manager import ConfigManager
 from src.infrastructure.helpers import resource_path, user_data_path
@@ -89,6 +90,7 @@ PAGES = [
     ("overlay",    "浮動圖片"),
     ("potion",     "費用分析"),
     ("mapleworld", "資源中心"),
+    ("command",    "快速指令"),
 ]
 
 # 跨 launcher（ps1 / bat）的 marker 契約 — 一旦修改需要同步更新
@@ -186,6 +188,8 @@ class PreviewWindow(QMainWindow):
                 page = PotionPageV2(self.stack, self.app_ctx)
             elif key == "mapleworld":
                 page = MapleWorldPageV2(self.stack, self.app_ctx)
+            elif key == "command":
+                page = CommandPageV2(self.stack, self.app_ctx)
             else:
                 page = PlaceholderPage(self.stack, title)
             self.stack.addWidget(page)

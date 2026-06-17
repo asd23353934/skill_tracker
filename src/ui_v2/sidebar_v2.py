@@ -42,6 +42,7 @@ class SidebarV2(QWidget):
         ("overlay",    "image",  "浮動圖片"),
         ("potion",     "coins",  "練功水錢"),
         ("mapleworld", "globe",  "MapleWorld"),
+        ("command",    "keyboard", "指令"),
     ]
 
     def __init__(self, parent, on_change, on_settings_click=None):
