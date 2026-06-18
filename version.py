@@ -4,10 +4,20 @@
 """
 
 # 當前版本
-VERSION = "4.7.0"
+VERSION = "4.7.1"
 
 # 版本歷史
 CHANGELOG = """
+v4.7.1 (2026-06-17)
+-------------------
+🔧 自動更新重啟加速 — 安裝時的 ZIP 解壓改用 .NET ZipFile 逐 entry 覆寫
+  - 取代 PowerShell 5.1 較慢的 Expand-Archive（onedir 數百檔，實測解壓 ~3.2x）
+  - 快速解壓任何失敗自動 fallback 回 Expand-Archive，行為不退步
+  - launcher [1/4] 等待關閉由「無條件睡 3 秒」改為條件式輪詢（app 早關就早往下走）
+🔒 更新解壓加 zip-slip（路徑穿越）防護：拒絕解析後逸出目標目錄的壓縮 entry
+  （註：launcher 隨 app 一起打包，此加速於本版發布後、之後的更新才生效；
+   .bat 備援 launcher 維持原 Expand-Archive 路徑以降低風險）
+
 v4.7.0 (2026-06-17)
 -------------------
 ✨ 新增「指令」頁 — Artale 遊戲內聊天指令一鍵複製

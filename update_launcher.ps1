@@ -51,6 +51,41 @@ function Show-FailureDialog {
     }
 }
 
+# ── 快速解壓 ──
+# PowerShell 5.1 的 Expand-Archive 解「大量小檔」（onedir bundle 數百檔）極慢，
+# 改用 .NET ZipFile 逐 entry 覆寫解壓，對同樣檔案數通常快數倍。
+# 任何失敗都會在呼叫端 fallback 回 Expand-Archive（現行已驗證路徑），故不會比現狀更糟。
+function Expand-ZipFast {
+    param([string]$Zip, [string]$Dest)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    # 解壓目標根（補上分隔符，供 zip-slip 防護的字首比對）
+    $fullDest = [System.IO.Path]::GetFullPath($Dest)
+    if (-not $fullDest.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
+        $fullDest += [System.IO.Path]::DirectorySeparatorChar
+    }
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+    try {
+        foreach ($entry in $archive.Entries) {
+            $target = [System.IO.Path]::Combine($Dest, $entry.FullName)
+            # zip-slip 防護：解析後的路徑必須仍在 $Dest 內，否則拒絕（throw → 呼叫端 fallback）
+            $fullTarget = [System.IO.Path]::GetFullPath($target)
+            if (-not $fullTarget.StartsWith($fullDest, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Zip entry escapes destination: $($entry.FullName)"
+            }
+            if ($entry.FullName.EndsWith("/")) {
+                [System.IO.Directory]::CreateDirectory($target) | Out-Null
+                continue
+            }
+            $dir = [System.IO.Path]::GetDirectoryName($target)
+            if ($dir) { [System.IO.Directory]::CreateDirectory($dir) | Out-Null }
+            # 第三參數 $true = 覆寫（與 Expand-Archive -Force 同語意）
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true)
+        }
+    } finally {
+        $archive.Dispose()
+    }
+}
+
 try {
     Write-Log "=== Update started ==="
     Write-Log "DownloadFile=$DownloadFile"
@@ -65,10 +100,12 @@ try {
     Write-Log "exeFileName=$exeFileName"
 
     # [1/4] 等待應用程式關閉（最多 30 秒）
+    # 原本無條件 Start-Sleep 3；改為短 grace + 每 0.5s 輪詢 PID，PID 消失後再留 0.5s
+    # 讓 OS 釋放檔案 handle（避免備份/解壓撞上鎖），app 早關就早往下走。
     Write-Log "[1/4] Waiting for app to exit..."
-    Start-Sleep -Seconds 3
+    Start-Sleep -Milliseconds 300
 
-    $waited = 0
+    $waited = 0.0
     while ($waited -lt 30) {
         $stillRunning = $false
         if ($AppPid -gt 0) {
@@ -81,10 +118,10 @@ try {
             if ($proc) { $stillRunning = $true }
         }
         if (-not $stillRunning) { break }
-        Write-Log "  App still running, waiting... ($waited s)"
-        Start-Sleep -Seconds 2
-        $waited += 2
+        Start-Sleep -Milliseconds 500
+        $waited += 0.5
     }
+    Start-Sleep -Milliseconds 500   # PID 消失後的 handle 釋放 grace
     Write-Log "  App exited (waited ${waited}s)"
 
     # [2/4] 備份舊版 exe
@@ -127,7 +164,15 @@ try {
         elseif ($ext -eq ".zip") {
             $parentDir = Split-Path $AppDir -Parent
             Write-Log "  Extracting ZIP to $parentDir ..."
-            Expand-Archive -LiteralPath $DownloadFile -DestinationPath $parentDir -Force
+            try {
+                Expand-ZipFast -Zip $DownloadFile -Dest $parentDir
+                Write-Log "  Fast extraction OK"
+            } catch {
+                # 快速解壓任何失敗 → fallback 回 Expand-Archive
+                # （現行已驗證路徑；-Force 會覆寫快速解壓已寫出的部分，等同重做一次）
+                Write-Log "  Fast extraction failed ($_); fallback to Expand-Archive"
+                Expand-Archive -LiteralPath $DownloadFile -DestinationPath $parentDir -Force
+            }
             # 驗證新 exe 是否存在
             if (Test-Path $oldExe) {
                 $success = $true
