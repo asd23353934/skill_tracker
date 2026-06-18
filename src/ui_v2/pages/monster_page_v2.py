@@ -162,12 +162,7 @@ def _build_sound_combo(sound_manager, current_filename: str) -> tuple[ArrowCombo
     combo.setCurrentText(current_label)
     combo.setFixedHeight(26)
     combo.setStyleSheet(
-        f"QComboBox {{ background: {T.BG_INPUT}; color: {T.TEXT};"
-        f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
-        f" padding: 0 8px; font-size: 11px; }}"
-        f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
-        f"QComboBox::drop-down {{ border: none; width: 16px; }}"
-        + T.combo_popup_qss()
+        T.combo_qss(bg=T.BG_INPUT, border=T.BORDER, padding="0 8px", font_size=11)
     )
     return combo, label_map
 

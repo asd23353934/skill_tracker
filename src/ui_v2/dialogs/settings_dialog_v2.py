@@ -42,6 +42,7 @@ class _JumpSlider(QSlider):
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.dialogs.base_dialog_v2 import BaseDialogV2
+from src.ui_v2.components import make_primary_button
 
 
 _NO_SOUND_LABEL = "— 無 —"
@@ -96,12 +97,7 @@ def _build_sound_combo(sound_manager, current_filename: str) -> tuple[QComboBox,
     combo.setCurrentText(current_label)
     combo.setFixedHeight(28)
     combo.setStyleSheet(
-        f"QComboBox {{ background: {T.BG_INPUT}; color: {T.TEXT};"
-        f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
-        f" padding: 0 8px; font-size: 12px; }}"
-        f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
-        f"QComboBox::drop-down {{ border: none; width: 16px; }}"
-        + T.combo_popup_qss()
+        T.combo_qss(bg=T.BG_INPUT, border=T.BORDER, padding="0 8px")
     )
     return combo, label_map
 
@@ -174,12 +170,7 @@ class SettingsDialogV2(BaseDialogV2):
             self.size_combo.setCurrentText("大 (96 px)")
         self.size_combo.setFixedHeight(28)
         self.size_combo.setStyleSheet(
-            f"QComboBox {{ background: {T.BG_INPUT}; color: {T.TEXT};"
-            f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
-            f" padding: 0 8px; font-size: 12px; }}"
-            f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
-            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
-            + T.combo_popup_qss()
+            T.combo_qss(bg=T.BG_INPUT, border=T.BORDER, padding="0 8px")
         )
         body.addWidget(_row("技能視窗尺寸", self.size_combo))
 
@@ -324,15 +315,7 @@ class SettingsDialogV2(BaseDialogV2):
         )
         cancel.clicked.connect(self._on_cancel)
 
-        confirm = QPushButton("確認")
-        confirm.setFixedHeight(30)
-        confirm.setCursor(Qt.CursorShape.PointingHandCursor)
-        confirm.setStyleSheet(
-            f"QPushButton {{ background: {T.ORANGE}; color: #ffffff;"
-            f" border: none; border-radius: {T.R_SM}px;"
-            f" padding: 0 18px; font-size: 12px; font-weight: 700; }}"
-            f"QPushButton:hover {{ background: #ff9d5a; }}"
-        )
+        confirm = make_primary_button("確認", padding="0 18px", weight=700, height=30)
         confirm.clicked.connect(self._on_confirm)
 
         footer.addWidget(cancel)

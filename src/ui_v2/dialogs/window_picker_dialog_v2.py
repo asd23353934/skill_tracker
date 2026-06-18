@@ -190,10 +190,8 @@ class WindowPickerDialogV2(BaseDialogV2):
         self._confirm_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._confirm_btn.setEnabled(False)
         self._confirm_btn.setStyleSheet(
-            f"QPushButton {{ background: {T.ORANGE}; color: #ffffff; border: none;"
-            f" border-radius: {T.R_SM}px; padding: 0 18px; font-size: 12px; font-weight: 700; }}"
-            f"QPushButton:hover {{ background: #ff9d5a; }}"
-            f"QPushButton:disabled {{ background: {T.BG_ELEVATED}; color: {T.TEXT_DIM}; }}"
+            T.primary_button_qss(padding="0 18px", weight=700)
+            + f"QPushButton:disabled {{ background: {T.BG_ELEVATED}; color: {T.TEXT_DIM}; }}"
         )
         self._confirm_btn.clicked.connect(self._confirm)
 

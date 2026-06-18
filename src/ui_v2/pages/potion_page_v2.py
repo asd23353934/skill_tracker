@@ -127,12 +127,7 @@ def _text_btn(text: str, icon: str = None,
         btn.setIconSize(QSize(14, 14))
 
     if kind == "primary":
-        btn.setStyleSheet(
-            f"QPushButton {{ color: #ffffff; background: {T.ORANGE};"
-            f" border: none; border-radius: {T.R_SM}px;"
-            f" padding: 0 14px; font-size: 12px; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: #ff9d5a; }}"
-        )
+        btn.setStyleSheet(T.primary_button_qss())
     elif kind == "danger":
         btn.setStyleSheet(
             f"QPushButton {{ color: {T.RED}; background: transparent;"
@@ -369,12 +364,7 @@ class _PotionSectionV2(QFrame):
         self._add_combo.setFixedHeight(28)
         self._add_combo.setMinimumWidth(160)
         self._add_combo.setStyleSheet(
-            f"QComboBox {{ background: {T.BG_INPUT}; color: {T.TEXT};"
-            f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
-            f" padding: 0 8px; font-size: 12px; }}"
-            f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
-            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
-            + T.combo_popup_qss()
+            T.combo_qss(bg=T.BG_INPUT, border=T.BORDER, padding="0 8px")
         )
         self._refresh_add_combo()
         self._add_combo.currentIndexChanged.connect(self._on_pick_add)

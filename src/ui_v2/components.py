@@ -14,6 +14,37 @@ from src.ui_v2.lucide import lucide_pixmap
 
 
 # ════════════════════════════════════════════════════════════
+# make_primary_button — 橘色主行動按鈕（CTA）工廠
+# ════════════════════════════════════════════════════════════
+
+def make_primary_button(text: str, *, padding: str = "0 14px",
+                        font_size: int = 12, weight: int = 600,
+                        radius: int = None, height: int = None) -> QPushButton:
+    """建立橘色主行動按鈕（CTA）。
+
+    回傳已套好 QSS（見 V2Theme.primary_button_qss）+ 手型游標的 QPushButton；
+    呼叫端可再 setIcon / setFixedHeight / connect 等做個別客製。
+
+    Args:
+        text: 按鈕文字
+        padding / font_size / weight / radius: 透傳給 primary_button_qss
+        height: 若給定則 setFixedHeight；預設 None（高度交由呼叫端決定）
+
+    Returns:
+        已套樣式的 QPushButton
+    """
+    btn = QPushButton(text)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    if height is not None:
+        btn.setFixedHeight(height)
+    btn.setStyleSheet(
+        T.primary_button_qss(padding=padding, font_size=font_size,
+                             weight=weight, radius=radius)
+    )
+    return btn
+
+
+# ════════════════════════════════════════════════════════════
 # ArrowComboBox — 在右側自繪向下三角箭頭
 # ════════════════════════════════════════════════════════════
 
@@ -204,10 +235,8 @@ class ServiceCard(Card):
         btn.setFixedHeight(28)
         if primary:
             btn.setStyleSheet(
-                f"QPushButton {{ background: {T.ORANGE}; color: #ffffff;"
-                f" border: none; border-radius: 14px;"
-                f" padding: 0 14px; font-size: 11px; font-weight: 600; }}"
-                f"QPushButton:hover {{ background: #ff9d5a; }}"
+                T.primary_button_qss(padding="0 14px", font_size=11,
+                                     weight=600, radius=14)
             )
         else:
             btn.setStyleSheet(
