@@ -208,13 +208,13 @@ tests:
 ---
 ### Requirement: Seed command catalog
 
-The initial command catalog SHALL include these Artale commands as no-argument commands: "/箭頭" (head marker), "/r" (reply last whisper), "/關閉" (hide other players' skill effects), "/放煙火" (fireworks), "/mute" (mute other players' effects), and "/desummon" (recall summon); and these as name-parameterized commands: "/交換 {name}" (trade) and "/密語 {name}" (whisper). The catalog is data-driven so that more commands can be appended without code structure changes.
+The command catalog SHALL mirror the in-game Artale `/幫助` command list and present commands in that order. These SHALL be name-parameterized commands (rendering an editable name field and substituting `{name}`): "/搜尋", "/交換", "/密語", "/邀請組隊", "/踢出隊伍", "/邀請進入公會", "/封鎖", "/解除封鎖". All remaining commands SHALL be no-argument commands: "/位置", "/全體", "/地區", "/隊伍", "/公會", "/回覆", "/建立隊伍", "/退出隊伍", "/放煙火", "/箭頭", "/離開突擊", "/離開練習突擊", "/關閉", "/刪除聊天", "/刪除召喚獸", "/幫助". The catalog is data-driven so that commands can be added or removed without code structure changes.
 
-#### Scenario: Seed commands are present with correct name fields
+#### Scenario: Catalog mirrors the in-game command list
 
 - **WHEN** the 指令 page loads with the default catalog
-- **THEN** cards for "/箭頭", "/r", "/關閉", "/放煙火", "/mute", "/desummon", "/交換", and "/密語" are shown
-- **AND** "/交換" and "/密語" each show a name field while the others do not
+- **THEN** the page renders one card per command in the `/幫助` list, in the same order
+- **AND** the name-parameterized commands ("/搜尋", "/交換", "/密語", "/邀請組隊", "/踢出隊伍", "/邀請進入公會", "/封鎖", "/解除封鎖") each show a name field while the no-argument commands do not
 
 <!-- @trace
 source: command-quick-copy

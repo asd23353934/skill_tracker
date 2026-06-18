@@ -1,12 +1,14 @@
 """
 指令快速複製頁 — V2
 
-列出 Artale 遊戲內常用聊天指令，每個一鍵複製到系統剪貼簿（玩家切回遊戲貼上即可送出）。
-需玩家名稱的指令（交換 / 密語）提供可編輯下拉：可直接打新名稱、也可選最近用過的；
+列出 Artale 遊戲內常用聊天指令（按使用情境分組、常用置頂），每個一鍵複製到系統剪貼簿
+（玩家切回遊戲貼上即可送出）。
+需玩家名稱的指令（標「(玩家)」者，如 交換 / 密語 / 邀請 / 封鎖）提供可編輯下拉：可直接打新名稱、也可選最近用過的；
 複製時把名稱填入指令模板的 {name}，並把該名稱記到 config_user.json
 （見 ConfigManager.add_recent_command_name），下次直接從下拉選取。
 
-指令清單採資料驅動（集中在 _COMMANDS），增刪指令只需改這份常量。
+指令按使用情境分組定義於 _GROUPS（再攤平為 _COMMANDS 供名稱記憶等共用）；
+增刪指令或調整分組／順序只需改 _GROUPS。
 
 建構參數：
     CommandPageV2(parent, app=None)
@@ -18,7 +20,7 @@ import logging
 from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QFrame, QLabel, QPushButton,
     QScrollArea, QApplication,
 )
 from PySide6.QtCore import Qt, QSize
@@ -40,17 +42,49 @@ class _Command:
     needs_name: bool    # 是否需要玩家名稱參數
 
 
-# ── 指令目錄（集中定義、易擴充）──
-_COMMANDS: list[_Command] = [
-    _Command("marker",   "/箭頭",     "/箭頭",        "頭頂顯示箭頭標記，Boss 戰找自己很好用", False),
-    _Command("reply",    "/r",        "/r",           "秒回最後一封密語", False),
-    _Command("hidefx",   "/關閉",     "/關閉",        "關閉其他玩家的技能特效，畫面清爽", False),
-    _Command("firework", "/放煙火",   "/放煙火",      "放煙火慶祝（強化成功必備）", False),
-    _Command("mute",     "/mute",     "/mute",        "靜音 / 關閉其他玩家的特效", False),
-    _Command("desummon", "/desummon", "/desummon",    "收回召喚物", False),
-    _Command("trade",    "/交換",     "/交換 {name}", "遠距交易指定玩家（免擠自由市場）", True),
-    _Command("whisper",  "/密語",     "/密語 {name}", "私訊指定玩家（名稱需含 #代碼，如 Apple#aSqOX）", True),
+# ── 指令目錄（按使用情境分組；分組順序＝頁面呈現順序，常用置頂）──
+# 增刪指令或調整分組／順序，只動這份 _GROUPS。
+_GROUPS: list[tuple[str, list[_Command]]] = [
+    ("常用", [
+        _Command("marker", "/箭頭", "/箭頭", "頭頂顯示箭頭標記，Boss 戰找自己很好用", False),
+        _Command("hidefx", "/關閉", "/關閉", "關閉其他玩家的攻擊特效與音效，畫面清爽", False),
+        _Command("reply", "/回覆", "/回覆", "秒回最後一封密語（也可打 /r）", False),
+        _Command("firework", "/放煙火", "/放煙火", "放煙火慶祝（強化成功必備）", False),
+    ]),
+    ("交易 / 私訊", [
+        _Command("trade", "/交換", "/交換 {name}", "遠距交易指定玩家（免擠自由市場）", True),
+        _Command("whisper", "/密語", "/密語 {name}", "私訊指定玩家（名稱需含 #代碼，如 Apple#aSqOX）", True),
+        _Command("find", "/搜尋", "/搜尋 {name}", "尋找同頻道的指定玩家", True),
+    ]),
+    ("聊天頻道", [
+        _Command("all_chat", "/全體", "/全體", "切換為全體聊天（向頻道內所有玩家發送）", False),
+        _Command("area_chat", "/地區", "/地區", "切換為地區聊天（向同張地圖內的玩家發送）", False),
+        _Command("party_chat", "/隊伍", "/隊伍", "切換為隊伍聊天（發送給隊員）", False),
+        _Command("guild_chat", "/公會", "/公會", "切換為公會聊天（發送給公會成員）", False),
+    ]),
+    ("隊伍 / 公會", [
+        _Command("party_create", "/建立隊伍", "/建立隊伍", "建立一個隊伍", False),
+        _Command("party_leave", "/退出隊伍", "/退出隊伍", "離開目前的隊伍", False),
+        _Command("party_invite", "/邀請組隊", "/邀請組隊 {name}", "邀請指定玩家加入隊伍（限隊長使用）", True),
+        _Command("party_kick", "/踢出隊伍", "/踢出隊伍 {name}", "將指定玩家從隊伍中踢出（限隊長使用）", True),
+        _Command("guild_invite", "/邀請進入公會", "/邀請進入公會 {name}", "邀請指定玩家加入公會（限公會長可用）", True),
+    ]),
+    ("封鎖", [
+        _Command("block", "/封鎖", "/封鎖 {name}", "封鎖指定玩家的聊天內容", True),
+        _Command("unblock", "/解除封鎖", "/解除封鎖 {name}", "解除對指定玩家的聊天封鎖", True),
+    ]),
+    ("其他", [
+        _Command("location", "/位置", "/位置", "確認目前地圖的位置情況", False),
+        _Command("leave_raid", "/離開突擊", "/離開突擊", "離開突擊地圖（限突擊中使用）", False),
+        _Command("leave_practice_raid", "/離開練習突擊", "/離開練習突擊", "離開突擊練習地圖（僅限突擊練習中使用）", False),
+        _Command("clear_chat", "/刪除聊天", "/刪除聊天", "刪除所有聊天紀錄", False),
+        _Command("desummon", "/刪除召喚獸", "/刪除召喚獸", "刪除召喚獸（僅限三眼章魚）", False),
+        _Command("help", "/幫助", "/幫助", "查看聊天指令清單", False),
+    ]),
 ]
+
+# 攤平為單一指令清單（名稱記憶刷新等共用；保留向後相容）
+_COMMANDS: list[_Command] = [cmd for _, cmds in _GROUPS for cmd in cmds]
 
 _NAME_PLACEHOLDER = "玩家名稱（含 #代碼）"
 
@@ -82,12 +116,32 @@ class CommandPageV2(QWidget):
         host = QWidget()
         col = QVBoxLayout(host)
         col.setContentsMargins(0, 0, 0, 0)
-        col.setSpacing(T.S_SM)
-        for cmd in _COMMANDS:
-            col.addWidget(self._build_card(cmd))
+        col.setSpacing(T.S_XS)
+        for gi, (title, cmds) in enumerate(_GROUPS):
+            col.addWidget(self._build_group_header(title, first=(gi == 0)))
+            col.addWidget(self._build_group_grid(cmds))
         col.addStretch()
         scroll.setWidget(host)
         root.addWidget(scroll, 1)
+
+    def _build_group_header(self, title: str, first: bool = False) -> QLabel:
+        """分組小標題（非首組上方留白以區隔分組）"""
+        lbl = T.make_label(title, T.FONT_LABEL, T.TEXT)
+        lbl.setContentsMargins(T.S_XS, 0 if first else T.S_SM, 0, 1)
+        return lbl
+
+    def _build_group_grid(self, cmds: list[_Command]) -> QWidget:
+        """把一組指令卡片排成兩欄（利用橫向空間、一屏塞更多、減少捲動）"""
+        host = QWidget()
+        grid = QGridLayout(host)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(T.S_SM)
+        grid.setVerticalSpacing(T.S_XS)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        for i, cmd in enumerate(cmds):
+            grid.addWidget(self._build_card(cmd), i // 2, i % 2)
+        return host
 
     def _build_card(self, cmd: _Command) -> QFrame:
         card = QFrame()
@@ -96,21 +150,21 @@ class CommandPageV2(QWidget):
             f" border-radius: {T.R_SM}px; }}"
         )
         lay = QHBoxLayout(card)
-        lay.setContentsMargins(T.S_MD, T.S_SM, T.S_MD, T.S_SM)
-        lay.setSpacing(T.S_MD)
+        lay.setContentsMargins(T.S_MD, T.S_XS, T.S_MD, T.S_XS)
+        lay.setSpacing(T.S_SM)
 
         # 左：指令關鍵字 + 用途說明
         left = QVBoxLayout()
-        left.setSpacing(2)
+        left.setSpacing(1)
         cmd_lbl = QLabel(cmd.label)
         cmd_lbl.setTextFormat(Qt.TextFormat.PlainText)
         cmd_lbl.setStyleSheet(
-            f"color: {T.ORANGE}; background: transparent; font-size: 14px; font-weight: 700;")
+            f"color: {T.ORANGE}; background: transparent; font-size: 13px; font-weight: 700;")
         left.addWidget(cmd_lbl)
         desc = QLabel(cmd.description)
         desc.setTextFormat(Qt.TextFormat.PlainText)
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {T.TEXT_DIM}; background: transparent; font-size: 12px;")
+        desc.setStyleSheet(f"color: {T.TEXT_DIM}; background: transparent; font-size: 11px;")
         left.addWidget(desc)
         lay.addLayout(left, 1)
 
@@ -119,8 +173,8 @@ class CommandPageV2(QWidget):
         if cmd.needs_name:
             combo = ArrowComboBox()
             combo.setEditable(True)
-            combo.setFixedHeight(30)
-            combo.setMinimumWidth(180)
+            combo.setFixedHeight(26)
+            combo.setMinimumWidth(150)
             combo.setStyleSheet(
                 f"QComboBox {{ background: {T.BG_SURFACE}; color: {T.TEXT};"
                 f" border: 1px solid {T.BORDER_SOFT}; border-radius: {T.R_SM}px;"
@@ -138,7 +192,7 @@ class CommandPageV2(QWidget):
         copy_btn = QPushButton("複製")
         copy_btn.setIcon(lucide_icon("copy", "#ffffff", 14, stroke=1.8))
         copy_btn.setIconSize(QSize(14, 14))
-        copy_btn.setFixedHeight(30)
+        copy_btn.setFixedHeight(26)
         copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         copy_btn.setStyleSheet(
             f"QPushButton {{ background: {T.ORANGE}; color: #ffffff; border: none;"
