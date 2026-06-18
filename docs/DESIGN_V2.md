@@ -29,6 +29,7 @@
 | Token | 值 | **唯一用途** |
 |------|----|------------|
 | `ORANGE` | `#ff8c42` | **主 CTA 按鈕、active 狀態指示**（不准用作裝飾色） |
+| `ORANGE_HOVER` | `#ff9d5a` | **主 CTA 按鈕 hover**（橘色加亮；勿硬編碼，一律引用此 token） |
 | `PURPLE` | `#9b6df1` | 「強度／能量」類數據（傷害、暴擊…） |
 | `BLUE` | `#5c8df5` | 「資料／訊息」類數據（次數、計數） |
 | `CYAN` | `#4dd2e8` | 「速度／時間」類數據（冷卻、頻率） |
@@ -170,6 +171,12 @@ font: FONT_DELTA
 | `default` | 次要 | BG_INPUT + BORDER |
 | `ghost` | 第三層 | 透明 + dim text，hover 才浮起 |
 | `danger` | 危險 | 透明 + RED 文字 |
+
+**QSS 樣板收斂（勿在頁面層內聯重複）：**
+- 橘色 primary 按鈕一律用 `components.make_primary_button(text, …)`（回傳已套樣式的 QPushButton）；
+  若需自行組裝（如 ServiceCard、附 `:disabled` 規則者）改用 `V2Theme.primary_button_qss(…)` 取 QSS 字串
+- 可編輯／一般下拉框一律用 `V2Theme.combo_qss(…)`（已內含 hover／drop-down／popup，毋須再拼 `combo_popup_qss()`）
+- hover 色一律引用 `ORANGE_HOVER` token，不寫死 `#ff9d5a`
 
 ---
 

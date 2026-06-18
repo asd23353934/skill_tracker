@@ -115,15 +115,7 @@ class SkillPageV2(QWidget):
         combo = ArrowComboBox()
         combo.setFixedHeight(30)
         combo.setMinimumWidth(140)
-        combo.setStyleSheet(
-            f"QComboBox {{ background: {T.BG_SURFACE}; color: {T.TEXT};"
-            f" border: 1px solid {T.BORDER_SOFT};"
-            f" border-radius: {T.R_SM}px; padding: 0 10px;"
-            f" font-size: 12px; }}"
-            f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
-            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
-            + T.combo_popup_qss()
-        )
+        combo.setStyleSheet(T.combo_qss())
         self._profile_combo = combo
         if self.app is not None and hasattr(self.app, "config_manager"):
             cm = self.app.config_manager

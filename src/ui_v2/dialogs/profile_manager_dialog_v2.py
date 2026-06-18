@@ -25,7 +25,7 @@ def _btn(label: str, on_click, *, primary: bool = False, danger: bool = False) -
     if danger:
         bg, fg, hover = T.RED, "#ffffff", "#ff7484"
     elif primary:
-        bg, fg, hover = T.ORANGE, "#ffffff", "#ff9d5a"
+        bg, fg, hover = T.ORANGE, "#ffffff", T.ORANGE_HOVER
     else:
         bg, fg, hover = T.BG_INPUT, T.TEXT, T.BG_HOVER
     btn.setStyleSheet(

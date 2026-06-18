@@ -32,6 +32,7 @@ class V2Theme:
 
     # ═════════════ 色彩 — 強調 ═════════════
     ORANGE        = "#ff8c42"     # 主 CTA / active
+    ORANGE_HOVER  = "#ff9d5a"     # 主 CTA hover（橘色加亮）
     PURPLE        = "#9b6df1"     # 強度
     BLUE          = "#5c8df5"     # 資料
     CYAN          = "#4dd2e8"     # 速度
@@ -105,6 +106,59 @@ class V2Theme:
         )
 
     @classmethod
+    def combo_qss(cls, *, bg: str = None, border: str = None,
+                  padding: str = "0 10px", font_size: int = 12) -> str:
+        """可編輯/一般下拉 QComboBox 的共用樣式樣板（含 hover / drop-down / popup）。
+
+        各頁/對話框逐字重複的 QComboBox QSS 收斂於此。已自動附加
+        combo_popup_qss()，呼叫端不必再手動拼接。
+
+        Args:
+            bg: 背景色，預設 BG_SURFACE；表單/對話框慣用 BG_INPUT
+            border: 邊框色，預設 BORDER_SOFT；搭配 BG_INPUT 時慣用 BORDER
+            padding: 內距，預設 "0 10px"（緊湊版傳 "0 8px"）
+            font_size: 字級（px），預設 12
+
+        Returns:
+            完整 QComboBox QSS 字串
+        """
+        bg = bg or cls.BG_SURFACE
+        border = border or cls.BORDER_SOFT
+        return (
+            f"QComboBox {{ background: {bg}; color: {cls.TEXT};"
+            f" border: 1px solid {border}; border-radius: {cls.R_SM}px;"
+            f" padding: {padding}; font-size: {font_size}px; }}"
+            f"QComboBox:hover {{ border-color: {cls.BORDER_HOVER}; }}"
+            f"QComboBox::drop-down {{ border: none; width: 16px; }}"
+            + cls.combo_popup_qss()
+        )
+
+    @classmethod
+    def primary_button_qss(cls, *, padding: str = "0 14px", font_size: int = 12,
+                           weight: int = 600, radius: int = None) -> str:
+        """橘色主行動按鈕（CTA）的共用 QSS 樣板。
+
+        ORANGE 底 + 白字 + 無邊框 + ORANGE_HOVER hover；各頁/對話框逐字重複的
+        橘色按鈕 QSS 收斂於此。元件層的 make_primary_button() 亦委派至此。
+
+        Args:
+            padding: 內距，預設 "0 14px"
+            font_size: 字級（px），預設 12
+            weight: 字重，預設 600
+            radius: 圓角（px），預設 R_SM；膠囊鈕傳 14
+
+        Returns:
+            完整 QPushButton QSS 字串
+        """
+        radius = cls.R_SM if radius is None else radius
+        return (
+            f"QPushButton {{ background: {cls.ORANGE}; color: #ffffff; border: none;"
+            f" border-radius: {radius}px; padding: {padding};"
+            f" font-size: {font_size}px; font-weight: {weight}; }}"
+            f"QPushButton:hover {{ background: {cls.ORANGE_HOVER}; }}"
+        )
+
+    @classmethod
     def alpha(cls, hex_color: str, alpha_int: int) -> str:
         """產生 rgba 字串（hex_color = '#rrggbb'，alpha 0-255）"""
         h = hex_color.lstrip("#")
@@ -164,7 +218,7 @@ class V2Theme:
             border: 1px solid {c.ORANGE}; font-weight: 600;
         }}
         QPushButton[kind="primary"]:hover {{
-            background: #ff9d5a; border-color: #ff9d5a;
+            background: {c.ORANGE_HOVER}; border-color: {c.ORANGE_HOVER};
         }}
         QPushButton[kind="ghost"] {{
             background: transparent; border: 1px solid transparent; color: {c.TEXT_DIM};

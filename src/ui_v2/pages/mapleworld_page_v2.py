@@ -39,6 +39,7 @@ from PySide6.QtCore import Qt, QSize, QTimer
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_pixmap, lucide_icon
+from src.ui_v2.components import make_primary_button
 from src.ui_v2.flow_layout import FlowLayout
 from src.infrastructure.helpers import user_data_path
 from src.infrastructure import mapleworld_scanner
@@ -264,18 +265,10 @@ class MapleWorldPageV2(QWidget):
         browse_btn.clicked.connect(self._browse)
         ph.addWidget(browse_btn)
 
-        scan_btn = QPushButton("掃描資源")
+        scan_btn = make_primary_button("掃描資源", font_size=11, weight=700, height=30)
         self._scan_btn = scan_btn
-        scan_btn.setFixedHeight(30)
-        scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         scan_btn.setIcon(lucide_icon("search", "#ffffff", 13, stroke=1.8))
         scan_btn.setIconSize(QSize(13, 13))
-        scan_btn.setStyleSheet(
-            f"QPushButton {{ color: #ffffff; background: {T.ORANGE};"
-            f" border: none; border-radius: {T.R_SM}px;"
-            f" padding: 0 14px; font-size: 11px; font-weight: 700; }}"
-            f"QPushButton:hover {{ background: #ff9d5a; }}"
-        )
         scan_btn.clicked.connect(self._on_scan)
         ph.addWidget(scan_btn)
 

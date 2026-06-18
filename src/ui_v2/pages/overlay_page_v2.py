@@ -46,6 +46,7 @@ from PySide6.QtGui import QPainter, QPixmap
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_pixmap, lucide_icon
+from src.ui_v2.components import make_primary_button
 from src.infrastructure.helpers import user_data_path
 from src.ui.overlay_manager import _resolve_overlay_path
 
@@ -208,7 +209,7 @@ def _alpha_slider(value: int) -> QSlider:
         f"QSlider::handle:horizontal {{ background: {T.ORANGE};"
         f" width: 12px; height: 12px; margin: -5px 0;"
         f" border-radius: 6px; border: 2px solid {T.BG_SURFACE}; }}"
-        f"QSlider::handle:horizontal:hover {{ background: #ff9d5a; }}"
+        f"QSlider::handle:horizontal:hover {{ background: {T.ORANGE_HOVER}; }}"
     )
     return s
 
@@ -362,17 +363,9 @@ class OverlayPageV2(QWidget):
         bar.addWidget(hint)
         bar.addStretch()
 
-        add_btn = QPushButton("新增圖片")
+        add_btn = make_primary_button("新增圖片", height=T.BTN_H)
         add_btn.setIcon(lucide_icon("plus", "#ffffff", 14, stroke=2.0))
         add_btn.setIconSize(QSize(14, 14))
-        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_btn.setFixedHeight(T.BTN_H)
-        add_btn.setStyleSheet(
-            f"QPushButton {{ color: #ffffff; background: {T.ORANGE};"
-            f" border: none; border-radius: {T.R_SM}px;"
-            f" padding: 0 14px; font-size: 12px; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: #ff9d5a; }}"
-        )
         add_btn.clicked.connect(self._add_image)
         bar.addWidget(add_btn)
         root.addLayout(bar)

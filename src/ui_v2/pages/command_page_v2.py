@@ -20,14 +20,14 @@ import logging
 from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QFrame, QLabel, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QFrame, QLabel,
     QScrollArea, QApplication,
 )
 from PySide6.QtCore import Qt, QSize
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_icon
-from src.ui_v2.components import ArrowComboBox
+from src.ui_v2.components import ArrowComboBox, make_primary_button
 
 logger = logging.getLogger(__name__)
 
@@ -175,30 +175,16 @@ class CommandPageV2(QWidget):
             combo.setEditable(True)
             combo.setFixedHeight(26)
             combo.setMinimumWidth(150)
-            combo.setStyleSheet(
-                f"QComboBox {{ background: {T.BG_SURFACE}; color: {T.TEXT};"
-                f" border: 1px solid {T.BORDER_SOFT}; border-radius: {T.R_SM}px;"
-                f" padding: 0 10px; font-size: 12px; }}"
-                f"QComboBox:hover {{ border-color: {T.BORDER_HOVER}; }}"
-                f"QComboBox::drop-down {{ border: none; width: 16px; }}"
-                + T.combo_popup_qss()
-            )
+            combo.setStyleSheet(T.combo_qss())
             combo.lineEdit().setPlaceholderText(_NAME_PLACEHOLDER)
             self._refresh_combo(combo)
             self._name_combos.append(combo)
             lay.addWidget(combo)
 
         # 右：複製鈕
-        copy_btn = QPushButton("複製")
+        copy_btn = make_primary_button("複製", padding="0 16px", weight=700, height=26)
         copy_btn.setIcon(lucide_icon("copy", "#ffffff", 14, stroke=1.8))
         copy_btn.setIconSize(QSize(14, 14))
-        copy_btn.setFixedHeight(26)
-        copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        copy_btn.setStyleSheet(
-            f"QPushButton {{ background: {T.ORANGE}; color: #ffffff; border: none;"
-            f" border-radius: {T.R_SM}px; padding: 0 16px; font-size: 12px; font-weight: 700; }}"
-            f"QPushButton:hover {{ background: #ff9d5a; }}"
-        )
         copy_btn.clicked.connect(
             lambda _=False, c=cmd, cb=combo: self._on_copy(c, cb))
         lay.addWidget(copy_btn)
