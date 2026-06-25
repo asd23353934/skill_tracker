@@ -4,10 +4,37 @@
 """
 
 # 當前版本
-VERSION = "4.8.0"
+VERSION = "4.9.0"
 
 # 版本歷史
 CHANGELOG = """
+v4.9.0 (2026-06-25)
+-------------------
+✨ 新增「經驗值計算器」頁 — 升級時間估算
+  - 輸入目前等級 / 經驗 % / 目標等級 ＋ 練功效率（一個經驗數字 ＋ 區間下拉
+    每 10 / 30 / 60 分鐘，預設 10 分鐘）
+  - 即時算出：還需總經驗、距下一級還需、預估時間（HH:MM:SS）
+  - 純邏輯 domain/exp_service + exp_table（經典 pre-Big-Bang Lv1–199 每級經驗表，
+    跨來源核對；MAX_LEVEL=200），輸入不持久化
+✨ 「練功水錢」重構為「收支分析」頁
+  - 三區：支出（藥水）/ 收入（楓幣商店差 ＋ 物品取得）/ 總結（總支出 / 總收入 / 淨收益）
+  - 移除頁面內所有經驗與計時 / 速率計算
+  - 數量改用「組數 × 組大小▼ ＋ 餘數」輸入（組大小 3000 / 9900；藥水預設 3000、物品 9900）
+  - 收入「物品取得」可選練功地圖自動帶出掉落（domain/training_maps，15 張 Artale
+    熱門練功圖 Lv72–128），附 maplestory.io 物品圖示（images/item_icons/，
+    缺圖 fallback 套件徽章）
+  - 切換地圖先清現有列再帶新圖、下拉保留所選；「清除全部」清列並重置下拉
+🐛 _StackQty 改用 _as_int 安全轉換存檔數值，載入損壞 autosave 不再崩潰（spectra-audit 修補）
+✨ 「指令」頁「需玩家名稱」改為名稱 chip
+  - 每個名稱為可點擊複製的小方塊，可增 / 刪 / 改（✎ 就地改名：Enter 確認 / Esc 或失焦取消）
+  - 各指令各自一份名稱清單（per-command，最近在前、去重、上限 20），名稱可含 #代碼
+  - config_manager 新增 per-command command_names API（向後相容舊單一共用 command_recent_names）
+🔧 新增 src/ui_v2/page_registry.py — 頁面導覽單一來源，main_v2 / sidebar_v2 共讀，
+   新增 / 移除頁面只改一處
+✅ 文件同步：README 功能清單、docs/PROJECT、docs/DATA_FORMAT；三份 openspec change
+   spec 對齊實作（spectra validate --strict 全過）
+✅ 測試：236 pytest + verify_exp_service / verify_potion_service / verify_potion_page_v2 全綠
+
 v4.8.0 (2026-06-18)
 -------------------
 ✨ 「指令」頁擴充為完整 Artale 指令清單 + 按情境分組
