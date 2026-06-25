@@ -21,13 +21,7 @@ from src.ui_v2.dialogs import SettingsDialogV2
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.header_v2 import HeaderV2
 from src.ui_v2.sidebar_v2 import SidebarV2
-from src.ui_v2.placeholder_page import PlaceholderPage
-from src.ui_v2.pages.skill_page_v2 import SkillPageV2
-from src.ui_v2.pages.monster_page_v2 import MonsterPageV2
-from src.ui_v2.pages.overlay_page_v2 import OverlayPageV2
-from src.ui_v2.pages.potion_page_v2 import PotionPageV2
-from src.ui_v2.pages.mapleworld_page_v2 import MapleWorldPageV2
-from src.ui_v2.pages.command_page_v2 import CommandPageV2
+from src.ui_v2.page_registry import PAGE_REGISTRY
 
 from src.infrastructure.config_manager import ConfigManager
 from src.infrastructure.helpers import resource_path, user_data_path
@@ -83,15 +77,6 @@ class _NoopMonsterPage:
     """V1 MonsterPage stub — V2 monster page 接線後可移除。"""
     cards: dict = {}
 
-
-PAGES = [
-    ("skill",      "技能總覽"),
-    ("monster",    "怪物總覽"),
-    ("overlay",    "浮動圖片"),
-    ("potion",     "費用分析"),
-    ("mapleworld", "資源中心"),
-    ("command",    "快速指令"),
-]
 
 # 跨 launcher（ps1 / bat）的 marker 契約 — 一旦修改需要同步更新
 # update_launcher.{ps1,bat} 內的 update_failed.txt 寫入路徑
@@ -176,24 +161,10 @@ class PreviewWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setStyleSheet("background: transparent;")
         self.pages = {}
-        for key, title in PAGES:
-            if key == "skill":
-                page = SkillPageV2(self.stack, self.app_ctx)
-            elif key == "monster":
-                page = MonsterPageV2(self.stack, self.app_ctx)
-            elif key == "overlay":
-                page = OverlayPageV2(self.stack, self.app_ctx)
-                self.app_ctx.overlay_page = page
-            elif key == "potion":
-                page = PotionPageV2(self.stack, self.app_ctx)
-            elif key == "mapleworld":
-                page = MapleWorldPageV2(self.stack, self.app_ctx)
-            elif key == "command":
-                page = CommandPageV2(self.stack, self.app_ctx)
-            else:
-                page = PlaceholderPage(self.stack, title)
+        for spec in PAGE_REGISTRY:
+            page = spec.factory(self.stack, self.app_ctx)
             self.stack.addWidget(page)
-            self.pages[key] = page
+            self.pages[spec.key] = page
         right.addWidget(self.stack, 1)
 
         right_wrap = QWidget()

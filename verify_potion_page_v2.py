@@ -72,25 +72,30 @@ def test_collect_form_shape():
 
     form = page._collect_form()
 
-    # 三個藥水 list
-    for key in ("hp_potions", "mp_potions", "combined_potions"):
+    # 三個藥水 list + 物品取得 list
+    for key in ("hp_potions", "mp_potions", "combined_potions", "item_rows"):
         check(f"{key} is list", isinstance(form.get(key), list), True)
 
-    # 七個純量欄位
-    for key in ("duration_minutes", "mesos_start", "mesos_end",
-                "shop_before", "shop_after", "exp_start", "exp_end"):
-        check(f"{key} is int", isinstance(form.get(key), int), True)
+    # 收支表單：藥水三區段 + 楓幣/商店 + 物品列（無經驗/時間）
+    check("mesos/shop ints in form",
+          all(isinstance(form.get(k), int) for k in
+              ("mesos_start", "mesos_end", "shop_before", "shop_after")), True)
+    check("no exp/duration in form",
+          all(k not in form for k in ("exp_start", "duration_minutes")), True)
 
-    # 初始狀態：三個區段皆為空
+    # 初始狀態：藥水三區段與物品區皆為空
     check("hp_potions empty by default",
           len(form["hp_potions"]), 0)
     check("mp_potions empty by default",
           len(form["mp_potions"]), 0)
     check("combined_potions empty by default",
           len(form["combined_potions"]), 0)
-
-    # 時間相關初始值
-    check("duration_minutes default == 1", form["duration_minutes"], 1)
+    check("item_rows empty by default",
+          len(form["item_rows"]), 0)
+    # 摘要鍵 3 個（不含經驗、不含時間速率）
+    check("summary keys are 3 (income/expense/net)",
+          set(page._summary_labels),
+          {"income", "expense", "net"})
 
     page.deleteLater()
 
@@ -122,7 +127,6 @@ def test_autosave_restore_from_v1_dict():
     page = _new_page(_FakeApp(cm))
 
     form = page._collect_form()
-    check("duration_minutes restored", form["duration_minutes"], 45)
     check("hp_potions restored count", len(form["hp_potions"]), 1)
     check("hp_potions[0].name restored", form["hp_potions"][0]["name"], "馴鹿奶")
     check("hp_potions[0].price restored", form["hp_potions"][0]["price"], 5600)
@@ -130,54 +134,12 @@ def test_autosave_restore_from_v1_dict():
     check("hp_potions[0].after restored", form["hp_potions"][0]["after"], 150)
     check("mp_potions cleared to 0", len(form["mp_potions"]), 0)
     check("combined_potions restored count", len(form["combined_potions"]), 1)
+    # mesos/shop 還原；legacy exp 被忽略；無 item_rows → 補空
     check("mesos_start restored", form["mesos_start"], 10000)
-    check("mesos_end restored",   form["mesos_end"],   50000)
-    check("shop_after restored",  form["shop_after"],  20000)
-    check("exp_end restored",     form["exp_end"],     4000)
-    check("_timer_elapsed stored on page",
-          page._timer_elapsed, 123)
-
-    page.deleteLater()
-
-
-def test_timer_controls_initial_state():
-    """預設為手動模式 → 開始/重置按鈕隱藏；計時器未啟動"""
-    print("[test_timer_controls_initial_state]")
-    cm = _FakeConfigManager(autosave_data=None)
-    page = _new_page(_FakeApp(cm))
-
-    check("initial mode is manual", page._mode, "manual")
-    check("start btn hidden in manual",
-          page._timer_start_btn.isHidden(), True)
-    check("reset btn hidden in manual",
-          page._timer_reset_btn.isHidden(), True)
-    check("tick timer not active",
-          page._tick_timer.isActive(), False)
-    check("timer elapsed == 0", page._timer_elapsed, 0)
-
-    # 切到 timer 模式：按鈕顯現，tick 仍未啟動（等使用者按開始）
-    page._on_mode_toggle("timer")
-    check("mode switched to timer", page._mode, "timer")
-    check("start btn shown in timer",
-          page._timer_start_btn.isHidden(), False)
-    check("reset btn shown in timer",
-          page._timer_reset_btn.isHidden(), False)
-    check("tick timer still idle after switch",
-          page._tick_timer.isActive(), False)
-
-    # 按開始 → tick_timer 活動
-    page._on_timer_start_stop()
-    check("tick timer active after start",
-          page._tick_timer.isActive(), True)
-    # 再按一次 → 停止
-    page._on_timer_start_stop()
-    check("tick timer stopped after second toggle",
-          page._tick_timer.isActive(), False)
-
-    # 累積 30 秒後按重置 → _timer_elapsed 歸零
-    page._timer_elapsed = 30
-    page._on_timer_reset()
-    check("timer elapsed reset to 0", page._timer_elapsed, 0)
+    check("shop_after restored", form["shop_after"], 20000)
+    check("legacy exp ignored",
+          "exp_start" not in form and "exp_end" not in form, True)
+    check("item_rows defaulted empty", len(form["item_rows"]), 0)
 
     page.deleteLater()
 
@@ -196,13 +158,7 @@ def test_recalc_all_matches_service_summary():
         page._sections["hp"].add_row(
             {"name": "test", "price": 1000, "before": 10, "after": 5}
         )
-        page._mesos_start_input.setText("10000")
-        page._mesos_end_input.setText("50000")
-        page._shop_before_input.setText("0")
-        page._shop_after_input.setText("20000")
-        page._exp_start_input.setText("1000")
-        page._exp_end_input.setText("4000")
-        page._duration_spin.setValue(30)
+        page._item_section.add_row({"name": "緞帶", "qty": 4, "unit_price": 250})
     finally:
         page._loading = False
 
@@ -220,12 +176,40 @@ def test_recalc_all_matches_service_summary():
     page.deleteLater()
 
 
+def test_item_section_and_map_preset():
+    """物品取得：手動新增、地圖預設帶出、收入計入 summary"""
+    print("[test_item_section_and_map_preset]")
+    cm = _FakeConfigManager(autosave_data=None)
+    page = _new_page(_FakeApp(cm))
+
+    sec = page._item_section
+    check("item section empty initially", len(sec._rows), 0)
+
+    # 手動新增一列 → 計入收入
+    sec.add_row({"name": "綠水靈的水滴", "qty": 3, "unit_price": 1000})
+    page._recalc_all()
+    check("manual item row added", len(sec._rows), 1)
+    check("income includes item value",
+          page._summary_labels["income"].text(), "+3,000")
+
+    # 地圖預設帶出多列（可編輯）
+    before = len(sec._rows)
+    sec._on_pick_map(1)   # 第一個地圖
+    check("map preset added rows", len(sec._rows) > before, True)
+
+    # 清除全部
+    sec.clear()
+    check("clear empties item section", len(sec._rows), 0)
+
+    page.deleteLater()
+
+
 def main():
     app = QApplication.instance() or QApplication(sys.argv)
     test_collect_form_shape()
     test_autosave_restore_from_v1_dict()
-    test_timer_controls_initial_state()
     test_recalc_all_matches_service_summary()
+    test_item_section_and_map_preset()
 
     print()
     if _failures:

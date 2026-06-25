@@ -55,7 +55,9 @@ sound_overrides, alert_sound_overrides
 ```
 
 - `skills` / `items`：唯讀，`ConfigManager` 以初始快照覆寫以防意外修改
-- `settings`：僅存跨配置的全域設定（視窗位置、完成/提前提示音開關 `enable_end_sound` / `enable_alert_sound`、音量、快捷鍵限定 `hotkey_app_filter_enabled` / `hotkey_app_target_exe` / `hotkey_app_target_label`、指令頁最近使用玩家名稱 `command_recent_names`、current_profile 等）
+- `settings`：僅存跨配置的全域設定（視窗位置、完成/提前提示音開關 `enable_end_sound` / `enable_alert_sound`、音量、快捷鍵限定 `hotkey_app_filter_enabled` / `hotkey_app_target_exe` / `hotkey_app_target_label`、指令頁 per-command 玩家名稱 `command_names`、current_profile 等）
+  - `command_names`：指令頁「需玩家名稱」指令的名稱記憶，結構為 `{ <指令key>: ["名稱1", ...] }`（每個指令各自一份、最近在前、去重、上限 20，名稱含 `#代碼` 原樣保存）。讀寫走 `ConfigManager.get_command_names` / `add_command_name` / `remove_command_name` / `rename_command_name`。
+  - 升級相容：舊版單一共用清單 `command_recent_names` 仍可讀 — 當 `command_names` 整個不存在時，作為每個指令的唯讀初始來源；`command_names` 一旦建立即以其為準，不再就地改寫舊鍵。
 - `monsters` / `overlays`：各自的狀態完整存於此，不拆到 profiles
 
 ## config_user.json（user 可變區實際儲存位置）

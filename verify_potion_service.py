@@ -65,36 +65,47 @@ def test_calc_section_subtotal():
           200)
 
 
-def test_calc_summary_minutes_zero():
-    """minutes=0 防 0，net_60 = int(net / 1 * 60)"""
-    print("[test_calc_summary_minutes_zero]")
-    form = {"duration_minutes": 0, "mesos_start": 0, "mesos_end": 6000}
-    s = PotionService.calc_summary(form)
-    check("net", s["net"], 6000)
-    check("net_60", s["net_60"], 360000)
+def test_calc_items_total():
+    """calc_items_total: 物品取得收入合計（spec example + guards）"""
+    print("[test_calc_items_total]")
+    check("two rows",
+          PotionService.calc_items_total(
+              [{"qty": 3, "unit_price": 1000}, {"qty": 5, "unit_price": 200}]),
+          4000)
+    check("empty", PotionService.calc_items_total([]), 0)
+    check("negative price clamped",
+          PotionService.calc_items_total([{"qty": 2, "unit_price": -50}]), 0)
+    check("zero qty",
+          PotionService.calc_items_total([{"qty": 0, "unit_price": 999}]), 0)
+    check("name ignored in math",
+          PotionService.calc_items_total([{"name": "緞帶", "qty": 4, "unit_price": 25}]), 100)
+    # value 快路徑：含已算好的 value 直接採用
+    check("value fast-path",
+          PotionService.calc_items_total([{"value": 777, "qty": 1, "unit_price": 1}]), 777)
 
 
-def test_calc_summary_30min_hunt():
-    """spec example: 30 分鐘打怪"""
-    print("[test_calc_summary_30min_hunt]")
+def test_calc_summary_income_expense_net():
+    """收支摘要：收入＝楓幣差＋商店差＋物品；支出＝藥水；net＝收入−支出（無經驗/速率）"""
+    print("[test_calc_summary_income_expense_net]")
     form = {
-        "mesos_start": 10000, "mesos_end": 50000,
-        "shop_before": 0, "shop_after": 20000,
-        "exp_start": 1000, "exp_end": 4000,
-        "duration_minutes": 30,
-        "hp_potions": [{"price": 1000, "before": 10, "after": 5}],  # 5000 expense
+        "mesos_start": 10000, "mesos_end": 50000,        # +40000
+        "shop_before": 0, "shop_after": 20000,           # +20000
+        "item_rows": [{"qty": 63, "unit_price": 1000}],  # +63000
+        "hp_potions": [{"price": 1000, "before": 10, "after": 5}],  # 5000 支出
     }
     s = PotionService.calc_summary(form)
-    expected = {
-        "income": 60000, "expense": 5000, "net": 55000, "exp_total": 3000,
-        "net_10": 18333, "exp_10": 1000, "net_60": 110000, "exp_60": 6000,
-    }
-    for k, v in expected.items():
-        check(k, s[k], v)
+    check("income", s["income"], 123000)               # 40000+20000+63000
+    check("expense", s["expense"], 5000)
+    check("net", s["net"], 118000)
+    check("summary has exactly 3 keys", sorted(s.keys()),
+          ["expense", "income", "net"])
+    # 後<前 不為負（max(0, 後−前)）
+    neg = PotionService.calc_summary({"mesos_start": 5000, "mesos_end": 3000})
+    check("negative mesos diff clamped to 0 income", neg["income"], 0)
 
 
 def test_serialize_roundtrip():
-    """deserialize(serialize(form)) 對 user-entered 欄位 fully-preserve"""
+    """deserialize(serialize(form)) 對 user-entered 欄位 fully-preserve（含 item_rows、無 exp）"""
     print("[test_serialize_roundtrip]")
     form = {
         "duration_minutes": 45,
@@ -109,13 +120,16 @@ def test_serialize_roundtrip():
         ],
         "mesos_start": 10000, "mesos_end": 50000,
         "shop_before": 0, "shop_after": 20000,
-        "exp_start": 1000, "exp_end": 4000,
+        "item_rows": [{"name": "綠水靈的水滴", "qty": 12, "stack_size": 9900, "unit_price": 50}],
     }
     ser = PotionService.serialize(form)
     check("saved_at present by default", "saved_at" in ser, True)
-    check("summary has 8 keys", sorted(ser["summary"].keys()),
-          ["exp_10", "exp_60", "exp_total", "expense",
-           "income", "net", "net_10", "net_60"])
+    check("item_rows serialized", ser["item_rows"], form["item_rows"])
+    check("mesos/shop serialized", (ser["mesos_end"], ser["shop_after"]), (50000, 20000))
+    check("no exp in output",
+          "exp_start" not in ser and "exp_end" not in ser, True)
+    check("summary has 3 keys", sorted(ser["summary"].keys()),
+          ["expense", "income", "net"])
     des = PotionService.deserialize(ser)
     for k, v in form.items():
         check(f"round-trip {k}", des[k], v)
@@ -124,13 +138,32 @@ def test_serialize_roundtrip():
     check("with_timestamp=False omits saved_at", "saved_at" not in ser2, True)
 
 
+def test_deserialize_legacy_fields():
+    """legacy 存檔含 exp（已廢）、mesos/shop（保留）、無 item_rows → 忽略 exp、補空 item_rows"""
+    print("[test_deserialize_legacy_fields]")
+    legacy = {
+        "duration_minutes": 30,
+        "mesos_start": 1000, "mesos_end": 5000,
+        "shop_before": 0, "shop_after": 2000,
+        "exp_start": 1000, "exp_end": 4000,   # 廢棄欄位
+        "hp_potions": [{"price": 100, "before": 10, "after": 5}],
+    }
+    des = PotionService.deserialize(legacy)
+    check("legacy exp dropped",
+          "exp_start" not in des and "exp_end" not in des, True)
+    check("mesos/shop preserved", (des["mesos_end"], des["shop_after"]), (5000, 2000))
+    check("item_rows defaulted to []", des["item_rows"], [])
+    check("potion rows preserved", len(des["hp_potions"]), 1)
+
+
 def main():
     test_defaults_catalog()
     test_calc_row_cost_edge_cases()
     test_calc_section_subtotal()
-    test_calc_summary_minutes_zero()
-    test_calc_summary_30min_hunt()
+    test_calc_items_total()
+    test_calc_summary_income_expense_net()
     test_serialize_roundtrip()
+    test_deserialize_legacy_fields()
 
     print()
     if _failures:

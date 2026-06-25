@@ -10,6 +10,7 @@ from PySide6.QtGui import QPixmap
 from src.infrastructure.helpers import resource_path
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_icon
+from src.ui_v2.page_registry import PAGE_REGISTRY
 
 
 class AppLogo(QLabel):
@@ -33,17 +34,7 @@ TriangleLogo = AppLogo
 
 
 class SidebarV2(QWidget):
-    """主要頁面導覽側邊欄"""
-
-    # (key, lucide icon name, tooltip)
-    PAGES = [
-        ("skill",      "swords", "技能倒數"),
-        ("monster",    "skull",  "怪物重生"),
-        ("overlay",    "image",  "浮動圖片"),
-        ("potion",     "coins",  "練功水錢"),
-        ("mapleworld", "globe",  "MapleWorld"),
-        ("command",    "keyboard", "指令"),
-    ]
+    """主要頁面導覽側邊欄（導覽項目讀自 page_registry.PAGE_REGISTRY）"""
 
     def __init__(self, parent, on_change, on_settings_click=None):
         super().__init__(parent)
@@ -76,10 +67,10 @@ class SidebarV2(QWidget):
 
         # ── 頁面 icons（上下置中）──
         lay.addStretch()
-        for key, icon, tip in self.PAGES:
-            btn = self._make_btn(icon, tip)
-            btn.clicked.connect(lambda _=False, k=key: self._select(k))
-            self._items[key] = btn
+        for spec in PAGE_REGISTRY:
+            btn = self._make_btn(spec.icon, spec.tooltip)
+            btn.clicked.connect(lambda _=False, k=spec.key: self._select(k))
+            self._items[spec.key] = btn
             lay.addWidget(btn)
         lay.addStretch()
 

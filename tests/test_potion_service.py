@@ -72,31 +72,14 @@ def test_calc_summary_basic():
         "hp_potions":       [{"price": 100, "before": 10, "after": 0}],  # 1000
         "mp_potions":       [{"price": 50,  "before": 20, "after": 0}],  # 1000
         "combined_potions": [],
-        "mesos_start": 1000,
-        "mesos_end":   5000,                          # +4000
-        "shop_before": 0,
-        "shop_after":  500,                           # +500
-        "exp_start": 100,
-        "exp_end":   1300,                            # +1200
+        "item_rows":   [{"qty": 20, "unit_price": 250}],  # 收入 5000
     }
     s = PotionService.calc_summary(form)
-    assert s["income"]    == 4500
-    assert s["expense"]   == 2000
-    assert s["net"]       == 2500
-    assert s["exp_total"] == 1200
-    # 30min → 60min 速率應為 ×2
-    assert s["net_60"] == 5000
-    assert s["exp_60"] == 2400
-    # 10min 速率 = net / 30 * 10
-    assert s["net_10"] == int(2500 / 30 * 10)
-
-
-def test_calc_summary_zero_duration_no_divide_by_zero():
-    form = {"duration_minutes": 0, "mesos_start": 0, "mesos_end": 100}
-    s = PotionService.calc_summary(form)
-    # denom = max(1, 0) = 1；不炸
-    assert s["net_10"] == 1000
-    assert s["net_60"] == 6000
+    assert s["income"]  == 5000                       # 收入只算物品取得
+    assert s["expense"] == 2000
+    assert s["net"]     == 3000
+    # 收支摘要只有 income/expense/net（不含經驗、不含時間速率）
+    assert sorted(s.keys()) == ["expense", "income", "net"]
 
 
 def test_calc_summary_missing_fields_zero():
@@ -106,11 +89,17 @@ def test_calc_summary_missing_fields_zero():
     assert s["net"] == 0
 
 
-def test_calc_summary_negative_mesos_diff_clamped():
-    # 結束少於開始（例如死掉掉錢）→ income = 0
-    form = {"mesos_start": 5000, "mesos_end": 3000, "duration_minutes": 10}
+def test_calc_summary_net_can_be_negative():
+    # 支出 > 收入（藥水花得比物品收入多）→ 淨收益為負
+    form = {
+        "duration_minutes": 10,
+        "item_rows": [{"qty": 1, "unit_price": 1000}],          # 收入 1000
+        "hp_potions": [{"price": 100, "before": 50, "after": 0}],  # 支出 5000
+    }
     s = PotionService.calc_summary(form)
-    assert s["income"] == 0
+    assert s["income"] == 1000
+    assert s["expense"] == 5000
+    assert s["net"] == -4000
 
 
 # ── serialize / deserialize round-trip ──────────────────────
@@ -134,7 +123,7 @@ def test_serialize_without_timestamp():
 def test_deserialize_fills_missing_with_zero():
     form = PotionService.deserialize({"duration_minutes": 15})
     assert form["duration_minutes"] == 15
-    assert form["mesos_start"] == 0
+    assert form["item_rows"] == []
     assert form["hp_potions"] == []
 
 
@@ -155,14 +144,17 @@ def test_serialize_deserialize_roundtrip_numeric_fields_stable():
         "duration_minutes": 42,
         "mesos_start": 100, "mesos_end": 200,
         "shop_before": 5, "shop_after": 50,
-        "exp_start": 0, "exp_end": 500,
+        "item_rows": [{"name": "緞帶", "qty": 3, "stack_size": 9900,
+                       "unit_price": 10, "value": 30}],
         "hp_potions": [], "mp_potions": [], "combined_potions": [],
     }
     serialized = PotionService.serialize(original, with_timestamp=False)
     restored = PotionService.deserialize(serialized)
-    for k in ("duration_minutes", "mesos_start", "mesos_end",
-              "shop_before", "shop_after", "exp_start", "exp_end"):
+    for k in ("duration_minutes", "mesos_start", "mesos_end", "shop_before", "shop_after"):
         assert restored[k] == original[k]
+    assert restored["item_rows"] == original["item_rows"]
+    # legacy 經驗欄位不再序列化
+    assert "exp_start" not in serialized and "exp_end" not in serialized
 
 
 # ── Autosave 無 ConfigManager 時的行為 ──────────────────────

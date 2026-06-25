@@ -182,8 +182,10 @@ class ConfigManager:
         self.config['settings'][key] = value
 
     def get_recent_command_names(self) -> list[str]:
-        """取得指令頁記住的「最近使用玩家名稱」清單
+        """取得舊版共用「最近使用玩家名稱」清單（legacy）
 
+        自 command-name-chips 起，名稱改為 per-command 儲存（見 get_command_names）；
+        本方法保留為「整個 command_names map 不存在」時的唯讀 fallback 來源。
         缺鍵時回空清單（向後相容舊 config_user.json）；防禦性過濾非字串元素。
         """
         names = self.get_settings('command_recent_names', [])
@@ -191,17 +193,92 @@ class ConfigManager:
             return []
         return [n for n in names if isinstance(n, str) and n]
 
-    def add_recent_command_name(self, name: str):
-        """記錄一個玩家名稱：去空白後提到最前、去重、截斷上限，寫入 config_user.json
+    # ── 指令頁 per-command 名稱（settings.command_names: {key: [name, ...]}）──
 
-        名稱為空白則不動作。名稱含「#代碼」原樣保存。
+    def get_command_names(self, key: str) -> list[str]:
+        """取得某指令的名稱清單（最近在前）
+
+        升級相容：當整個 command_names map 不存在時，以舊版共用 command_recent_names
+        作為每個指令的唯讀初始來源；map 一旦存在，未建立的 key 回空清單（避免已刪清單被回填）。
+        非字串元素一律過濾。
+
+        Args:
+            key: 指令 key（_Command.key）
+
+        Returns:
+            該指令的名稱清單；key 非法 / 缺鍵回空清單
         """
+        if not isinstance(key, str) or not key:
+            return []
+        m = self.get_settings('command_names')
+        if not isinstance(m, dict):
+            # 整個 map 不存在 → 舊共用清單作為每個指令的初始來源（read-only）
+            return self.get_recent_command_names()
+        names = m.get(key, [])
+        if not isinstance(names, list):
+            return []
+        return [n for n in names if isinstance(n, str) and n]
+
+    def _set_command_names(self, key: str, names: list[str]):
+        """寫入某指令的名稱清單到 settings.command_names 並持久化"""
+        m = self.get_settings('command_names')
+        if not isinstance(m, dict):
+            m = {}
+        m[key] = names
+        self.set_settings('command_names', m)
+        self.save()
+
+    def add_command_name(self, key: str, name: str) -> list[str]:
+        """為某指令記住一個名稱：去空白、提到最前、去重、截斷上限，持久化
+
+        名稱含「#代碼」原樣保存。名稱為空白或 key 非法則不動作。
+
+        Returns:
+            更新後清單（供 UI 直接刷新）
+        """
+        if not isinstance(key, str) or not key:
+            return []
         name = (name or "").strip()
         if not name:
-            return
-        new_list = promote_recent(self.get_recent_command_names(), name)
-        self.set_settings('command_recent_names', new_list)
-        self.save()
+            return self.get_command_names(key)
+        new_list = promote_recent(self.get_command_names(key), name)
+        self._set_command_names(key, new_list)
+        return new_list
+
+    def remove_command_name(self, key: str, name: str) -> list[str]:
+        """從某指令的名稱清單移除一個名稱，持久化
+
+        Returns:
+            更新後清單
+        """
+        if not isinstance(key, str) or not key:
+            return []
+        new_list = [n for n in self.get_command_names(key) if n != name]
+        self._set_command_names(key, new_list)
+        return new_list
+
+    def rename_command_name(self, key: str, old: str, new: str) -> list[str]:
+        """就地把某指令清單中的 old 改名為 new（去空白），持久化
+
+        new 為空白 → 視為刪除 old；new 與既有重複 → 去重（保留最前出現）；
+        old 不在清單時，new 非空則當作新增。
+
+        Returns:
+            更新後清單
+        """
+        if not isinstance(key, str) or not key:
+            return []
+        new = (new or "").strip()
+        current = self.get_command_names(key)
+        if old not in current:
+            return self.add_command_name(key, new) if new else current
+        if not new:
+            return self.remove_command_name(key, old)
+        # 以 new 取代 old 的位置，再去重（dict.fromkeys 保序）並濾空、截斷上限
+        replaced = [new if n == old else n for n in current]
+        new_list = [n for n in dict.fromkeys(replaced) if n][:_MAX_RECENT_COMMAND_NAMES]
+        self._set_command_names(key, new_list)
+        return new_list
 
     # ==================== 內部工具 ====================
 

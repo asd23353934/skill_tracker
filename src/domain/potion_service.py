@@ -26,8 +26,16 @@ class PotionSectionData(TypedDict, total=False):
     rows: list[PotionRowData]
 
 
+class ItemRowData(TypedDict, total=False):
+    """單一物品取得列資料形狀（收入側）：收入 = qty × unit_price"""
+    name: str
+    qty: int
+    unit_price: int
+    value: int
+
+
 class PotionFormData(TypedDict, total=False):
-    """完整表單資料形狀，對應 V1 `get_form_data()` / `load_form_data()` 的字典 schema"""
+    """完整表單資料形狀（收支：藥水支出 + 撿取楓幣/商店/物品取得收入）"""
     saved_at: str
     duration_minutes: int
     hp_potions: list[PotionRowData]
@@ -37,8 +45,7 @@ class PotionFormData(TypedDict, total=False):
     mesos_end: int
     shop_before: int
     shop_after: int
-    exp_start: int
-    exp_end: int
+    item_rows: list[ItemRowData]
     summary: dict
 
 
@@ -121,45 +128,53 @@ class PotionService:
         return total
 
     @staticmethod
+    def calc_items_total(rows: list[ItemRowData]) -> int:
+        """計算物品取得收入合計（各列 qty × unit_price 之和）
+
+        若 row dict 含已算好的 `"value"` 欄位則直接採用，避免熱路徑重算；
+        qty / unit_price 缺值或負值一律視為 0。
+
+        Args:
+            rows: 物品列 dict 清單；空 / None 回 0
+        """
+        total = 0
+        for r in rows or []:
+            value = r.get("value")
+            if value is not None:
+                total += _as_nonneg_int(value)
+            else:
+                total += _as_nonneg_int(r.get("qty")) * _as_nonneg_int(r.get("unit_price"))
+        return total
+
+    @staticmethod
     def calc_summary(form: PotionFormData) -> dict:
-        """計算總摘要（收入 / 支出 / 淨收支 / 經驗 / 10 / 60 分鐘速率）
+        """計算收支摘要（收入 / 支出 / 淨收支；不含經驗、不含時間速率）
 
         Args:
             form: 完整表單 dict；缺 key 視為 0
 
         Returns:
-            dict with keys:
-                income, expense, net, exp_total,
-                net_10, exp_10, net_60, exp_60
-            時薪分母使用 `max(1, duration_minutes)` 避免除以 0
+            dict with keys: income, expense, net
+            收入 = 撿取楓幣差 + 商店收益差 + 物品取得合計（差值以 max(0, 後−前) 計，不為負）
         """
-        mesos_start  = _as_nonneg_int(form.get("mesos_start"))
-        mesos_end    = _as_nonneg_int(form.get("mesos_end"))
-        shop_before  = _as_nonneg_int(form.get("shop_before"))
-        shop_after   = _as_nonneg_int(form.get("shop_after"))
-        exp_start    = _as_nonneg_int(form.get("exp_start"))
-        exp_end      = _as_nonneg_int(form.get("exp_end"))
-        minutes      = _as_nonneg_int(form.get("duration_minutes"))
-
-        income  = max(0, mesos_end - mesos_start) + max(0, shop_after - shop_before)
+        mesos_start = _as_nonneg_int(form.get("mesos_start"))
+        mesos_end   = _as_nonneg_int(form.get("mesos_end"))
+        shop_before = _as_nonneg_int(form.get("shop_before"))
+        shop_after  = _as_nonneg_int(form.get("shop_after"))
+        income = (
+            max(0, mesos_end - mesos_start)
+            + max(0, shop_after - shop_before)
+            + PotionService.calc_items_total(form.get("item_rows") or [])
+        )
         expense = (
             PotionService.calc_section_subtotal(form.get("hp_potions") or [])
             + PotionService.calc_section_subtotal(form.get("mp_potions") or [])
             + PotionService.calc_section_subtotal(form.get("combined_potions") or [])
         )
-        net       = income - expense
-        exp_total = max(0, exp_end - exp_start)
-
-        denom = max(1, minutes)
         return {
-            "income":    income,
-            "expense":   expense,
-            "net":       net,
-            "exp_total": exp_total,
-            "net_10":    int(net / denom * 10),
-            "exp_10":    int(exp_total / denom * 10),
-            "net_60":    int(net / denom * 60),
-            "exp_60":    int(exp_total / denom * 60),
+            "income":  income,
+            "expense": expense,
+            "net":     income - expense,
         }
 
     # Autosave（節流 / dirty tracking 由 caller 負責）
@@ -213,8 +228,7 @@ class PotionService:
         out["mesos_end"]   = _as_nonneg_int(form.get("mesos_end"))
         out["shop_before"] = _as_nonneg_int(form.get("shop_before"))
         out["shop_after"]  = _as_nonneg_int(form.get("shop_after"))
-        out["exp_start"]   = _as_nonneg_int(form.get("exp_start"))
-        out["exp_end"]     = _as_nonneg_int(form.get("exp_end"))
+        out["item_rows"]   = list(form.get("item_rows") or [])
         out["summary"]     = PotionService.calc_summary(form)
         return out
 
@@ -223,6 +237,7 @@ class PotionService:
         """將存檔 dict 還原為表單資料
 
         未知/缺失欄位會以零值 / 空 list 補齊；`summary` / `saved_at` 不參與還原。
+        相容 legacy：忽略舊存檔的 `exp_start` / `exp_end`，缺 `item_rows` 補空 list。
         """
         data = data or {}
         return {
@@ -234,6 +249,5 @@ class PotionService:
             "mesos_end":   _as_nonneg_int(data.get("mesos_end")),
             "shop_before": _as_nonneg_int(data.get("shop_before")),
             "shop_after":  _as_nonneg_int(data.get("shop_after")),
-            "exp_start":   _as_nonneg_int(data.get("exp_start")),
-            "exp_end":     _as_nonneg_int(data.get("exp_end")),
+            "item_rows":   list(data.get("item_rows") or []),
         }

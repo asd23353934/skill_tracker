@@ -3,38 +3,44 @@
 
 列出 Artale 遊戲內常用聊天指令（按使用情境分組、常用置頂），每個一鍵複製到系統剪貼簿
 （玩家切回遊戲貼上即可送出）。
-需玩家名稱的指令（標「(玩家)」者，如 交換 / 密語 / 邀請 / 封鎖）提供可編輯下拉：可直接打新名稱、也可選最近用過的；
-複製時把名稱填入指令模板的 {name}，並把該名稱記到 config_user.json
-（見 ConfigManager.add_recent_command_name），下次直接從下拉選取。
 
-指令按使用情境分組定義於 _GROUPS（再攤平為 _COMMANDS 供名稱記憶等共用）；
-增刪指令或調整分組／順序只需改 _GROUPS。
+需玩家名稱的指令（標 needs_name 者，如 交換 / 密語 / 邀請 / 封鎖）以「名稱 chips」呈現：
+- 點擊某個名稱 chip → 立即把「指令模板填入該名稱」複製到剪貼簿（cmd.template 的 {name}）。
+- chip 上的 ✎ 就地改名、× 刪除。
+- 下方「新增名稱」輸入送出 → 複製「指令＋名稱」並把名稱保存為新 chip；空送出 → 複製
+  「關鍵字＋單一尾空格」且不新增。
+
+名單為「每個指令各自一份」，存於 config_user.json 的 settings.command_names（以指令 key 分組），
+讀寫委派給 ConfigManager.get/add/remove/rename_command_name；升級相容舊共用 command_recent_names。
+
+指令按使用情境分組定義於 _GROUPS（再攤平為 _COMMANDS 供共用）；增刪指令或調整分組／順序只需改 _GROUPS。
 
 建構參數：
     CommandPageV2(parent, app=None)
-        app 提供 config_manager（名稱記憶）/ toast（複製回饋）
-        app=None 仍可渲染（純預覽；複製到剪貼簿可用，名稱記憶靜默略過）
+        app 提供 config_manager（名稱 CRUD）/ toast（複製回饋）
+        app=None 仍可渲染（純預覽；複製到剪貼簿可用，名稱 CRUD 靜默略過）
 """
 
 import logging
 from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QFrame, QLabel,
-    QScrollArea, QApplication,
+    QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
+    QScrollArea, QApplication, QLineEdit, QPushButton,
 )
 from PySide6.QtCore import Qt, QSize
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_icon
-from src.ui_v2.components import ArrowComboBox, make_primary_button
+from src.ui_v2.components import make_primary_button
+from src.ui_v2.flow_layout import FlowLayout
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class _Command:
-    """單一指令定義（資料驅動：增刪指令只動 _COMMANDS）"""
+    """單一指令定義（資料驅動：增刪指令只動 _GROUPS）"""
     key: str            # 唯一識別
     label: str          # 卡片顯示的指令關鍵字（需參數者不含 {name}）
     template: str       # 複製用模板；需參數者含 {name} 佔位
@@ -83,10 +89,247 @@ _GROUPS: list[tuple[str, list[_Command]]] = [
     ]),
 ]
 
-# 攤平為單一指令清單（名稱記憶刷新等共用；保留向後相容）
+# 攤平為單一指令清單（共用；保留向後相容）
 _COMMANDS: list[_Command] = [cmd for _, cmds in _GROUPS for cmd in cmds]
 
-_NAME_PLACEHOLDER = "玩家名稱（含 #代碼）"
+_NAME_PLACEHOLDER = "輸入玩家名稱（含 #代碼）後按複製"
+
+
+# ════════════════════════════════════════════════════════════
+# _NameChip — 單一名稱 chip（點本體複製 / ✎ 改名 / × 刪除）
+# ════════════════════════════════════════════════════════════
+
+class _ChipLineEdit(QLineEdit):
+    """chip 就地編輯用輸入框：Esc 取消編輯（透過 callback）"""
+
+    def __init__(self, text: str, on_cancel):
+        super().__init__(text)
+        self._on_cancel = on_cancel
+
+    def keyPressEvent(self, e):  # noqa: N802
+        if e.key() == Qt.Key.Key_Escape:
+            self._on_cancel()
+            return
+        super().keyPressEvent(e)
+
+
+class _NameChip(QFrame):
+    """名稱 chip：點本體 → 複製；✎ → 就地改名；× → 刪除。
+
+    所有持久化／複製委派給 callback（由 _NeedsNameCard 提供）：
+        on_copy(name) / on_delete(name) / on_rename(old, new)
+    改名／刪除後由上層重建 chips，本 widget 會被回收。
+    """
+
+    def __init__(self, name: str, on_copy, on_delete, on_rename):
+        super().__init__()
+        self._name = name
+        self._on_copy = on_copy
+        self._on_delete = on_delete
+        self._on_rename = on_rename
+        self._editing = False
+        self._committed = False
+
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet(
+            f"QFrame {{ background: {T.BG_INPUT}; border: 1px solid {T.BORDER};"
+            f" border-radius: {T.R_SM}px; }}"
+            f"QFrame:hover {{ border-color: {T.ORANGE}; }}"
+        )
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(T.S_SM, 2, 4, 2)
+        lay.setSpacing(4)
+
+        self._label = QLabel(name)
+        self._label.setTextFormat(Qt.TextFormat.PlainText)
+        self._label.setToolTip("點擊複製此名稱的指令")
+        self._label.setStyleSheet(
+            f"color: {T.TEXT_HI}; background: transparent; font-size: 12px;"
+            f" font-weight: 600;")
+        lay.addWidget(self._label)
+
+        self._edit = _ChipLineEdit(name, self._cancel_edit)
+        self._edit.setFixedHeight(20)
+        self._edit.setMinimumWidth(120)
+        self._edit.setStyleSheet(
+            f"QLineEdit {{ color: {T.TEXT_HI}; background: {T.BG_SURFACE};"
+            f" border: 1px solid {T.ORANGE}; border-radius: {T.R_SM}px;"
+            f" padding: 0 4px; font-size: 12px; }}")
+        self._edit.returnPressed.connect(self._commit_edit)
+        self._edit.editingFinished.connect(self._on_edit_finished)
+        self._edit.hide()
+        lay.addWidget(self._edit)
+
+        self._edit_btn = self._mini_btn("pencil", "改名", T.TEXT_DIM, self._enter_edit)
+        lay.addWidget(self._edit_btn)
+        self._del_btn = self._mini_btn("x", "刪除", T.TEXT_DIM, self._on_delete_clicked,
+                                       hover_red=True)
+        lay.addWidget(self._del_btn)
+
+    def _mini_btn(self, icon: str, tip: str, color: str, slot, hover_red: bool = False):
+        b = QPushButton()
+        b.setIcon(lucide_icon(icon, color, 12, stroke=1.8))
+        b.setIconSize(QSize(12, 12))
+        b.setFixedSize(18, 18)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setToolTip(tip)
+        hover_bg = T.RED if hover_red else T.BG_HOVER
+        b.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" border-radius: {T.R_SM}px; padding: 0; }}"
+            f"QPushButton:hover {{ background: {hover_bg}; }}")
+        b.clicked.connect(slot)
+        return b
+
+    # ── 互動 ──
+    def mousePressEvent(self, e):  # noqa: N802
+        # 編輯中或點到子按鈕時不觸發複製（按鈕會自行消化點擊）
+        if not self._editing and e.button() == Qt.MouseButton.LeftButton:
+            self._on_copy(self._name)
+        super().mousePressEvent(e)
+
+    def _on_delete_clicked(self):
+        self._on_delete(self._name)
+
+    def _enter_edit(self):
+        self._editing = True
+        self._label.hide()
+        self._edit_btn.hide()
+        self._del_btn.hide()
+        self._edit.setText(self._name)
+        self._edit.show()
+        self._edit.setFocus()
+        self._edit.selectAll()
+
+    def _cancel_edit(self):
+        """Esc：放棄編輯，還原顯示（不改名）"""
+        if not self._editing:
+            return
+        self._editing = False
+        self._edit.hide()
+        self._label.show()
+        self._edit_btn.show()
+        self._del_btn.show()
+
+    def _on_edit_finished(self):
+        # 失焦：視為取消（只有 Enter 才提交），避免誤改
+        if self._editing:
+            self._cancel_edit()
+
+    def _commit_edit(self):
+        if self._committed:
+            return
+        self._committed = True
+        self._editing = False
+        new = self._edit.text().strip()
+        # 交給上層處理改名＋重建（本 widget 即將被回收）
+        self._on_rename(self._name, new)
+
+
+# ════════════════════════════════════════════════════════════
+# _NeedsNameCard — 需玩家名稱指令卡（名稱 chips ＋ 新增輸入）
+# ════════════════════════════════════════════════════════════
+
+class _NeedsNameCard(QFrame):
+    """需玩家名稱指令的卡片：上方關鍵字＋說明、中段名稱 chips、下方新增輸入。"""
+
+    def __init__(self, cmd: _Command, page: "CommandPageV2"):
+        super().__init__()
+        self._cmd = cmd
+        self._page = page
+        self.setStyleSheet(
+            f"QFrame {{ background: {T.BG_ELEVATED}; border: 1px solid {T.BORDER};"
+            f" border-radius: {T.R_SM}px; }}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(T.S_MD, T.S_SM, T.S_MD, T.S_SM)
+        root.setSpacing(T.S_XS)
+
+        # 上：關鍵字 + 說明
+        head = QVBoxLayout()
+        head.setSpacing(1)
+        cmd_lbl = QLabel(cmd.label)
+        cmd_lbl.setTextFormat(Qt.TextFormat.PlainText)
+        cmd_lbl.setStyleSheet(
+            f"color: {T.ORANGE}; background: transparent; font-size: 13px; font-weight: 700;")
+        head.addWidget(cmd_lbl)
+        desc = QLabel(cmd.description)
+        desc.setTextFormat(Qt.TextFormat.PlainText)
+        desc.setWordWrap(True)
+        desc.setStyleSheet(f"color: {T.TEXT_DIM}; background: transparent; font-size: 11px;")
+        head.addWidget(desc)
+        root.addLayout(head)
+
+        # 中：名稱 chips（FlowLayout 自動換行）
+        self._chips_host = QWidget()
+        self._chips_host.setStyleSheet("background: transparent;")
+        self._chips_flow = FlowLayout(self._chips_host, margin=0, h_spacing=6, v_spacing=6)
+        root.addWidget(self._chips_host)
+
+        self._empty_hint = QLabel("尚無常用名稱，於下方輸入後按「複製」即記住")
+        self._empty_hint.setTextFormat(Qt.TextFormat.PlainText)
+        self._empty_hint.setStyleSheet(
+            f"color: {T.TEXT_MUTED}; background: transparent; font-size: 11px;")
+        root.addWidget(self._empty_hint)
+
+        # 下：新增名稱輸入 + 複製鈕
+        add_row = QHBoxLayout()
+        add_row.setSpacing(T.S_SM)
+        self._input = QLineEdit()
+        self._input.setFixedHeight(26)
+        self._input.setStyleSheet(
+            f"QLineEdit {{ color: {T.TEXT_HI}; background: {T.BG_INPUT};"
+            f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
+            f" padding: 0 8px; font-size: 12px; }}"
+            f"QLineEdit:focus {{ border-color: {T.ORANGE}; }}")
+        self._input.setPlaceholderText(_NAME_PLACEHOLDER)
+        self._input.returnPressed.connect(self._on_add_submit)
+        add_row.addWidget(self._input, 1)
+
+        copy_btn = make_primary_button("複製", padding="0 16px", weight=700, height=26)
+        copy_btn.setIcon(lucide_icon("copy", "#ffffff", 14, stroke=1.8))
+        copy_btn.setIconSize(QSize(14, 14))
+        copy_btn.clicked.connect(self._on_add_submit)
+        add_row.addWidget(copy_btn)
+        root.addLayout(add_row)
+
+        self.reload_chips()
+
+    # ── chips ──
+    def reload_chips(self):
+        """清空並依目前名單重建 chips"""
+        while self._chips_flow.count():
+            item = self._chips_flow.takeAt(0)
+            w = item.widget() if item is not None else None
+            if w is not None:
+                w.setParent(None)   # 立即脫離父層（deleteLater 為非同步，避免殘留 chip）
+                w.deleteLater()
+        names = self._page.names_for(self._cmd.key)
+        for name in names:
+            self._chips_flow.addWidget(
+                _NameChip(name, self._on_chip_copy, self._on_chip_delete, self._on_chip_rename)
+            )
+        self._empty_hint.setVisible(not names)
+        self._chips_host.setVisible(bool(names))
+
+    def _on_chip_copy(self, name: str):
+        self._page.copy_with_name(self._cmd, name)
+        self.reload_chips()   # 使用後 MRU 置前，重排 chips
+
+    def _on_chip_delete(self, name: str):
+        self._page.delete_name(self._cmd.key, name)
+        self.reload_chips()
+
+    def _on_chip_rename(self, old: str, new: str):
+        self._page.rename_name(self._cmd.key, old, new)
+        self.reload_chips()
+
+    def _on_add_submit(self):
+        name = self._input.text().strip()
+        self._page.copy_and_remember(self._cmd, name)
+        self._input.clear()
+        self.reload_chips()
 
 
 class CommandPageV2(QWidget):
@@ -95,7 +338,6 @@ class CommandPageV2(QWidget):
     def __init__(self, parent, app=None):
         super().__init__(parent)
         self.app = app
-        self._name_combos: list[ArrowComboBox] = []   # 需參數卡片的名稱下拉，供記憶後統一刷新
         self._build()
 
     # ── UI ──
@@ -105,7 +347,7 @@ class CommandPageV2(QWidget):
         root.setSpacing(T.S_LG)
 
         root.addWidget(T.make_label("指令", T.FONT_SECTION))
-        hint = QLabel("點「複製」把指令複製到剪貼簿，切回遊戲貼上即可送出。")
+        hint = QLabel("點「複製」或名稱小塊把指令複製到剪貼簿，切回遊戲貼上即可送出。")
         hint.setTextFormat(Qt.TextFormat.PlainText)
         hint.setStyleSheet(f"color: {T.TEXT_DIM}; background: transparent; font-size: 12px;")
         root.addWidget(hint)
@@ -119,7 +361,7 @@ class CommandPageV2(QWidget):
         col.setSpacing(T.S_XS)
         for gi, (title, cmds) in enumerate(_GROUPS):
             col.addWidget(self._build_group_header(title, first=(gi == 0)))
-            col.addWidget(self._build_group_grid(cmds))
+            col.addWidget(self._build_group_body(cmds))
         col.addStretch()
         scroll.setWidget(host)
         root.addWidget(scroll, 1)
@@ -130,30 +372,54 @@ class CommandPageV2(QWidget):
         lbl.setContentsMargins(T.S_XS, 0 if first else T.S_SM, 0, 1)
         return lbl
 
-    def _build_group_grid(self, cmds: list[_Command]) -> QWidget:
-        """把一組指令卡片排成兩欄（利用橫向空間、一屏塞更多、減少捲動）"""
+    def _build_group_body(self, cmds: list[_Command]) -> QWidget:
+        """一組指令：no-arg 卡片兩欄並排、needs_name 卡片整列（保留 _GROUPS 順序）"""
         host = QWidget()
-        grid = QGridLayout(host)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(T.S_SM)
-        grid.setVerticalSpacing(T.S_XS)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-        for i, cmd in enumerate(cmds):
-            grid.addWidget(self._build_card(cmd), i // 2, i % 2)
+        v = QVBoxLayout(host)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(T.S_XS)
+
+        pending: list[_Command] = []   # 暫存待配對的 no-arg 卡片
+
+        def flush_pair():
+            if not pending:
+                return
+            v.addWidget(self._build_pair_row(pending))
+            pending.clear()
+
+        for cmd in cmds:
+            if cmd.needs_name:
+                flush_pair()
+                v.addWidget(_NeedsNameCard(cmd, self))
+            else:
+                pending.append(cmd)
+                if len(pending) == 2:
+                    flush_pair()
+        flush_pair()
         return host
 
-    def _build_card(self, cmd: _Command) -> QFrame:
+    def _build_pair_row(self, cmds: list[_Command]) -> QWidget:
+        """把 1–2 個 no-arg 指令卡片排成一列（不足兩個則左半佔位）"""
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(T.S_SM)
+        for cmd in cmds:
+            h.addWidget(self._build_simple_card(cmd), 1)
+        if len(cmds) == 1:
+            h.addStretch(1)
+        return row
+
+    def _build_simple_card(self, cmd: _Command) -> QFrame:
+        """no-argument 指令卡片：關鍵字 + 說明 + 複製鈕"""
         card = QFrame()
         card.setStyleSheet(
             f"QFrame {{ background: {T.BG_ELEVATED}; border: 1px solid {T.BORDER};"
-            f" border-radius: {T.R_SM}px; }}"
-        )
+            f" border-radius: {T.R_SM}px; }}")
         lay = QHBoxLayout(card)
         lay.setContentsMargins(T.S_MD, T.S_XS, T.S_MD, T.S_XS)
         lay.setSpacing(T.S_SM)
 
-        # 左：指令關鍵字 + 用途說明
         left = QVBoxLayout()
         left.setSpacing(1)
         cmd_lbl = QLabel(cmd.label)
@@ -168,74 +434,69 @@ class CommandPageV2(QWidget):
         left.addWidget(desc)
         lay.addLayout(left, 1)
 
-        # 中：需參數 → 可編輯名稱下拉（打新的或選最近用過的）
-        combo = None
-        if cmd.needs_name:
-            combo = ArrowComboBox()
-            combo.setEditable(True)
-            combo.setFixedHeight(26)
-            combo.setMinimumWidth(150)
-            combo.setStyleSheet(T.combo_qss())
-            combo.lineEdit().setPlaceholderText(_NAME_PLACEHOLDER)
-            self._refresh_combo(combo)
-            self._name_combos.append(combo)
-            lay.addWidget(combo)
-
-        # 右：複製鈕
         copy_btn = make_primary_button("複製", padding="0 16px", weight=700, height=26)
         copy_btn.setIcon(lucide_icon("copy", "#ffffff", 14, stroke=1.8))
         copy_btn.setIconSize(QSize(14, 14))
-        copy_btn.clicked.connect(
-            lambda _=False, c=cmd, cb=combo: self._on_copy(c, cb))
+        copy_btn.clicked.connect(lambda _=False, c=cmd: self._copy(c.template))
         lay.addWidget(copy_btn)
         return card
 
-    # ── 名稱記憶 ──
-    def _recent_names(self) -> list[str]:
-        cm = getattr(self.app, "config_manager", None)
+    # ── 名稱 CRUD（委派 ConfigManager；app / config_manager 缺席則安全略過）──
+    def _cm(self):
+        return getattr(self.app, "config_manager", None)
+
+    def names_for(self, key: str) -> list[str]:
+        cm = self._cm()
         if cm is None:
             return []
         try:
-            return cm.get_recent_command_names()
+            return cm.get_command_names(key)
         except Exception:
-            logger.exception("讀取最近指令玩家名稱失敗")
+            logger.exception("讀取指令名稱失敗：%s", key)
             return []
 
-    def _remember_name(self, name: str):
-        """記住一個玩家名稱（委派給 config_manager；app / config_manager 缺席則略過）"""
-        cm = getattr(self.app, "config_manager", None)
+    def delete_name(self, key: str, name: str):
+        cm = self._cm()
         if cm is None:
             return
         try:
-            cm.add_recent_command_name(name)
+            cm.remove_command_name(key, name)
         except Exception:
-            logger.exception("記錄指令玩家名稱失敗")
+            logger.exception("刪除指令名稱失敗：%s / %s", key, name)
 
-    def _refresh_combo(self, combo: ArrowComboBox):
-        """以最近用過的名稱填充下拉，保留使用者正在輸入的文字"""
-        cur = combo.currentText()
-        combo.blockSignals(True)
-        combo.clear()
-        combo.addItems(self._recent_names())
-        combo.setCurrentText(cur)
-        combo.blockSignals(False)
+    def rename_name(self, key: str, old: str, new: str):
+        cm = self._cm()
+        if cm is None:
+            return
+        try:
+            cm.rename_command_name(key, old, new)
+        except Exception:
+            logger.exception("改名指令名稱失敗：%s / %s → %s", key, old, new)
 
-    def _refresh_all_combos(self):
-        for combo in self._name_combos:
-            self._refresh_combo(combo)
+    def _remember(self, key: str, name: str):
+        cm = self._cm()
+        if cm is None:
+            return
+        try:
+            cm.add_command_name(key, name)
+        except Exception:
+            logger.exception("記錄指令名稱失敗：%s / %s", key, name)
 
     # ── 複製 ──
-    def _on_copy(self, cmd: _Command, combo: ArrowComboBox | None):
-        if cmd.needs_name:
-            name = (combo.currentText().strip() if combo is not None else "")
-            # name 為空 → format 後為「關鍵字 + 空格」（如 "/交換 "）
-            text = cmd.template.format(name=name)
-            if name:
-                self._remember_name(name)
-                self._refresh_all_combos()
-        else:
-            text = cmd.template
+    def copy_with_name(self, cmd: _Command, name: str):
+        """以指定名稱複製指令（點 chip 用）；非空名稱使用後 MRU 置前"""
+        self._copy(cmd.template.format(name=name))
+        if name:
+            self._remember(cmd.key, name)
 
+    def copy_and_remember(self, cmd: _Command, name: str):
+        """新增輸入送出：非空 → 複製並記住（MRU 置前）；空 → 複製關鍵字＋單一尾空格不新增"""
+        if name:
+            self.copy_with_name(cmd, name)
+        else:
+            self._copy(cmd.template.format(name=""))
+
+    def _copy(self, text: str):
         QApplication.clipboard().setText(text)
         self._toast(f"已複製：{text}")
 

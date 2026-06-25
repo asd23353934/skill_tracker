@@ -41,6 +41,8 @@ src/domain/              # 純 Python 領域層（零 Qt 依賴）
   models.py              # 領域資料模型
   services.py            # SkillService / MonsterService
   potion_service.py      # 藥水費用計算 / autosave / 紀錄序列化
+  exp_table.py           # 經典 pre-Big-Bang 楓之谷每級所需經驗（Lv1–199；Artale 同系）
+  exp_service.py         # 升級時間估算（區間經驗 / 需打隻數 / 預估時間）
 src/ui/                  # V1/V2 共用控制層（V1 已下架；保留共用基礎）
   app_core.py            # AppCoreMixin — 提供 V2AppContext 的 domain backing
                          #   技能 / 怪物互動 + profile CRUD + apply_settings + switch_profile + delegates
@@ -54,9 +56,10 @@ src/ui/                  # V1/V2 共用控制層（V1 已下架；保留共用�
   theme.py               # 共用主題常量 AppTheme（浮動視窗 / hotkey manager 等使用）
   window_geometry.py     # 視窗位置 clamp helper（浮動視窗載入時用，防多螢幕拔除後座標看不見）
 src/ui_v2/               # V2 UI（正式 UI）
+  page_registry.py       # 頁面註冊單一來源（key / 標題 / lucide icon / tooltip / factory）；main_v2 與 sidebar_v2 共讀
   theme_v2.py            # V2 主題常量 V2Theme
   header_v2.py           # V2 頁首（精簡為視窗控制 + 拖曳區）
-  sidebar_v2.py          # V2 左側導覽（齒輪→SettingsDialogV2）
+  sidebar_v2.py          # V2 左側導覽（導覽項讀自 page_registry；齒輪→SettingsDialogV2）
   status_bar_v2.py       # V2 底部狀態列
   components.py          # V2 共用元件（ArrowComboBox / IconBadge / StatusChip 等）
   toast_v2.py            # V2 Toast 浮層（右下角、fade-out、PlainText 防注入）
@@ -65,7 +68,8 @@ src/ui_v2/               # V2 UI（正式 UI）
     skill_page_v2.py / skill_column_v2.py / skill_card_v2.py
     monster_page_v2.py / overlay_page_v2.py /
     potion_page_v2.py / mapleworld_page_v2.py
-    command_page_v2.py        # 指令快速複製（資料驅動 _COMMANDS；需名稱者填入+記憶）
+    exp_calculator_page_v2.py # 經驗值計算器（升級時間估算；純邏輯走 exp_service）
+    command_page_v2.py        # 指令快速複製（資料驅動 _GROUPS；需名稱者以名稱 chips 增刪改）
     mapleworld_widgets_v2.py  # 資源中心卡片 / chip / 縮圖 LRU / 分類 cache
   dialogs/
     base_dialog_v2.py
