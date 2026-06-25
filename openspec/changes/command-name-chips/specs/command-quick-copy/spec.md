@@ -24,7 +24,7 @@ Commands whose needs_name flag is true SHALL render a row of clickable name chip
 
 ### Requirement: Remember used player names
 
-The system SHALL persist each parameterized command's player names as a per-command list under a `command_names` map in the `settings` section of `config_user.json`, keyed by the command's key. Each list SHALL keep the most-recently-used entry first, SHALL contain no duplicates, and SHALL be capped at 20 entries. Names SHALL be stored verbatim including any "#" suffix. Each command's chips SHALL reflect only that command's own list. The system SHALL support adding a name, deleting a single name, and editing (renaming) a name in place; each operation SHALL persist immediately.
+The system SHALL persist each parameterized command's player names as a per-command list under a `command_names` map in the `settings` section of `config_user.json`, keyed by the command's key. Each list SHALL keep the most-recently-used entry first, SHALL contain no duplicates, and SHALL be capped at 20 entries. Names SHALL be stored verbatim including any "#" suffix. Each command's chips SHALL reflect only that command's own list. Each chip SHALL carry a delete control (×) and an in-place rename control (✎); entering rename SHALL show an inline editor where Enter confirms, while Esc or loss of focus cancels without changing the name. The system SHALL support adding a name, deleting a single name, and renaming a name in place; each operation SHALL persist immediately and re-render the chips.
 
 #### Scenario: Names are isolated per command
 
@@ -34,14 +34,15 @@ The system SHALL persist each parameterized command's player names as a per-comm
 
 #### Scenario: Delete a name chip
 
-- **WHEN** the user deletes the chip "Bob#1a2b3" from the "/密語" card
+- **WHEN** the user clicks the delete control (×) on the chip "Bob#1a2b3" of the "/密語" card
 - **THEN** "Bob#1a2b3" is removed from the "/密語" command's name list in config_user.json
 - **AND** the chip no longer renders
 
 #### Scenario: Edit a name chip in place
 
-- **WHEN** the user edits the chip "Bob#1a2b3" on the "/密語" card to "Bob#4c5d6"
+- **WHEN** the user clicks the chip's rename control (✎) for "Bob#1a2b3" on the "/密語" card and confirms "Bob#4c5d6" with Enter
 - **THEN** the "/密語" command's name list contains "Bob#4c5d6" and not "Bob#1a2b3"
+- **AND** the renamed entry keeps its previous position in the list
 
 ##### Example: promotion, insertion, and cap (per command list)
 

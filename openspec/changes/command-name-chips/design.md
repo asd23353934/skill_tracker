@@ -1,6 +1,6 @@
 ## Context
 
-指令頁（src/ui_v2/pages/command_page_v2.py）目前對 needs_name 指令渲染一個可編輯下拉（ArrowComboBox）。名稱以單一共用清單 command_recent_names 存於 config_user.json，並在「按複製」時被動寫入（ConfigManager.add_recent_command_name / get_recent_command_names）。使用者要求：名稱改為可點擊複製的 chips、可增刪改，且每個指令各自一份名單。
+指令頁（src/ui_v2/pages/command_page_v2.py）改版前對 needs_name 指令渲染一個可編輯下拉（ArrowComboBox）。名稱以單一共用清單 command_recent_names 存於 config_user.json，並在「按複製」時被動寫入。使用者要求：名稱改為可點擊複製的 chips、可增刪改，且每個指令各自一份名單。改版後該共用清單僅保留 ConfigManager.get_recent_command_names 作為升級相容的唯讀來源。
 
 約束：
 - 僅複製到剪貼簿，不得注入按鍵（沿用既有安全邊界）。
@@ -23,7 +23,7 @@ Non-Goals:
 
 ### 名稱以 chips 呈現，點擊即複製
 
-每個已存名稱渲染為一顆 chip（QFrame + 文字 + 刪除鈕），點 chip 本體即把 cmd.template.format(name=該名稱) 複製到剪貼簿並 toast。
+每個已存名稱渲染為一顆 chip（QFrame + 文字 + ✎ 改名鈕 + × 刪除鈕），點 chip 本體即把 cmd.template.format(name=該名稱) 複製到剪貼簿並 toast，並把該名稱 MRU 置前後重建 chips。
 理由：比「下拉選 → 再按複製」少一步，且常用對象一眼可見。
 取代：原 ArrowComboBox + 獨立「複製」鈕（多一步、名稱不可視）。
 
@@ -47,8 +47,8 @@ get_command_names(key) 取 command_names[key]；若整個 command_names 不存�
 
 ## Risks / Trade-offs
 
-- [chips 數量過多時卡片變高] → 名稱列以 FlowLayout 自動換行；必要時限制顯示上限沿用 20。
-- [就地編輯誤觸] → 編輯採明確互動（雙擊進入編輯，Esc 取消、Enter 確認），刪除採 chip 上獨立 × 鈕，避免單擊誤刪。
+- [chips 數量過多時卡片變高] → 名稱列以 FlowLayout 自動換行；上限沿用 20（per-command）。
+- [就地編輯誤觸] → 編輯採明確互動（chip 上 ✎ 鈕進入就地編輯；Enter 確認改名、Esc 取消、失焦亦視為取消以免誤改），刪除採 chip 上獨立 × 鈕，避免單擊本體誤刪。
 - [舊共用清單同時被多個指令引用造成混淆] → fallback 僅在 per-command 尚未建立時生效；任何寫入後該指令即脫離共用來源。
 
 ## Migration Plan
