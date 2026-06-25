@@ -53,8 +53,8 @@ Non-Goals:
 
 ### 練功地圖預設：內建少量可編輯掉落清單
 
-新增 src/domain/training_maps.py，TRAINING_MAP_DROPS 結構為 地圖名 → {"level": 等級, "items": [[道具名, item_id], …]}；15 張熱門練功地圖（Lv72–128，神木村龍系列、時間之路、深海峽谷等），單價一律 0（賣價由使用者填）。`map_names()` 依等級排序、`drops_for()` 回傳 item row（name/item_id/qty=0/unit_price=0）。右欄收入區提供「選擇練功地圖帶出掉落」下拉，選取即「先清除現有列、再帶出該圖掉落列」（下拉保留所選地圖）；「清除全部」清列並把下拉重置回 placeholder。帶出的列可再增刪改。
-理由：兼顧便利與資料風險 — 預設只是起點，列可編輯，不依賴完整正確的全地圖庫。
+新增 src/domain/training_maps.py，TRAINING_MAP_DROPS 結構為 地圖名 → {"level": 等級, "items": [[道具名, item_id], …]}；15 張熱門練功地圖（Lv72–128，神木村龍系列、時間之路、深海峽谷等），多數道具單價 0（賣價由使用者填），少數熱門道具經 DEFAULT_UNIT_PRICES 帶市場參考預設價。`map_names()` 依等級排序、`drops_for()` 回傳 item row（name/item_id/qty=0/unit_price 取自 DEFAULT_UNIT_PRICES、未列者 0）。右欄收入區提供「選擇練功地圖帶出掉落」下拉，選取即「先清除現有列、再帶出該圖掉落列」（下拉保留所選地圖）；「清除全部」清列並把下拉重置回 placeholder。帶出的列可再增刪改。
+理由：兼顧便利與資料風險 — 預設只是起點，列可編輯，不依賴完整正確的全地圖庫。少數高頻道具（如龍系列雜物）以 item_id→預設價對照帶市場參考價，跨地圖同價對齊、省去逐次手填，價可隨時改。
 取代：手動逐項輸入（仍保留為基本路徑）。
 
 ### 服務層 income 納入物品取得；calc_summary 收斂為 3 鍵
@@ -69,7 +69,7 @@ serialize 不再寫 exp_start/exp_end，改寫 item_rows（仍寫 duration_minut
 
 ## Risks / Trade-offs
 
-- [地圖掉落資料不完整或過期] → 預設僅作起點且列可編輯；單價一律 0、由使用者自填，不對賣價做假設。
+- [地圖掉落資料不完整或過期] → 預設僅作起點且列可編輯；多數道具單價 0 由使用者自填，少數熱門道具帶市場參考預設價（可能過時，故僅作起點、隨時可改）。
 - [舊存檔含 exp 欄位／非數值欄位] → deserialize 明確忽略未知鍵、安全轉型；verify 腳本含「載入 legacy 含 exp 紀錄」案例。
 - [版面從單欄改雙欄＋底部，回歸風險] → 保留既有 row/section 元件，僅重排容器；以 verify 腳本與手動啟動驗證。
 

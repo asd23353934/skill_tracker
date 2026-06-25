@@ -1,6 +1,6 @@
 ## 1. Domain：PotionService 與練功地圖資料
 
-- [x] 1.1 新增 src/domain/training_maps.py 實作「練功地圖預設：內建少量可編輯掉落清單」：TRAINING_MAP_DROPS 為 地圖名 → {level, items:[[道具名, item_id], …]}，15 張熱門練功地圖（Lv72–128），單價一律 0；提供 map_names / map_level / drops_for
+- [x] 1.1 新增 src/domain/training_maps.py 實作「練功地圖預設：內建少量可編輯掉落清單」：TRAINING_MAP_DROPS 為 地圖名 → {level, items:[[道具名, item_id], …]}，15 張熱門練功地圖（Lv72–128）；提供 map_names / map_level / drops_for；DEFAULT_UNIT_PRICES 對照表為少數熱門道具帶預設參考價（drops_for 帶入，未列者 0）
 - [x] 1.2 PotionService 新增 calc_items_total（優先 value 快路徑，否則 max(0,qty)×max(0,unit_price)），落實「服務層 income 納入物品取得」（對應 spec「PotionService computes item-acquisition income total」）
 - [x] 1.3 改寫 calc_summary 完成「移除經驗與時間：UI、摘要與服務 schema 全面下架」：income 納入物品取得、移除 exp_* 與任何時間/速率指標，只回傳 income/expense/net（對應 spec「PotionService computes summary」）
 - [x] 1.4 改寫 serialize/deserialize 完成「序列化相容：忽略 legacy exp、補空 item_rows」：寫 item_rows 不寫 exp（仍寫 duration_minutes）、讀時忽略 legacy exp 並補空 item_rows、數值安全轉型（對應 spec「PotionService serializes and deserializes records」）

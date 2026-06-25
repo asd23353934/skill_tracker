@@ -10,7 +10,9 @@
 - 道具圖示：maplestory.io item icon（依 item ID 抓取，打包於 images/item_icons/<id>.png）。
 - 收錄：依 Artale 社群攻略/心得整理的中高等熱門練功圖 — 神木村龍系列（含蛋龍/幼年龍）、
   神殿時間之路、搞怪CD、雪吉拉、深海峽谷II。
-- level = 該圖最高怪等。單價一律 0（賣價請使用者自行填）。
+- level = 該圖最高怪等。
+- 單價：多數道具為 0（賣價由使用者自填）；少數熱門道具於 DEFAULT_UNIT_PRICES 帶市場參考預設價，
+  選地圖時自動帶入，且同一道具跨地圖帶相同預設價（價格對齊）。
 - 已濾除：藥水/食物、箭矢/弩箭/投擲星/子彈、技能書、催化劑、裝備。
 - 排序：雜物 → 材料 → 母礦 → 卷軸（來源無掉落率，類別代理常見→稀有）。
 
@@ -38,6 +40,17 @@ TRAINING_MAP_DROPS: dict[str, dict] = {
 }
 
 
+# item_id → 預設參考賣價（Artale 市場常見價，2026-06 參考）。
+# 僅收錄少數熱門道具；未列者預設 0，由使用者自填。drops_for() 會把此價填入
+# 帶出列的 unit_price，使同一道具不論在哪張地圖都帶相同預設價（價格對齊）。
+DEFAULT_UNIT_PRICES: dict[int, int] = {
+    4000271: 210,  # 幼年龍的巢
+    4000272: 200,  # 蛋殼碎片
+    4000273: 209,  # 老舊的骨頭
+    4000274: 221,  # 斷裂的角
+}
+
+
 def map_names() -> list[str]:
     """所有地圖名，依等級（再依名稱）排序，供下拉填充。"""
     return sorted(TRAINING_MAP_DROPS,
@@ -53,11 +66,13 @@ def map_level(name: str) -> int:
 def drops_for(map_name: str) -> list[dict]:
     """回傳指定地圖的掉落道具列（item row 形狀：name / item_id / qty / unit_price）。
 
-    地圖不存在回空 list。qty / unit_price 預設 0（賣價請使用者填）；
-    item_id 供 UI 載入 images/item_icons/<id>.png 圖示（0 表無圖示）。
+    地圖不存在回空 list。qty 預設 0；unit_price 取自 DEFAULT_UNIT_PRICES
+    （未列者 0，賣價可由使用者改）；item_id 供 UI 載入
+    images/item_icons/<id>.png 圖示（0 表無圖示）。
     """
     entry = TRAINING_MAP_DROPS.get(map_name)
     if not entry:
         return []
-    return [{"name": n, "item_id": i, "qty": 0, "unit_price": 0}
+    return [{"name": n, "item_id": i, "qty": 0,
+             "unit_price": DEFAULT_UNIT_PRICES.get(i, 0)}
             for n, i in entry["items"]]

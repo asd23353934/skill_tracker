@@ -18,7 +18,7 @@ Every quantity input on the V2 potion page — potion before/after counts and it
 
 The V2 potion page SHALL provide a "物品取得" income area on the income (right) side. The area SHALL render item rows whose shape is: a per-item icon (loaded from `images/item_icons/<item_id>.png`, falling back to a generic package badge when the icon file is missing or `item_id` is 0), an editable item-name field, an editable quantity field (a `_StackQty`), an editable unit-price field, a read-only per-row income equal to `quantity * unit_price`, and a delete control. The area SHALL provide a "新增道具" control that appends a blank editable row.
 
-The area SHALL provide a training-map selector populated from `src/domain/training_maps.py` (each entry labelled with its level). Selecting a map SHALL first clear any existing item rows and then append one row per drop item of that map, prefilling the item name and item icon with the unit price defaulting to 0. The map dropdown SHALL retain the chosen map after populating. A "清除全部" control SHALL clear all item rows and reset the map dropdown back to its placeholder. Rows appended from a preset SHALL be freely editable and deletable. Item rows SHALL feed `PotionService.calc_items_total` into the income summary.
+The area SHALL provide a training-map selector populated from `src/domain/training_maps.py` (each entry labelled with its level). Selecting a map SHALL first clear any existing item rows and then append one row per drop item of that map, prefilling the item name and item icon. The unit price SHALL be prefilled from the map data's preset unit price for that drop item when one exists, and SHALL default to 0 otherwise. The same drop item appearing in multiple maps SHALL prefill the identical preset price (price alignment keyed by item id). The map dropdown SHALL retain the chosen map after populating. A "清除全部" control SHALL clear all item rows and reset the map dropdown back to its placeholder. Rows appended from a preset SHALL be freely editable and deletable. Item rows SHALL feed `PotionService.calc_items_total` into the income summary.
 
 #### Scenario: Add a manual item row
 
@@ -29,9 +29,15 @@ The area SHALL provide a training-map selector populated from `src/domain/traini
 
 - **WHEN** the user picks a map from the training-map selector
 - **THEN** any pre-existing item rows are removed first
-- **AND** one item row appears per drop item of that map, with the item name prefilled and unit price 0
+- **AND** one item row appears per drop item of that map, with the item name prefilled and the unit price set to that item's preset price (0 when the item has no preset)
 - **AND** the map dropdown still shows the chosen map
 - **AND** the user can edit or delete any appended row
+
+#### Scenario: Drop items with a preset price prefill that price
+
+- **WHEN** the user picks a map whose drops include items that have a preset unit price (e.g. 神木村 dragon-nest materials)
+- **THEN** each such item's row prefills its unit price with the preset value rather than 0
+- **AND** the same drop item selected from a different map prefills the identical preset price
 
 #### Scenario: Clear all resets the item area and the map dropdown
 
