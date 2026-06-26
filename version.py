@@ -24,6 +24,8 @@ v4.9.0 (2026-06-25)
     熱門練功圖 Lv72–128），附 maplestory.io 物品圖示（images/item_icons/，
     缺圖 fallback 套件徽章）
   - 切換地圖先清現有列再帶新圖、下拉保留所選；「清除全部」清列並重置下拉
+  - 龍系列雜物（幼年龍的巢 210 / 蛋殼碎片 200 / 老舊的骨頭 209 / 斷裂的角 221）帶
+    預設賣價，選地圖自動帶入、同一道具跨地圖同價（training_maps.DEFAULT_UNIT_PRICES）
 🐛 _StackQty 改用 _as_int 安全轉換存檔數值，載入損壞 autosave 不再崩潰（spectra-audit 修補）
 ✨ 「指令」頁「需玩家名稱」改為名稱 chip
   - 每個名稱為可點擊複製的小方塊，可增 / 刪 / 改（✎ 就地改名：Enter 確認 / Esc 或失焦取消）
