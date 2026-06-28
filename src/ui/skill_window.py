@@ -9,7 +9,9 @@ import math
 
 from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF
-from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPixmap, QImage, QBrush
+from PySide6.QtGui import (
+    QPainter, QPen, QColor, QFont, QFontMetrics, QPixmap, QImage, QBrush,
+)
 
 from src.ui.theme import AppTheme
 from src.ui.window_geometry import clamp_to_screen
@@ -30,6 +32,7 @@ class SkillWindow(QWidget):
     COLOR_CLOSE_HOVER  = V2Theme.TEXT_HI        # 關閉鈕 hover X
     COLOR_CLOSE_HOVER_BG = V2Theme.ORANGE       # 關閉鈕 hover 底色
     COLOR_FLASH        = V2Theme.YELLOW         # 提前提示閃爍
+    COLOR_HOTKEY       = V2Theme.ORANGE         # 圖片下方按鍵字幕（橘色＝可按的鍵）
     FONT_FAMILY        = V2Theme.FONT_FAMILY    # 統一字型家族
 
     # 邊框寬度（嚴禁調整 — 影響整體尺寸計算）
@@ -116,6 +119,8 @@ class SkillWindow(QWidget):
         self.count_up            = count_up
         self.title               = title
         self.idle_start          = idle_start
+        # 圖片下方要顯示的按鍵（skill / monster dict 內的 hotkey）；空字串不顯示
+        self._hotkey             = str((skill or {}).get("hotkey") or "").strip()
 
         self.window_alpha        = window_alpha if window_alpha is not None else 0.95
         self.window_size         = window_size
@@ -222,7 +227,11 @@ class SkillWindow(QWidget):
         self._img_y0     = self._text_height + self._title_height
         self._img_y1     = self._img_y0 + ws + bw * 2
         self._text_y     = self._text_height // 2    # 文字垂直中心
-        self._total_height = self._img_y1
+
+        # 圖片下方按鍵字幕區（有 hotkey 才佔高度；字級會自動縮放避免跑版）
+        self._hotkey_height = max(12, int(ws * 0.24)) if self._hotkey else 0
+        self._hotkey_y0     = self._img_y1
+        self._total_height  = self._img_y1 + self._hotkey_height
 
         # 關閉按鈕矩形（圖片區域右上角）
         close_size = 16
@@ -365,6 +374,10 @@ class SkillWindow(QWidget):
         # ===== 關閉按鈕 =====
         self._paint_close_btn(painter)
 
+        # ===== 按鍵字幕（圖片下方，字級自動縮放避免跑版）=====
+        if self._hotkey:
+            self._paint_hotkey_text(painter, cw)
+
         painter.end()
 
     def _paint_timer_text(self, painter: QPainter, cw: int):
@@ -415,6 +428,52 @@ class SkillWindow(QWidget):
         # 主文字
         painter.setPen(QColor(self.COLOR_TEXT))
         painter.drawText(title_rect, flags, self.title)
+
+    def _fit_hotkey_font(self, text: str, max_w: int, base_size: int,
+                         min_size: int = 6):
+        """挑出能塞進 max_w 的最大字級（粗體）；到最小字級仍超寬則 elide
+
+        固定窗寬下避免按鍵文字撐破版面：由 base_size 往下找第一個寬度 ≤ max_w
+        的字級，最小到 min_size；min_size 仍不夠寬就以 ellipsis 截斷。
+
+        Returns:
+            (QFont, 實際要畫的文字)
+        """
+        size = max(min_size, base_size)
+        while size > min_size:
+            font = QFont(self.FONT_FAMILY, size)
+            font.setBold(True)
+            if QFontMetrics(font).horizontalAdvance(text) <= max_w:
+                return font, text
+            size -= 1
+        font = QFont(self.FONT_FAMILY, min_size)
+        font.setBold(True)
+        elided = QFontMetrics(font).elidedText(
+            text, Qt.TextElideMode.ElideRight, max_w)
+        return font, elided
+
+    def _paint_hotkey_text(self, painter: QPainter, cw: int):
+        """繪製圖片下方的按鍵字幕（橘色 + 描邊，字級自動縮放）"""
+        pad   = 3
+        max_w = max(1, cw - pad * 2)
+        base  = max(8, int(self.window_size * 0.22))
+        font, text = self._fit_hotkey_font(self._hotkey, max_w, base)
+        painter.setFont(font)
+
+        rect  = QRect(pad, self._hotkey_y0, cw - pad * 2, self._hotkey_height)
+        flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+
+        # 描邊（提高深色 / 亮色背景上的可讀性）
+        painter.setPen(QColor(self.COLOR_OUTLINE))
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                painter.drawText(rect.translated(dx, dy), flags, text)
+
+        # 主文字
+        painter.setPen(QColor(self.COLOR_HOTKEY))
+        painter.drawText(rect, flags, text)
 
     def _paint_close_btn(self, painter: QPainter):
         """繪製關閉按鈕 — V2 風格：常態 dim X、hover 時 ORANGE 圓角填色 + 亮 X"""

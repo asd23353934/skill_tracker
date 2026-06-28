@@ -161,6 +161,14 @@
       "subcategory": "法師"
     },
     {
+      "id": "法師-魔法封印",
+      "name": "魔法封印",
+      "icon": "法師-魔法封印.png",
+      "cooldown": 18,
+      "category": "player",
+      "subcategory": "法師"
+    },
+    {
       "id": "smokescreen",
       "name": "煙幕彈",
       "icon": "smokescreen.png",
@@ -213,6 +221,14 @@
       "name": "心靈控制",
       "icon": "mindControl.png",
       "cooldown": 30,
+      "category": "player",
+      "subcategory": "海盜"
+    },
+    {
+      "id": "海盜-炸彈投擲",
+      "name": "炸彈投擲",
+      "icon": "海盜-炸彈投擲.png",
+      "cooldown": 10,
       "category": "player",
       "subcategory": "海盜"
     },
