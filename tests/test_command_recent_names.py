@@ -149,9 +149,26 @@ def test_legacy_key_untouched_after_per_command_write(tmp_path):
     cm.add_command_name("trade", "New")
     # legacy 共用清單原樣保留（唯讀 fallback，不就地改寫）
     assert cm.get_settings("command_recent_names") == ["Old1", "Old2"]
-    # map 已存在 → 未建立的 key 回空（不再回填 legacy）
-    assert cm.get_command_names("whisper") == []
+    # per-key fallback：已寫入的 trade 以 map 為準；尚未寫入的 whisper 仍繼承 legacy
     assert cm.get_command_names("trade") == ["New", "Old1", "Old2"]
+    assert cm.get_command_names("whisper") == ["Old1", "Old2"]
+
+
+def test_delete_one_command_does_not_clear_others(tmp_path):
+    # 回歸：對一個指令首次刪除名稱，不可連帶清空其他尚未操作指令的繼承名單
+    cm = _make_cm(tmp_path, recent=["X", "Y", "Z"])
+    assert cm.remove_command_name("trade", "Y") == ["X", "Z"]
+    # 其他未操作指令仍保有繼承的 legacy 名單
+    assert cm.get_command_names("whisper") == ["X", "Y", "Z"]
+
+
+def test_emptied_key_does_not_refill_from_legacy(tmp_path):
+    # 已寫入並刪到空的 key 維持空清單，不回填 legacy（仍區分「從未寫入」）
+    cm = _make_cm(tmp_path, recent=["X", "Y"])
+    cm.remove_command_name("trade", "X")
+    cm.remove_command_name("trade", "Y")
+    assert cm.get_command_names("trade") == []
+    assert cm.get_command_names("whisper") == ["X", "Y"]
 
 
 def test_no_fields_returns_empty(tmp_path):

@@ -83,8 +83,10 @@ class MapleWorldPageV2(QWidget):
         self._append_from: int | None = None
         self._more_btn: QPushButton | None = None
         self._cancel_evt: threading.Event | None = None
-        # 全部檔名列表（一次列目錄，不重複 IO）
+        # 全部檔名列表（一次列目錄，不重複 IO；依日期新→舊排序）
         self._files: dict[str, list[str]] = {"unity": [], "web": []}
+        # fname → 檔案修改時間（mtime，作為「日期」；掃描時一次取得，渲染時免再 stat）
+        self._mtimes: dict[str, float] = {}
         # fname → category；從磁碟 cache 預載，避免每次進頁重分類
         self._tags: dict[str, str] = load_classify_cache()
         # RWD：依 viewport 寬度動態算出的每行欄數，resize 後重排
@@ -280,18 +282,30 @@ class MapleWorldPageV2(QWidget):
     def _scan_dir(self):
         if not os.path.isdir(_MAPLEWORLD_DIR):
             return
+        # os.scandir：Windows 上 DirEntry.stat() 用目錄列舉already-cached 的資料，
+        # 不額外 syscall，比 listdir + 逐檔 os.stat 快很多（14k+ 圖也順）
+        self._mtimes.clear()
+        entries: list[tuple[str, float]] = []
         try:
-            files = sorted(
-                f for f in os.listdir(_MAPLEWORLD_DIR)
-                if f.lower().endswith(".png")
-            )
+            with os.scandir(_MAPLEWORLD_DIR) as it:
+                for entry in it:
+                    if not entry.name.lower().endswith(".png"):
+                        continue
+                    try:
+                        mtime = entry.stat().st_mtime
+                    except OSError:
+                        mtime = 0.0
+                    entries.append((entry.name, mtime))
         except OSError:
             return
-        for f in files:
-            if f.startswith("web_") or f.startswith("cdn_"):
-                self._files["web"].append(f)
+        # 日期最新在前；同 mtime 退而以檔名排序，保持穩定、可重現
+        entries.sort(key=lambda e: (-e[1], e[0]))
+        for fname, mtime in entries:
+            self._mtimes[fname] = mtime
+            if fname.startswith("web_") or fname.startswith("cdn_"):
+                self._files["web"].append(fname)
             else:
-                self._files["unity"].append(f)
+                self._files["unity"].append(fname)
         self._kickoff_classify()
 
     def _kickoff_classify(self):
@@ -629,7 +643,9 @@ class MapleWorldPageV2(QWidget):
             name = os.path.splitext(fname)[0]
             path = os.path.join(_MAPLEWORLD_DIR, fname)
             cat = self._tags.get(fname)
-            self._grid.addWidget(_AssetCard(name, path, accent, cat, self), r, c)
+            mtime = self._mtimes.get(fname, 0.0)
+            self._grid.addWidget(
+                _AssetCard(name, path, accent, cat, self, mtime), r, c)
         self._render_idx = end
 
         if end < len(self._render_queue):

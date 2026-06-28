@@ -198,23 +198,25 @@ class ConfigManager:
     def get_command_names(self, key: str) -> list[str]:
         """取得某指令的名稱清單（最近在前）
 
-        升級相容：當整個 command_names map 不存在時，以舊版共用 command_recent_names
-        作為每個指令的唯讀初始來源；map 一旦存在，未建立的 key 回空清單（避免已刪清單被回填）。
+        升級相容（per-key fallback）：未曾寫入過的 key（不在 command_names map 中）
+        以舊版共用 command_recent_names 作為唯讀初始來源；一旦該 key 被寫入（含被刪到空），
+        即以 map 內的值為準、不再回填舊清單。fallback 判斷以「key 是否在 map 中」為準，
+        而非「map 是否存在」——否則對任一指令的首次刪除會連帶清空其他尚未操作指令的繼承名單。
         非字串元素一律過濾。
 
         Args:
             key: 指令 key（_Command.key）
 
         Returns:
-            該指令的名稱清單；key 非法 / 缺鍵回空清單
+            該指令的名稱清單；key 非法回空清單
         """
         if not isinstance(key, str) or not key:
             return []
         m = self.get_settings('command_names')
-        if not isinstance(m, dict):
-            # 整個 map 不存在 → 舊共用清單作為每個指令的初始來源（read-only）
+        if not isinstance(m, dict) or key not in m:
+            # 此 key 從未寫入 → 舊共用清單作為該指令的初始來源（read-only）
             return self.get_recent_command_names()
-        names = m.get(key, [])
+        names = m.get(key)
         if not isinstance(names, list):
             return []
         return [n for n in names if isinstance(n, str) and n]

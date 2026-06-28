@@ -11,6 +11,7 @@
 import os
 import json
 import shutil
+import time
 from collections import OrderedDict
 
 from PySide6.QtWidgets import (
@@ -160,6 +161,16 @@ def save_classify_cache(tags: dict):
 # 預覽 / 縮圖卡片
 # ════════════════════════════════════════════════════════════
 
+def _fmt_date(mtime: float) -> str:
+    """把檔案 mtime 格式化為 YYYY-MM-DD（取不到 / 非法回空字串）"""
+    if not mtime:
+        return ""
+    try:
+        return time.strftime("%Y-%m-%d", time.localtime(mtime))
+    except (OSError, ValueError, OverflowError):
+        return ""
+
+
 class _PreviewDialog(QDialog):
     """點卡片後彈出的原尺寸預覽對話框（超過螢幕會等比縮放）"""
 
@@ -205,13 +216,14 @@ class _AssetCard(QFrame):
     THUMB_H = 108
 
     def __init__(self, name: str, image_path: "str | None", accent: str,
-                 category: "str | None" = None, page=None):
+                 category: "str | None" = None, page=None, mtime: float = 0.0):
         super().__init__()
         self._name       = name
         self._accent     = accent
         self._image_path = image_path
         self._category   = category
         self._page       = page
+        self._mtime      = mtime
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._pix: "QPixmap | None" = None
         self._w_px = self._h_px = 0
@@ -254,9 +266,12 @@ class _AssetCard(QFrame):
         )
         L.addWidget(name_lbl)
 
-        meta_text = (f"PNG  ·  {self._w_px}×{self._h_px}"
-                     if self._w_px else "PNG")
-        meta = QLabel(meta_text)
+        parts = []
+        date_str = _fmt_date(self._mtime)
+        if date_str:
+            parts.append(date_str)
+        parts.append(f"{self._w_px}×{self._h_px}" if self._w_px else "PNG")
+        meta = QLabel("  ·  ".join(parts))
         meta.setStyleSheet(
             f"color: {T.TEXT_MUTED}; font-size: 9px; background: transparent;"
         )

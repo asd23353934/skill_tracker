@@ -226,16 +226,16 @@
     },
     {
       "id": "殘暴炎魔-黑水一",
-      "name": "黑水一",
-      "icon": "000001_1753953383.webp",
+      "name": "黑水",
+      "icon": "殘暴炎魔-黑水.png",
       "cooldown": 40,
       "category": "boss",
       "subcategory": "殘暴炎魔"
     },
     {
       "id": "殘暴炎魔-黑水二",
-      "name": "黑水二",
-      "icon": "000001_1753953383.webp",
+      "name": "黑水",
+      "icon": "殘暴炎魔-黑水.png",
       "cooldown": 50,
       "category": "boss",
       "subcategory": "殘暴炎魔"
@@ -291,7 +291,7 @@
     {
       "id": "暗黑龍王-右頭狂暴",
       "name": "大電",
-      "icon": "f06986e6-c5f2-4097-88d0-182a9f6a186a.jpg",
+      "icon": "暗黑龍王-大電.png",
       "cooldown": 80,
       "category": "boss",
       "subcategory": "暗黑龍王"
@@ -323,7 +323,7 @@
     {
       "id": "暗黑龍王-鎖鏈",
       "name": "黑鎖",
-      "icon": "98074efa-a069-4142-bb19-19795db14b51.jpg",
+      "icon": "暗黑龍王-黑鎖.png",
       "cooldown": 30,
       "category": "boss",
       "subcategory": "暗黑龍王"
@@ -343,6 +343,62 @@
       "cooldown": 85,
       "category": "boss",
       "subcategory": "暗黑龍王"
+    },
+    {
+      "id": "艾畢奈亞-視線",
+      "name": "視線",
+      "icon": "艾畢奈亞-視線.png",
+      "cooldown": 60,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-花朵",
+      "name": "花朵",
+      "icon": "艾畢奈亞-花朵.png",
+      "cooldown": 50,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-毒流星",
+      "name": "毒流星",
+      "icon": "艾畢奈亞-毒流星.png",
+      "cooldown": 10,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-花瓣",
+      "name": "花瓣",
+      "icon": "艾畢奈亞-花瓣.png",
+      "cooldown": 100,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-蝴蝶翅膀",
+      "name": "蝴蝶翅膀",
+      "icon": "艾畢奈亞-蝴蝶翅膀.png",
+      "cooldown": 10,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-精煉毒藥",
+      "name": "精煉毒藥",
+      "icon": "艾畢奈亞-精煉毒藥.png",
+      "cooldown": 3,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-黑色芽孢",
+      "name": "黑色芽孢",
+      "icon": "艾畢奈亞-黑色芽孢.png",
+      "cooldown": 3,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
     }
   ],
   "items": [
