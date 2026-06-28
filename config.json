@@ -369,6 +369,14 @@
       "subcategory": "艾畢奈亞"
     },
     {
+      "id": "艾畢奈亞-召喚小怪",
+      "name": "召喚小怪",
+      "icon": "艾畢奈亞-召喚小怪.png",
+      "cooldown": 60,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
       "id": "艾畢奈亞-花瓣",
       "name": "花瓣",
       "icon": "艾畢奈亞-花瓣.png",
