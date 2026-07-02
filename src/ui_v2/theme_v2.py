@@ -159,6 +159,24 @@ class V2Theme:
         )
 
     @classmethod
+    def radio_button_qss(cls) -> str:
+        """QRadioButton 的共用 QSS（圓形 indicator，ORANGE 選中）。
+
+        對齊全域 QCheckBox 的觀感（同 border / hover / checked 配色），
+        收斂逐字重複的 radio 樣式，供對話框/頁面共用。
+        """
+        return (
+            f"QRadioButton {{ color: {cls.TEXT}; background: transparent;"
+            f" font-size: 12px; spacing: 5px; }}"
+            f"QRadioButton::indicator {{ width: 13px; height: 13px;"
+            f" border-radius: 7px; border: 1px solid {cls.BORDER_HOVER};"
+            f" background: {cls.BG_INPUT}; }}"
+            f"QRadioButton::indicator:hover {{ border-color: {cls.ORANGE}; }}"
+            f"QRadioButton::indicator:checked {{ background: {cls.ORANGE};"
+            f" border-color: {cls.ORANGE}; }}"
+        )
+
+    @classmethod
     def alpha(cls, hex_color: str, alpha_int: int) -> str:
         """產生 rgba 字串（hex_color = '#rrggbb'，alpha 0-255）"""
         h = hex_color.lstrip("#")

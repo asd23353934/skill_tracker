@@ -25,7 +25,8 @@ Cancel：完全不寫入 app state。
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QSpinBox, QCheckBox, QPushButton, QFileDialog,
+    QHBoxLayout, QVBoxLayout, QLabel, QSpinBox, QCheckBox, QPushButton,
+    QFileDialog, QRadioButton, QButtonGroup,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter
@@ -76,7 +77,7 @@ class SkillDetailDialogV2(BaseDialogV2):
         self._build_sound_options()
 
         super().__init__(parent, title=f"技能設定 — {skill_name}",
-                         width=460, height=560)
+                         width=460, height=650)
         self._build_body()
         self._build_footer()
 
@@ -84,17 +85,18 @@ class SkillDetailDialogV2(BaseDialogV2):
     # 音效選項
     # --------------------------------------------------
     def _build_sound_options(self):
-        # 靜音 不再放入下拉（改由獨立 checkbox 控制）
-        # 所有技能直接列音檔，預設 = 對應 TTS（無「使用全域設定」項）
+        # 下拉只列實體音檔；TTS（念名稱）語音檔不列出，改由「念名稱」模式代表。
         self._sound_label_map = {}
         sm = getattr(self.app, "sound_manager", None)
         if sm is None:
             return
         for filename in sm.list_sounds():
+            if filename.startswith("tts_"):
+                continue
             self._sound_label_map[sm.get_sound_label(filename)] = filename
 
     def _default_filename(self, *, alert: bool) -> str:
-        """無 override 時應顯示的預設音檔（念技能名稱的 TTS）"""
+        """「念名稱」模式對應的預設 TTS 檔（念技能名稱）"""
         name = (self._meta.get("name") or "").strip()
         if not name:
             return ""
@@ -104,23 +106,12 @@ class SkillDetailDialogV2(BaseDialogV2):
             return ""
         return sm.tts_filename(text)
 
-    def _label_for_filename(self, filename: str, *, alert: bool = False) -> str:
-        """檔名 → 下拉顯示 label
-
-        - MUTE_SENTINEL / 空字串：顯示對應的預設 TTS
-        - 指定檔名：對映 label；找不到 fallback 到預設
-        """
-        if filename in ("", MUTE_SENTINEL):
-            default_file = self._default_filename(alert=alert)
-            for label, fname in self._sound_label_map.items():
-                if fname == default_file:
-                    return label
-            return next(iter(self._sound_label_map.keys()), "")
+    def _label_for_real_file(self, filename: str) -> str:
+        """實體音檔檔名 → 下拉 label；找不到回空字串"""
         for label, fname in self._sound_label_map.items():
             if fname == filename:
                 return label
-        # override 指向已刪除檔 → fallback 到預設
-        return self._label_for_filename("", alert=alert)
+        return ""
 
     # --------------------------------------------------
     # 主內容
@@ -171,25 +162,17 @@ class SkillDetailDialogV2(BaseDialogV2):
             cur_end = app.skill_sound_overrides.get(sid, "")
             cur_alert = app.skill_alert_sound_overrides.get(sid, "")
 
-        end_row, self.sound_combo, end_play, self.end_mute_cb = self._sound_row("冷卻完成")
-        self.sound_combo.setCurrentText(self._label_for_filename(cur_end, alert=False))
-        self.end_mute_cb.setChecked(cur_end == MUTE_SENTINEL)
-        self._apply_mute_state(self.sound_combo, end_play, self.end_mute_cb.isChecked())
-        self.end_mute_cb.toggled.connect(
-            lambda checked: self._apply_mute_state(self.sound_combo, end_play, checked)
-        )
-        end_play.clicked.connect(self._preview_completion)
-        L.addLayout(end_row)
+        self._end = self._sound_section("冷卻完成")
+        self._apply_sound_state(self._end, cur_end)
+        self._end["play"].clicked.connect(self._preview_completion)
+        L.addLayout(self._end["layout"])
 
-        alert_sound_row, self.alert_sound_combo, alert_play, self.alert_mute_cb = self._sound_row("提前提示")
-        self.alert_sound_combo.setCurrentText(self._label_for_filename(cur_alert, alert=True))
-        self.alert_mute_cb.setChecked(cur_alert == MUTE_SENTINEL)
-        self._apply_mute_state(self.alert_sound_combo, alert_play, self.alert_mute_cb.isChecked())
-        self.alert_mute_cb.toggled.connect(
-            lambda checked: self._apply_mute_state(self.alert_sound_combo, alert_play, checked)
-        )
-        alert_play.clicked.connect(self._preview_alert)
-        L.addLayout(alert_sound_row)
+        L.addSpacing(T.S_XS)
+
+        self._alert = self._sound_section("提前提示")
+        self._apply_sound_state(self._alert, cur_alert)
+        self._alert["play"].clicked.connect(self._preview_alert)
+        L.addLayout(self._alert["layout"])
 
         import_btn = QPushButton("+ 匯入音效檔案")
         import_btn.setProperty("kind", "ghost")
@@ -249,47 +232,88 @@ class SkillDetailDialogV2(BaseDialogV2):
     def _caption(self, text: str) -> QLabel:
         return T.make_label(text, T.FONT_CAPTION)
 
-    def _sound_row(self, label: str) -> tuple[QHBoxLayout, ArrowComboBox, _PlayBtn, QCheckBox]:
-        h = QHBoxLayout()
-        h.setSpacing(T.S_SM)
-        lbl = T.make_label(label, T.FONT_BODY)
-        lbl.setFixedWidth(60)
-        h.addWidget(lbl)
+    def _sound_section(self, title: str) -> dict:
+        """建立一組音效設定：模式（念名稱 / 選擇音效 / 靜音）＋ 下拉 ＋ 試聽。
+
+        Returns:
+            dict：layout / group / rb_tts / rb_file / rb_mute / combo / play
+        """
+        box = QVBoxLayout()
+        box.setSpacing(T.S_XS)
+        box.addWidget(self._caption(title))
+
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(T.S_MD)
+        rb_tts  = QRadioButton("念名稱")
+        rb_file = QRadioButton("選擇音效")
+        rb_mute = QRadioButton("靜音")
+        group = QButtonGroup(self)
+        for rb in (rb_tts, rb_file, rb_mute):
+            rb.setCursor(Qt.CursorShape.PointingHandCursor)
+            rb.setStyleSheet(T.radio_button_qss())
+            group.addButton(rb)
+            mode_row.addWidget(rb)
+        mode_row.addStretch()
+        box.addLayout(mode_row)
+
+        combo_row = QHBoxLayout()
+        combo_row.setSpacing(T.S_SM)
         combo = ArrowComboBox()
         combo.addItems(list(self._sound_label_map.keys()))
         combo.setFixedHeight(T.BTN_H)
-        h.addWidget(combo, 1)
+        combo_row.addWidget(combo, 1)
         play = _PlayBtn()
-        h.addWidget(play)
-        mute = QCheckBox("靜音")
-        mute.setCursor(Qt.CursorShape.PointingHandCursor)
-        mute.setStyleSheet(
-            f"QCheckBox {{ color: {T.TEXT}; background: transparent;"
-            f" font-size: 12px; spacing: 4px; }}"
-        )
-        h.addWidget(mute)
-        return h, combo, play, mute
+        combo_row.addWidget(play)
+        box.addLayout(combo_row)
+
+        section = {"layout": box, "group": group, "rb_tts": rb_tts,
+                   "rb_file": rb_file, "rb_mute": rb_mute,
+                   "combo": combo, "play": play}
+        for rb in (rb_tts, rb_file, rb_mute):
+            rb.toggled.connect(lambda _checked, s=section: self._sync_sound_enabled(s))
+        return section
+
+    def _apply_sound_state(self, section: dict, filename: str):
+        """依 override 值設定初始模式與下拉選擇
+
+        - MUTE_SENTINEL → 靜音
+        - 指向現存實體音檔 → 選擇音效（下拉選到該檔）
+        - 空字串 / TTS / 已刪除檔 → 念名稱（預設語音）
+        """
+        if filename == MUTE_SENTINEL:
+            section["rb_mute"].setChecked(True)
+        else:
+            label = self._label_for_real_file(filename) if filename else ""
+            if label:
+                section["rb_file"].setChecked(True)
+                section["combo"].setCurrentText(label)
+            else:
+                section["rb_tts"].setChecked(True)   # 空 / TTS / 已刪除檔
+        self._sync_sound_enabled(section)
 
     @staticmethod
-    def _apply_mute_state(combo: ArrowComboBox, play: _PlayBtn, muted: bool):
-        """靜音切換：禁用下拉與試聽，視覺上半透明表達 disabled"""
-        combo.setEnabled(not muted)
-        play.setEnabled(not muted)
+    def _sync_sound_enabled(section: dict):
+        """下拉只在「選擇音效」時可用；試聽在非靜音時可用"""
+        section["combo"].setEnabled(section["rb_file"].isChecked())
+        section["play"].setEnabled(not section["rb_mute"].isChecked())
 
     # --------------------------------------------------
     # 聲音操作
     # --------------------------------------------------
-    def _effective_filename(self, combo: ArrowComboBox, fallback: str) -> str:
-        filename = self._sound_label_map.get(combo.currentText(), "")
-        if filename == MUTE_SENTINEL:
-            return ""          # 靜音：試聽不播放
+    def _preview_filename(self, section: dict, fallback: str, *, alert: bool) -> str:
+        """依模式決定試聽播放的檔名（靜音回空字串）"""
+        if section["rb_mute"].isChecked():
+            return ""
+        if section["rb_tts"].isChecked():
+            return self._default_filename(alert=alert) or fallback
+        filename = self._sound_label_map.get(section["combo"].currentText(), "")
         return filename if filename else fallback
 
     def _preview_completion(self):
         if self.app is None:
             return
-        filename = self._effective_filename(
-            self.sound_combo, getattr(self.app, "global_sound", "")
+        filename = self._preview_filename(
+            self._end, getattr(self.app, "global_sound", ""), alert=False
         )
         if filename and self.app.sound_manager:
             self.app.sound_manager.play(filename)
@@ -297,11 +321,29 @@ class SkillDetailDialogV2(BaseDialogV2):
     def _preview_alert(self):
         if self.app is None:
             return
-        filename = self._effective_filename(
-            self.alert_sound_combo, getattr(self.app, "global_alert_sound", "")
+        filename = self._preview_filename(
+            self._alert, getattr(self.app, "global_alert_sound", ""), alert=True
         )
         if filename and self.app.sound_manager:
             self.app.sound_manager.play(filename)
+
+    def _save_sound_mode(self, section: dict, overrides: dict, sid: str):
+        """依模式寫入 override dict
+
+        - 靜音 → MUTE_SENTINEL
+        - 念名稱 → 移除 override（走預設語音）
+        - 選擇音效 → 寫入下拉選中的檔名（無檔則移除）
+        """
+        if section["rb_mute"].isChecked():
+            overrides[sid] = MUTE_SENTINEL
+        elif section["rb_tts"].isChecked():
+            overrides.pop(sid, None)
+        else:
+            filename = self._sound_label_map.get(section["combo"].currentText(), "")
+            if filename:
+                overrides[sid] = filename
+            else:
+                overrides.pop(sid, None)
 
     def _import_sound(self):
         if self.app is None or self.app.sound_manager is None:
@@ -319,20 +361,13 @@ class SkillDetailDialogV2(BaseDialogV2):
             return
         self._build_sound_options()
         values = list(self._sound_label_map.keys())
-        cur_end = self.sound_combo.currentText()
-        cur_alert = self.alert_sound_combo.currentText()
-        self.sound_combo.clear(); self.sound_combo.addItems(values)
-        self.alert_sound_combo.clear(); self.alert_sound_combo.addItems(values)
         new_label = self.app.sound_manager.get_sound_label(new_name)
-        # 若使用者目前還停在「預設」/「使用全域」狀態，自動切到剛匯入的檔；否則維持原選擇
-        default_end_label = self._label_for_filename("", alert=False)
-        default_alert_label = self._label_for_filename("", alert=True)
-        self.sound_combo.setCurrentText(
-            new_label if cur_end == default_end_label else cur_end
-        )
-        self.alert_sound_combo.setCurrentText(
-            new_label if cur_alert == default_alert_label else cur_alert
-        )
+        # 剛匯入的檔切到「選擇音效」模式並選中；同時重整兩個下拉內容
+        for section in (self._end, self._alert):
+            combo = section["combo"]
+            prev = combo.currentText()
+            combo.clear(); combo.addItems(values)
+            combo.setCurrentText(prev if prev in values else new_label)
         if hasattr(self.app, "toast"):
             self.app.toast.show(f"已匯入音效：{new_name}", "success")
 
@@ -356,31 +391,9 @@ class SkillDetailDialogV2(BaseDialogV2):
         else:
             app.skill_alert_seconds_overrides[sid] = max(0, self.alert_spin.value())
 
-        # 完成音效
-        if self.end_mute_cb.isChecked():
-            app.skill_sound_overrides[sid] = MUTE_SENTINEL
-        else:
-            end_file = self._sound_label_map.get(self.sound_combo.currentText(), "")
-            # 選的就是預設 TTS → 不寫 override，讓 SkillService 走預設
-            if end_file == self._default_filename(alert=False):
-                app.skill_sound_overrides.pop(sid, None)
-            elif end_file:
-                app.skill_sound_overrides[sid] = end_file
-            else:
-                app.skill_sound_overrides.pop(sid, None)
-
-        # 提前音效
-        if self.alert_mute_cb.isChecked():
-            app.skill_alert_sound_overrides[sid] = MUTE_SENTINEL
-        else:
-            alert_file = self._sound_label_map.get(
-                self.alert_sound_combo.currentText(), "")
-            if alert_file == self._default_filename(alert=True):
-                app.skill_alert_sound_overrides.pop(sid, None)
-            elif alert_file:
-                app.skill_alert_sound_overrides[sid] = alert_file
-            else:
-                app.skill_alert_sound_overrides.pop(sid, None)
+        # 完成音效 / 提前音效：依模式寫入（靜音→sentinel；念名稱→清 override；選擇音效→檔名）
+        self._save_sound_mode(self._end, app.skill_sound_overrides, sid)
+        self._save_sound_mode(self._alert, app.skill_alert_sound_overrides, sid)
 
         # 自動套用（與 V1 一致：常駐與循環互斥）
         new_perm = self.auto_perm.isChecked()

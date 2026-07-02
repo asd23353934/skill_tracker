@@ -33,7 +33,13 @@ class SkillWindow(QWidget):
     COLOR_CLOSE_HOVER_BG = V2Theme.ORANGE       # 關閉鈕 hover 底色
     COLOR_FLASH        = V2Theme.YELLOW         # 提前提示閃爍
     COLOR_HOTKEY       = V2Theme.ORANGE         # 圖片下方按鍵字幕（橘色＝可按的鍵）
+    COLOR_HOTKEY_BG    = V2Theme.BG_ELEVATED    # 按鍵字幕底：深黑灰、不透明
     FONT_FAMILY        = V2Theme.FONT_FAMILY    # 統一字型家族
+
+    # 按鍵字幕與圖片之間的間距（像素）
+    HOTKEY_GAP = 3
+    # 按鍵字幕底圓角（小圓角＝方正而非膠囊）
+    HOTKEY_BG_RADIUS = 3
 
     # 邊框寬度（嚴禁調整 — 影響整體尺寸計算）
     BORDER_W       = 2
@@ -229,9 +235,11 @@ class SkillWindow(QWidget):
         self._text_y     = self._text_height // 2    # 文字垂直中心
 
         # 圖片下方按鍵字幕區（有 hotkey 才佔高度；字級會自動縮放避免跑版）
+        # 與圖片之間留一點間距，字幕底再鋪深黑灰不透明方正底
+        gap = self.HOTKEY_GAP if self._hotkey else 0
         self._hotkey_height = max(12, int(ws * 0.24)) if self._hotkey else 0
-        self._hotkey_y0     = self._img_y1
-        self._total_height  = self._img_y1 + self._hotkey_height
+        self._hotkey_y0     = self._img_y1 + gap
+        self._total_height  = self._hotkey_y0 + self._hotkey_height
 
         # 關閉按鈕矩形（圖片區域右上角）
         close_size = 16
@@ -459,6 +467,12 @@ class SkillWindow(QWidget):
         base  = max(8, int(self.window_size * 0.22))
         font, text = self._fit_hotkey_font(self._hotkey, max_w, base)
         painter.setFont(font)
+
+        # 淡灰不透明底（寬度與小窗一致，高度即字幕區＝比文字略高，方正小圓角）
+        bg_rect = QRectF(0, self._hotkey_y0, cw, self._hotkey_height)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(self.COLOR_HOTKEY_BG)))
+        painter.drawRoundedRect(bg_rect, self.HOTKEY_BG_RADIUS, self.HOTKEY_BG_RADIUS)
 
         rect  = QRect(pad, self._hotkey_y0, cw - pad * 2, self._hotkey_height)
         flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
