@@ -97,6 +97,14 @@
       "subcategory": "劍士"
     },
     {
+      "id": "threaten",
+      "name": "降魔咒",
+      "icon": "threaten.png",
+      "cooldown": 45,
+      "category": "player",
+      "subcategory": "劍士"
+    },
+    {
       "id": "holySymbol",
       "name": "神聖祈禱",
       "icon": "holySymbol.png",
@@ -421,6 +429,22 @@
       "name": "黑色芽孢",
       "icon": "艾畢奈亞-黑色芽孢.png",
       "cooldown": 3,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-瀑布",
+      "name": "瀑布",
+      "icon": "艾畢奈亞-瀑布.png",
+      "cooldown": 60,
+      "category": "boss",
+      "subcategory": "艾畢奈亞"
+    },
+    {
+      "id": "艾畢奈亞-月牙天沖",
+      "name": "月牙天沖",
+      "icon": "艾畢奈亞-月牙天沖.png",
+      "cooldown": 75,
       "category": "boss",
       "subcategory": "艾畢奈亞"
     }
