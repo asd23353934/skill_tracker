@@ -21,6 +21,7 @@ from PySide6.QtGui import QPainter, QColor, QPen, QPolygon
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_pixmap
 from src.ui_v2.dialogs.skill_detail_dialog_v2 import SkillDetailDialogV2
+from src.domain.services import MUTE_SENTINEL
 
 
 # ════════════════════════════════════════════════════════════
@@ -36,11 +37,24 @@ class _PaintedBtn(QPushButton):
         self.setFixedSize(w, h)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip(tooltip)
-        self.setStyleSheet(
+        self.setStyleSheet(self._default_stylesheet())
+
+    def _default_stylesheet(self) -> str:
+        """常態透明底 + hover 淺灰底；子類別需要「還原成常態外觀」時直接重用這份"""
+        return (
             f"QPushButton {{ background: transparent; border: none;"
             f" border-radius: {T.R_SM}px; }}"
             f"QPushButton:hover {{ background: {T.BG_INPUT}; }}"
         )
+
+    def _draw_centered_icon(self, icon: str, color: str, size: int, stroke: float = 1.6):
+        """在按鈕正中央畫一個 lucide icon；paintEvent 覆寫時呼叫（需先呼叫 super().paintEvent）"""
+        pix = lucide_pixmap(icon, color, size, stroke=stroke)
+        p = QPainter(self)
+        x = (self.width() - size) // 2
+        y = (self.height() - size) // 2
+        p.drawPixmap(x, y, pix)
+        p.end()
 
     def enterEvent(self, e):  # noqa: N802
         self._hover = True; self.update(); super().enterEvent(e)
@@ -58,12 +72,44 @@ class MoreBtn(_PaintedBtn):
     def paintEvent(self, e):  # noqa: N802
         super().paintEvent(e)
         col = T.ORANGE if self._hover else T.TEXT_DIM
-        pix = lucide_pixmap("settings", col, self.ICON_SIZE, stroke=1.6)
-        p = QPainter(self)
-        x = (self.width() - self.ICON_SIZE) // 2
-        y = (self.height() - self.ICON_SIZE) // 2
-        p.drawPixmap(x, y, pix)
-        p.end()
+        self._draw_centered_icon("settings", col, self.ICON_SIZE, stroke=1.6)
+
+
+class MuteToggleBtn(_PaintedBtn):
+    """單一技能的完成／提前提示音靜音切換鈕 — 圖示 + 底色雙重顯示目前狀態
+
+    未靜音：淡灰圖示、透明底。已靜音：紅色圖示 + 紅色淡底，一眼可辨。
+    """
+    ICON_SIZE = 14
+
+    def __init__(self, icon_on: str, icon_off: str, label: str):
+        super().__init__(22, 22, f"{label}：點擊靜音")
+        self._icon_on = icon_on    # 有聲音時的圖示
+        self._icon_off = icon_off  # 靜音時的圖示
+        self._label = label
+        self._muted = False
+
+    def set_muted(self, muted: bool):
+        if self._muted == muted:
+            return
+        self._muted = muted
+        self.setToolTip(f"{self._label}（已靜音，點擊取消）" if muted
+                         else f"{self._label}：點擊靜音")
+        if muted:
+            self.setStyleSheet(
+                f"QPushButton {{ background: {T.alpha(T.RED, 30)}; border: none;"
+                f" border-radius: {T.R_SM}px; }}"
+                f"QPushButton:hover {{ background: {T.alpha(T.RED, 48)}; }}"
+            )
+        else:
+            self.setStyleSheet(self._default_stylesheet())
+        self.update()
+
+    def paintEvent(self, e):  # noqa: N802
+        super().paintEvent(e)
+        icon = self._icon_off if self._muted else self._icon_on
+        col = T.RED if self._muted else (T.ORANGE if self._hover else T.TEXT_DIM)
+        self._draw_centered_icon(icon, col, self.ICON_SIZE, stroke=1.8)
 
 
 # ════════════════════════════════════════════════════════════
@@ -274,7 +320,10 @@ _REGISTRY_KEYS = (
 
 
 class SkillCardV2(QFrame):
-    HEIGHT = 84
+    # 84 + 靜音切換獨立一列（28px）：放同一列會跟常/循/提前 checkbox 搶橫向空間，
+    # 窄欄位（預設視窗寬）會被裁掉看不到，得拉寬視窗才看得到 —— 改放新一列，
+    # 高度換取寬度不足的問題，任何視窗寬度下都不會被裁切。
+    HEIGHT = 112
 
     def __init__(self, parent, app, skill_id: str, skill_meta: dict,
                  accent: str):
@@ -387,6 +436,18 @@ class SkillCardV2(QFrame):
         r3.addStretch()
         center.addLayout(r3)
 
+        # row 4：靜音切換（完成提示音 / 提前提示音）— 獨立一列，不跟 row3 搶寬度
+        r4 = QHBoxLayout()
+        r4.setSpacing(6); r4.setContentsMargins(0, 0, 0, 0)
+        self._mute_end_btn = MuteToggleBtn("volume-2", "volume-x", "完成提示音")
+        self._mute_end_btn.clicked.connect(self._on_toggle_mute_end)
+        self._mute_alert_btn = MuteToggleBtn("bell-ring", "bell-off", "提前提示音")
+        self._mute_alert_btn.clicked.connect(self._on_toggle_mute_alert)
+        r4.addWidget(self._mute_end_btn)
+        r4.addWidget(self._mute_alert_btn)
+        r4.addStretch()
+        center.addLayout(r4)
+
         outer.addLayout(center, 1)
 
         # 右：設定
@@ -474,6 +535,11 @@ class SkillCardV2(QFrame):
             self._alert_pill.setText(f"{app.alert_before_seconds}s")
             self._alert_pill.set_accent(None)
 
+        # 靜音按鈕
+        self._mute_end_btn.set_muted(app.skill_sound_overrides.get(sid) == MUTE_SENTINEL)
+        self._mute_alert_btn.set_muted(
+            app.skill_alert_sound_overrides.get(sid) == MUTE_SENTINEL)
+
     @staticmethod
     def _set_checked_silent(cb: QCheckBox, value: bool):
         cb.blockSignals(True)
@@ -521,6 +587,31 @@ class SkillCardV2(QFrame):
 
     def _on_edit_alert_seconds(self):
         self.app.edit_alert_seconds(self.skill_id)
+
+    def _on_toggle_mute_end(self):
+        self._toggle_mute(self.app.skill_sound_overrides, self._mute_end_btn)
+
+    def _on_toggle_mute_alert(self):
+        self._toggle_mute(self.app.skill_alert_sound_overrides, self._mute_alert_btn)
+
+    def _toggle_mute(self, overrides: dict, btn: "MuteToggleBtn"):
+        """切換靜音：已靜音→移除 override 回復預設；否則寫入 MUTE_SENTINEL
+
+        僅切換靜音狀態，不動既有的自訂音效檔覆寫值以外的設定；若技能原本有
+        指定音效檔，取消靜音後會回到「念名稱」預設（非還原原本選的檔），
+        細緻選擇仍需開詳細設定對話框。
+        """
+        sid = self.skill_id
+        if overrides.get(sid) == MUTE_SENTINEL:
+            overrides.pop(sid, None)
+        else:
+            overrides[sid] = MUTE_SENTINEL
+        if hasattr(self.app, "auto_save_current_profile"):
+            self.app.auto_save_current_profile()
+        wm = getattr(self.app, "window_manager", None)
+        if wm is not None and hasattr(wm, "refresh_window_sound_params"):
+            wm.refresh_window_sound_params(sid)
+        btn.set_muted(overrides.get(sid) == MUTE_SENTINEL)
 
     def _on_open_detail(self):
         # V1 show_skill_detail 會開 V1 dialog；V2 卡片直接使用 V2 dialog。

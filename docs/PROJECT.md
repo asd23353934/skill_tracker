@@ -63,13 +63,17 @@ src/ui_v2/               # V2 UI（正式 UI）
   status_bar_v2.py       # V2 底部狀態列
   components.py          # V2 共用元件（ArrowComboBox / IconBadge / StatusChip 等）
   toast_v2.py            # V2 Toast 浮層（右下角、fade-out、PlainText 防注入）
+  hotkey_hint_v2.py      # 快捷鍵設定提示小窗（技能/怪物/指令共用 HotkeyManager 捕捉時的視覺提示，
+                         #   取代 main_v2 原本只印 console 的 _NoopHeader）
   lucide.py / icons/     # Lucide SVG 圖示載入 + 來源
   pages/
     skill_page_v2.py / skill_column_v2.py / skill_card_v2.py
     monster_page_v2.py / overlay_page_v2.py /
     potion_page_v2.py / mapleworld_page_v2.py
     exp_calculator_page_v2.py # 經驗值計算器（升級時間估算；純邏輯走 exp_service）
-    command_page_v2.py        # 指令快速複製（資料驅動 _GROUPS；需名稱者以名稱 chips 增刪改）
+    command_page_v2.py        # 指令快速複製（資料驅動 _GROUPS；需名稱者以名稱 chips 增刪改；
+                               #   指令/名稱皆可綁快捷鍵，總開關可暫停觸發）
+    command_hotkey_overlay_v2.py # 指令快捷鍵小窗（按鍵→指令對照）+ 複製回饋小窗（螢幕級浮動提示）
     mapleworld_widgets_v2.py  # 資源中心卡片 / chip / 縮圖 LRU / 分類 cache
   dialogs/
     base_dialog_v2.py

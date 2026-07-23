@@ -22,6 +22,7 @@ from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.header_v2 import HeaderV2
 from src.ui_v2.sidebar_v2 import SidebarV2
 from src.ui_v2.page_registry import PAGE_REGISTRY
+from src.ui_v2.hotkey_hint_v2 import HotkeyHintV2
 
 from src.infrastructure.config_manager import ConfigManager
 from src.infrastructure.helpers import resource_path, user_data_path
@@ -47,8 +48,9 @@ class V2AppContext(AppCoreMixin):
         self.overlay_page = None
         # toast 在此暫設 console bridge；PreviewWindow.__init__ 末段會替換為 ToastManagerV2
         self.toast = _ConsoleToastBridge()
-        # V1 UI 元件 stub —— HotkeyManager / WindowManager 會呼叫
-        self.header = _NoopHeader()
+        # HotkeyManager 捕捉快捷鍵時的提示：置頂浮動小窗（見 hotkey_hint_v2）
+        self.header = HotkeyHintV2()
+        # V1 UI 元件 stub —— WindowManager 會呼叫
         self.monster_page = _NoopMonsterPage()
         # 啟動 hotkey + 還原常駐視窗，行為與 V1 等價
         self.hotkey_manager.start()
@@ -63,14 +65,6 @@ class _ConsoleToastBridge:
     """V2AppContext 建構期間的暫時 toast 槽；PreviewWindow 建好即替換為 ToastManagerV2。"""
     def show(self, msg, kind="info"):
         print(f"[toast/{kind}] {msg}")
-
-
-class _NoopHeader:
-    """V1 Header stub — HotkeyManager hint 接收後 print 到 console。"""
-    def show_hotkey_hint(self, *args, **kwargs):
-        print(f"[hotkey-hint] {args} {kwargs}")
-    def clear_hotkey_hint(self):
-        pass
 
 
 class _NoopMonsterPage:

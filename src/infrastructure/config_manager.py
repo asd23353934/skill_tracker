@@ -69,6 +69,7 @@ class ConfigManager:
         "hotkey_app_filter_enabled": False,            # 快捷鍵僅在指定視窗前景時觸發
         "hotkey_app_target_exe":     "",               # 目標程式 exe（小寫 basename）
         "hotkey_app_target_label":   "",               # 目標視窗顯示標題
+        "command_hotkeys_enabled":  True,              # 指令頁快捷鍵觸發總開關
         "current_profile":      "預設配置",
     }
 
@@ -250,6 +251,8 @@ class ConfigManager:
     def remove_command_name(self, key: str, name: str) -> list[str]:
         """從某指令的名稱清單移除一個名稱，持久化
 
+        連帶清除該名稱專屬的快捷鍵（避免孤兒綁定佔用按鍵卻永遠觸發不到）。
+
         Returns:
             更新後清單
         """
@@ -257,13 +260,16 @@ class ConfigManager:
             return []
         new_list = [n for n in self.get_command_names(key) if n != name]
         self._set_command_names(key, new_list)
+        if self.get_command_name_hotkey(key, name):
+            self.set_command_name_hotkey(key, name, "")
         return new_list
 
     def rename_command_name(self, key: str, old: str, new: str) -> list[str]:
         """就地把某指令清單中的 old 改名為 new（去空白），持久化
 
         new 為空白 → 視為刪除 old；new 與既有重複 → 去重（保留最前出現）；
-        old 不在清單時，new 非空則當作新增。
+        old 不在清單時，new 非空則當作新增。old 的專屬快捷鍵會跟著遷移到 new
+        （new 本身已有快捷鍵則保留 new 的，old 的直接捨棄，避免覆蓋使用者剛設定的）。
 
         Returns:
             更新後清單
@@ -280,7 +286,158 @@ class ConfigManager:
         replaced = [new if n == old else n for n in current]
         new_list = [n for n in dict.fromkeys(replaced) if n][:_MAX_RECENT_COMMAND_NAMES]
         self._set_command_names(key, new_list)
+        old_hotkey = self.get_command_name_hotkey(key, old)
+        if old_hotkey and old != new:
+            if not self.get_command_name_hotkey(key, new):
+                self.set_command_name_hotkey(key, new, old_hotkey)
+            self.set_command_name_hotkey(key, old, "")
         return new_list
+
+    # ── 指令頁快捷鍵（獨立命名空間，僅指令彼此之間去重，不與技能／怪物比對衝突）──
+    # 同一按鍵若同時綁在技能／怪物上，HotkeyManager 依「技能→怪物→指令」順序比對，
+    # 該按鍵會被技能／怪物攔截，指令快捷鍵不會觸發。
+    #
+    # 兩層儲存：
+    #   settings.command_hotkeys      = {cmd_key: KEY}             指令層級（無名稱／MRU 觸發）
+    #   settings.command_name_hotkeys = {cmd_key: {name: KEY}}     特定名稱專屬（needs_name 指令）
+    # 兩層共用同一份按鍵去重池：設定其中一筆時，會清掉另一層裡值相同的按鍵，
+    # 確保同一實體按鍵在指令命名空間裡只對應唯一一個觸發目標。
+
+    def get_command_hotkeys_enabled(self) -> bool:
+        """指令快捷鍵總開關（settings.command_hotkeys_enabled）；預設啟用
+
+        關閉時只影響「觸發」（HotkeyManager 按鍵比對階段直接跳過指令命名空間），
+        不影響設定／清除快捷鍵本身 —— 關閉狀態下一樣能綁鍵，重新啟用立刻生效。
+        """
+        return bool(self.get_settings('command_hotkeys_enabled', True))
+
+    def set_command_hotkeys_enabled(self, enabled: bool) -> None:
+        self.set_settings('command_hotkeys_enabled', bool(enabled))
+        self.save()
+
+    def get_command_hotkeys(self) -> dict[str, str]:
+        """取得指令層級快捷鍵 map（{cmd_key: KEY}）；過濾非法型別"""
+        m = self.get_settings('command_hotkeys')
+        if not isinstance(m, dict):
+            return {}
+        return {k: v for k, v in m.items()
+                if isinstance(k, str) and isinstance(v, str) and v}
+
+    def get_command_hotkey(self, key: str) -> str:
+        """取得某指令目前綁定的指令層級按鍵，未綁定回空字串"""
+        return self.get_command_hotkeys().get(key, "")
+
+    def get_all_command_name_hotkeys(self) -> dict[str, dict[str, str]]:
+        """取得所有指令的「特定名稱」快捷鍵 map（{cmd_key: {name: KEY}}）；過濾非法型別與空 map"""
+        m = self.get_settings('command_name_hotkeys')
+        if not isinstance(m, dict):
+            return {}
+        result: dict[str, dict[str, str]] = {}
+        for cmd_key, names_map in m.items():
+            if not isinstance(cmd_key, str) or not isinstance(names_map, dict):
+                continue
+            clean = {n: v for n, v in names_map.items()
+                     if isinstance(n, str) and isinstance(v, str) and v}
+            if clean:
+                result[cmd_key] = clean
+        return result
+
+    def get_command_name_hotkeys(self, cmd_key: str) -> dict[str, str]:
+        """取得某指令下所有「特定名稱」快捷鍵（{name: KEY}）"""
+        return self.get_all_command_name_hotkeys().get(cmd_key, {})
+
+    def get_command_name_hotkey(self, cmd_key: str, name: str) -> str:
+        """取得某指令下特定名稱目前綁定的按鍵，未綁定回空字串"""
+        return self.get_command_name_hotkeys(cmd_key).get(name, "")
+
+    def _iter_command_bindings(self):
+        """走訪指令命名空間目前所有綁定，yield (cmd_key, name, hotkey)；name="" 為指令層級
+
+        供 get_command_hotkey_target 等只需要「找」的呼叫端共用同一份走訪邏輯。
+        """
+        for cmd_key, hk in self.get_command_hotkeys().items():
+            yield cmd_key, "", hk
+        for cmd_key, names_map in self.get_all_command_name_hotkeys().items():
+            for name, hk in names_map.items():
+                yield cmd_key, name, hk
+
+    def get_command_hotkey_target(self, key_name: str) -> tuple[str, str] | None:
+        """按鍵名稱反查指令命名空間目前綁定的觸發目標。
+
+        Returns:
+            (cmd_key, name)：name 為空字串表示指令層級（MRU 觸發）；
+            非空字串表示綁在該指令下的特定名稱。查無回 None。
+        """
+        key_name = (key_name or "").upper()
+        if not key_name:
+            return None
+        for cmd_key, name, hk in self._iter_command_bindings():
+            if hk == key_name:
+                return cmd_key, name
+        return None
+
+    def _clear_command_hotkey(self, hotkey: str) -> tuple[dict, dict]:
+        """從指令層級與所有「特定名稱」層級移除等於 hotkey 的綁定（尚未寫入）
+
+        Returns:
+            (cmd_map, name_map_all)：清過重複值、可直接疊加新綁定後寫入的兩份 map
+        """
+        cmd_map = {k: v for k, v in self.get_command_hotkeys().items() if v != hotkey}
+        name_map_all: dict[str, dict[str, str]] = {}
+        for cmd_key, names_map in self.get_all_command_name_hotkeys().items():
+            cleaned = {n: v for n, v in names_map.items() if v != hotkey}
+            if cleaned:
+                name_map_all[cmd_key] = cleaned
+        return cmd_map, name_map_all
+
+    def _save_command_hotkey_maps(self, cmd_map: dict, name_map_all: dict) -> None:
+        self.set_settings('command_hotkeys', cmd_map)
+        self.set_settings('command_name_hotkeys', name_map_all)
+        self.save()
+
+    def set_command_hotkey(self, key: str, hotkey: str) -> None:
+        """設定（或以空字串清除）某指令的指令層級快捷鍵，持久化。
+
+        指令命名空間內部去重（含「特定名稱」層級）：新按鍵原本綁在其他指令或
+        其他名稱上會自動清除。
+        """
+        if not isinstance(key, str) or not key:
+            return
+        hk = (hotkey or "").upper()
+        if hk:
+            cmd_map, name_map_all = self._clear_command_hotkey(hk)
+            cmd_map[key] = hk
+        else:
+            cmd_map = dict(self.get_command_hotkeys())
+            cmd_map.pop(key, None)
+            name_map_all = self.get_all_command_name_hotkeys()
+        self._save_command_hotkey_maps(cmd_map, name_map_all)
+
+    def set_command_name_hotkey(self, cmd_key: str, name: str, hotkey: str) -> None:
+        """設定（或以空字串清除）某指令下特定名稱的快捷鍵，持久化。
+
+        指令命名空間內部去重（含指令層級）：新按鍵原本綁在其他指令／名稱上會自動清除。
+        """
+        if not isinstance(cmd_key, str) or not cmd_key:
+            return
+        if not isinstance(name, str) or not name:
+            return
+        hk = (hotkey or "").upper()
+        if hk:
+            cmd_map, name_map_all = self._clear_command_hotkey(hk)
+            names_map = dict(name_map_all.get(cmd_key, {}))
+            names_map[name] = hk
+            name_map_all[cmd_key] = names_map
+        else:
+            cmd_map = dict(self.get_command_hotkeys())
+            name_map_all = self.get_all_command_name_hotkeys()
+            names_map = dict(name_map_all.get(cmd_key, {}))
+            names_map.pop(name, None)
+            if names_map:
+                name_map_all[cmd_key] = names_map
+            else:
+                name_map_all.pop(cmd_key, None)
+        self._save_command_hotkey_maps(cmd_map, name_map_all)
 
     # ==================== 內部工具 ====================
 

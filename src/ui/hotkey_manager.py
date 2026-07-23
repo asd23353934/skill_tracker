@@ -111,6 +111,10 @@ class HotkeyManager:
           1. 捕捉模式：waiting_for 非 None 時路由到 _capture_hotkey
           2. 技能命名空間：skill_manager.get_skill_by_hotkey() 先查
           3. 怪物命名空間：app.get_monster_by_hotkey() 後查
+          4. 指令命名空間：config_manager.get_command_hotkey_target() 最後查
+             （與技能／怪物共用實體按鍵時，技能／怪物優先攔截，指令不會觸發；
+             指令頁「啟用快捷鍵觸發」總開關關閉時，這一步整個跳過，只影響觸發，
+             不影響設定／清除快捷鍵本身）
         所有 UI 操作均透過 app.after(0, ...) 排回 Qt 主執行緒。
         """
         if self.waiting_for is not None:
@@ -141,12 +145,25 @@ class HotkeyManager:
                 self.app.after(
                     0, lambda mid=monster_id: self.app.window_manager.trigger_monster(mid)
                 )
+                return
+
+            # 最後檢查指令快捷鍵（快速複製；無 command_page、總開關關閉或未綁定則略過）
+            cmd_page = getattr(self.app, "command_page", None)
+            if cmd_page is not None and self.app.config_manager.get_command_hotkeys_enabled():
+                target = self.app.config_manager.get_command_hotkey_target(key_name)
+                if target:
+                    cmd_key, name = target
+                    if self._app_filter_blocks():
+                        return
+                    self.app.after(
+                        0, lambda ck=cmd_key, nm=name: cmd_page.trigger_hotkey(ck, nm)
+                    )
         except Exception as e:
             import sys
             print(f"[HotkeyManager] _on_hotkey error: {e}", file=sys.stderr)
 
     def _capture_hotkey(self, key):
-        """捕捉按鍵並設定（支援技能與怪物）"""
+        """捕捉按鍵並設定（支援技能／怪物／指令）"""
         if self.waiting_for is None:
             return
 
@@ -157,9 +174,18 @@ class HotkeyManager:
             waiting_id = self.waiting_for
             waiting_name = self.waiting_name
 
-            # 判斷是技能還是怪物
+            # 判斷是技能／怪物／指令（指令為獨立命名空間，僅在非技能非怪物時才判定）
+            # 指令的 waiting_id 由 CommandPageV2.parse_hotkey_target 解析：
+            # 純 cmd_key → 指令層級（MRU 觸發）；"cmd_key::name" → 該指令下特定名稱專屬
             is_monster = self.app.get_monster(waiting_id) is not None
             is_skill = self.app.skill_manager.get_skill(waiting_id) is not None
+            cmd_page = getattr(self.app, "command_page", None)
+            command_target = (
+                cmd_page.parse_hotkey_target(waiting_id)
+                if (not is_monster and not is_skill and cmd_page is not None)
+                else None
+            )
+            is_command = command_target is not None
 
             # 清除相同快捷鍵（技能與怪物互相獨立，不互相衝突）
             if is_skill:
@@ -210,6 +236,16 @@ class HotkeyManager:
                         self.app.auto_save_current_profile(),
                     ),
                 )
+
+            elif is_command:
+                # 設定指令快捷鍵（獨立命名空間，去重交給 config_manager 處理；
+                # 指令層級與特定名稱層級共用同一份去重池，見 ConfigManager 註解）
+                cmd, name = command_target
+                if name:
+                    self.app.config_manager.set_command_name_hotkey(cmd.key, name, key_str)
+                else:
+                    self.app.config_manager.set_command_hotkey(cmd.key, key_str)
+                self.app.after(0, cmd_page.refresh_hotkey_badges)
 
             self.app.after(
                 0,
