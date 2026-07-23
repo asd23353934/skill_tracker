@@ -45,6 +45,12 @@
 頁首「顯示快捷鍵小窗」勾選框可開關 `CommandHotkeyOverlayV2`：透明浮動小窗列出目前所有
 「按鍵 → 指令」對照，供切回遊戲時參考；小窗自己的 X 關閉會回呼同步取消勾選。
 
+提示列右側「重置名稱」／「全部重置按鍵」為危險操作，點擊一律先跳 QMessageBox 確認，
+按「是」才真的執行：
+    重置名稱     → 清空所有指令記住的名稱（command_names），連帶清除其專屬快捷鍵
+    全部重置按鍵 → 清空指令命名空間所有快捷鍵（指令層級 + 每個名稱的專屬快捷鍵）
+兩者互不影響對方（重置名稱不動指令層級快捷鍵；全部重置按鍵不動已記住的名稱清單）。
+
 本頁面建構時會自我註冊到 `app.command_page`，供 HotkeyManager 捕捉完成後查表 / 觸發回呼。
 
 建構參數：
@@ -59,7 +65,7 @@ from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
-    QScrollArea, QApplication, QLineEdit, QPushButton, QCheckBox,
+    QScrollArea, QApplication, QLineEdit, QPushButton, QCheckBox, QMessageBox,
 )
 from PySide6.QtCore import Qt, QSize
 
@@ -464,10 +470,20 @@ class CommandPageV2(QWidget):
         title_row.addWidget(self._overlay_cb)
         root.addLayout(title_row)
 
+        hint_row = QHBoxLayout()
+        hint_row.setSpacing(T.S_SM)
         hint = QLabel("點「複製」或名稱小塊把指令複製到剪貼簿，切回遊戲貼上即可送出。")
         hint.setTextFormat(Qt.TextFormat.PlainText)
         hint.setStyleSheet(f"color: {T.TEXT_DIM}; background: transparent; font-size: 12px;")
-        root.addWidget(hint)
+        hint_row.addWidget(hint)
+        hint_row.addStretch()
+        hint_row.addWidget(self._make_danger_btn("重置名稱", "確定要清除所有指令記住的名稱嗎？\n"
+                                                  "（含每個名稱的專屬快捷鍵，此動作無法復原）",
+                                                  self._on_reset_all_names))
+        hint_row.addWidget(self._make_danger_btn("全部重置按鍵", "確定要清除所有指令快捷鍵嗎？\n"
+                                                  "（指令層級與每個名稱的專屬快捷鍵都會清空，此動作無法復原）",
+                                                  self._on_reset_all_hotkeys))
+        root.addLayout(hint_row)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -670,6 +686,54 @@ class CommandPageV2(QWidget):
             cm.set_command_hotkeys_enabled(checked)
         except Exception:
             logger.exception("設定指令快捷鍵總開關失敗")
+
+    # ── 全部重置（危險操作；點擊一律先跳確認對話框，按「是」才真的執行）──
+    def _make_danger_btn(self, text: str, confirm_message: str, on_confirmed) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFixedHeight(26)
+        btn.setStyleSheet(
+            f"QPushButton {{ color: {T.RED}; background: transparent;"
+            f" border: 1px solid {T.alpha(T.RED, 110)};"
+            f" border-radius: {T.R_SM}px; padding: 0 12px;"
+            f" font-size: 11px; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: {T.alpha(T.RED, 38)}; }}"
+        )
+
+        def _handler():
+            reply = QMessageBox.question(
+                self, "確認重置", confirm_message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                on_confirmed()
+
+        btn.clicked.connect(_handler)
+        return btn
+
+    def _on_reset_all_hotkeys(self):
+        """清空指令命名空間所有快捷鍵（指令層級 + 每個名稱的專屬快捷鍵）"""
+        cm = self._cm()
+        if cm is None:
+            return
+        try:
+            cm.reset_all_command_hotkeys()
+        except Exception:
+            logger.exception("重置所有指令快捷鍵失敗")
+        self.refresh_hotkey_badges()
+
+    def _on_reset_all_names(self):
+        """清空所有指令記住的名稱（連帶清除其專屬快捷鍵，避免孤兒綁定）"""
+        cm = self._cm()
+        if cm is None:
+            return
+        try:
+            cm.reset_all_command_names()
+        except Exception:
+            logger.exception("重置所有指令名稱失敗")
+        for card in self._needs_name_cards.values():
+            card.reload_chips()
+        self._refresh_hotkey_overlay()
 
     # ── 快捷鍵小窗（透明浮動小窗，列出已綁定的按鍵→指令）──
     def _collect_hotkey_bindings(self) -> list[tuple[str, str]]:

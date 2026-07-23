@@ -439,6 +439,19 @@ class ConfigManager:
                 name_map_all.pop(cmd_key, None)
         self._save_command_hotkey_maps(cmd_map, name_map_all)
 
+    def reset_all_command_hotkeys(self) -> None:
+        """清空指令命名空間所有快捷鍵（指令層級 + 每個名稱的專屬快捷鍵），持久化"""
+        self._save_command_hotkey_maps({}, {})
+
+    def reset_all_command_names(self) -> None:
+        """清空所有指令記住的名稱清單，連帶清除其專屬快捷鍵（避免孤兒綁定），持久化
+
+        不影響指令層級快捷鍵（不綁定特定名稱，MRU 觸發用，跟名稱清單無關）。
+        """
+        self.set_settings('command_names', {})
+        self.set_settings('command_name_hotkeys', {})
+        self.save()
+
     # ==================== 內部工具 ====================
 
     @staticmethod
