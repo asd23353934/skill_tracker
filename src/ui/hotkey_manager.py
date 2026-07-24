@@ -28,6 +28,8 @@ _NUMPAD_VK_LABELS = {
     106: "NUM*", 107: "NUM+", 109: "NUM-", 110: "NUM.", 111: "NUM/",
 }
 
+_APP_FILTER_BLOCKED_MSG = "目前視窗不是指定的目標視窗，快捷鍵未觸發"
+
 
 def _key_to_name(key) -> str:
     """將 pynput Key / KeyCode 轉為穩定的名稱字串。
@@ -104,17 +106,25 @@ class HotkeyManager:
         except Exception:
             return False  # 查詢失敗時不阻擋，避免快捷鍵整個失效
 
+    def _notify_app_filter_blocked(self):
+        """快捷鍵限定攔截觸發時提示使用者（需排回主執行緒才能碰 Qt toast）"""
+        self.app.after(0, lambda: self.app.toast.show(_APP_FILTER_BLOCKED_MSG, "warning"))
+
     def _on_key_press(self, key):
         """按鍵處理（pynput daemon thread 回呼）
 
-        觸發優先順序：
+        觸發邏輯（技能／怪物／指令三個命名空間不互斥，同一按鍵命中多個
+        命名空間時全部一起觸發）：
           1. 捕捉模式：waiting_for 非 None 時路由到 _capture_hotkey
-          2. 技能命名空間：skill_manager.get_skill_by_hotkey() 先查
-          3. 怪物命名空間：app.get_monster_by_hotkey() 後查
-          4. 指令命名空間：config_manager.get_command_hotkey_target() 最後查
-             （與技能／怪物共用實體按鍵時，技能／怪物優先攔截，指令不會觸發；
-             指令頁「啟用快捷鍵觸發」總開關關閉時，這一步整個跳過，只影響觸發，
-             不影響設定／清除快捷鍵本身）
+          2. 分別查出三個命名空間是否命中這次按鍵：
+             skill_manager.get_skill_by_hotkey() / app.get_monster_by_hotkey() /
+             config_manager.get_command_hotkey_target()（僅在有 command_page
+             且指令頁「啟用快捷鍵觸發」總開關開啟時才查詢）
+          3. 三者皆未命中則直接返回，平常按鍵不付出查前景的成本
+          4. 只要至少一個命中，才呼叫一次 _app_filter_blocks()；若被攔截，
+             只提示一次（_notify_app_filter_blocked）後返回，不會對每個
+             命中的命名空間各自重複檢查、各自跳一次 toast
+          5. 未被攔截時，對每個命中的命名空間各自分派觸發，彼此互不影響
         所有 UI 操作均透過 app.after(0, ...) 排回 Qt 主執行緒。
         """
         if self.waiting_for is not None:
@@ -127,37 +137,34 @@ class HotkeyManager:
         try:
             key_name = _key_to_name(key)
 
-            # 先檢查技能快捷鍵
             skill_id = self.app.skill_manager.get_skill_by_hotkey(key_name)
+            monster_id = self.app.get_monster_by_hotkey(key_name)
+
+            cmd_page = getattr(self.app, "command_page", None)
+            cmd_target = None
+            if cmd_page is not None and self.app.config_manager.get_command_hotkeys_enabled():
+                cmd_target = self.app.config_manager.get_command_hotkey_target(key_name)
+
+            if not (skill_id or monster_id or cmd_target):
+                return
+
+            if self._app_filter_blocks():
+                self._notify_app_filter_blocked()
+                return
+
             if skill_id:
-                if self._app_filter_blocks():
-                    return
                 self.app.after(
                     0, lambda sid=skill_id: self.app.window_manager.trigger_skill(sid)
                 )
-                return
-
-            # 再檢查怪物快捷鍵
-            monster_id = self.app.get_monster_by_hotkey(key_name)
             if monster_id:
-                if self._app_filter_blocks():
-                    return
                 self.app.after(
                     0, lambda mid=monster_id: self.app.window_manager.trigger_monster(mid)
                 )
-                return
-
-            # 最後檢查指令快捷鍵（快速複製；無 command_page、總開關關閉或未綁定則略過）
-            cmd_page = getattr(self.app, "command_page", None)
-            if cmd_page is not None and self.app.config_manager.get_command_hotkeys_enabled():
-                target = self.app.config_manager.get_command_hotkey_target(key_name)
-                if target:
-                    cmd_key, name = target
-                    if self._app_filter_blocks():
-                        return
-                    self.app.after(
-                        0, lambda ck=cmd_key, nm=name: cmd_page.trigger_hotkey(ck, nm)
-                    )
+            if cmd_target:
+                cmd_key, name = cmd_target
+                self.app.after(
+                    0, lambda ck=cmd_key, nm=name: cmd_page.trigger_hotkey(ck, nm)
+                )
         except Exception as e:
             import sys
             print(f"[HotkeyManager] _on_hotkey error: {e}", file=sys.stderr)

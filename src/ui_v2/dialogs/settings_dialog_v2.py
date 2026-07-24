@@ -48,10 +48,10 @@ from src.ui_v2.components import make_primary_button
 _NO_SOUND_LABEL = "— 無 —"
 
 
-def _row(label_text: str, widget: QWidget) -> QWidget:
-    """label 在左、widget 在右的水平列。"""
-    wrap = QWidget()
-    h = QHBoxLayout(wrap)
+def _row(label_text: str, widget: QWidget, hint: str = None) -> QWidget:
+    """label 在左、widget 在右的水平列；hint 非 None 時下方加一行低調輔助說明。"""
+    row = QWidget()
+    h = QHBoxLayout(row)
     h.setContentsMargins(0, 0, 0, 0)
     h.setSpacing(T.S_MD)
     lbl = QLabel(label_text)
@@ -61,6 +61,21 @@ def _row(label_text: str, widget: QWidget) -> QWidget:
     )
     h.addWidget(lbl)
     h.addWidget(widget, 1)
+    if hint is None:
+        return row
+
+    hint_lbl = QLabel(hint)
+    hint_lbl.setTextFormat(Qt.TextFormat.PlainText)
+    hint_lbl.setWordWrap(True)
+    hint_lbl.setStyleSheet(
+        f"color: {T.TEXT_MUTED}; background: transparent; font-size: 11px;")
+
+    wrap = QWidget()
+    v = QVBoxLayout(wrap)
+    v.setContentsMargins(0, 0, 0, 0)
+    v.setSpacing(4)
+    v.addWidget(row)
+    v.addWidget(hint_lbl)
     return wrap
 
 
@@ -243,7 +258,9 @@ class SettingsDialogV2(BaseDialogV2):
         hotkey_h.addWidget(self.hotkey_filter_cb)
         hotkey_h.addWidget(self.hotkey_target_lbl, 1)
         hotkey_h.addWidget(pick_btn)
-        body.addWidget(_row("快捷鍵限定", hotkey_wrap))
+
+        body.addWidget(_row("快捷鍵限定", hotkey_wrap,
+                             hint="啟用後，快捷鍵只在下方指定的視窗為前景視窗時才會觸發，避免切到瀏覽器等其他視窗時誤觸"))
 
         body.addStretch()
 

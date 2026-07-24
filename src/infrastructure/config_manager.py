@@ -294,8 +294,8 @@ class ConfigManager:
         return new_list
 
     # ── 指令頁快捷鍵（獨立命名空間，僅指令彼此之間去重，不與技能／怪物比對衝突）──
-    # 同一按鍵若同時綁在技能／怪物上，HotkeyManager 依「技能→怪物→指令」順序比對，
-    # 該按鍵會被技能／怪物攔截，指令快捷鍵不會觸發。
+    # 同一按鍵若同時綁在技能／怪物上，HotkeyManager 觸發時三個命名空間不互斥，
+    # 該按鍵會讓技能／怪物／指令全部一起觸發。
     #
     # 兩層儲存：
     #   settings.command_hotkeys      = {cmd_key: KEY}             指令層級（無名稱／MRU 觸發）

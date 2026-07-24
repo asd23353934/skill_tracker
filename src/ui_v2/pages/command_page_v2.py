@@ -29,8 +29,8 @@
 連帶清除其快捷鍵，避免孤兒綁定。
 
 指令命名空間與技能／怪物是各自獨立的 —— 同一按鍵可分別綁在技能／怪物／指令上，
-不互相清除；但實際觸發時 HotkeyManager 依「技能→怪物→指令」順序比對，若按鍵同時被
-技能或怪物占用，指令不會觸發。
+不互相清除；實際觸發時 HotkeyManager 也不互斥：同一按鍵若同時命中技能／怪物／
+指令任意組合，三者會一起觸發，不會因為某個命名空間先命中就略過其他命名空間。
 
 按下快捷鍵＝觸發一次「複製」：no-name 指令複製固定文字；needs_name 指令層級快捷鍵
 複製最近使用的名稱（無存過名稱則複製「關鍵字＋尾空格」）；名稱層級快捷鍵固定複製
@@ -71,7 +71,7 @@ from PySide6.QtCore import Qt, QSize
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_icon
-from src.ui_v2.components import make_primary_button
+from src.ui_v2.components import make_primary_button, IconBadge, StatusChip
 from src.ui_v2.flow_layout import FlowLayout
 from src.ui_v2.pages.skill_card_v2 import InputChip
 from src.ui_v2.pages.command_hotkey_overlay_v2 import (
@@ -89,40 +89,52 @@ class _Command:
     template: str       # 複製用模板；需參數者含 {name} 佔位
     description: str    # 用途說明
     needs_name: bool    # 是否需要玩家名稱參數
+    name_hint: str = ""  # 名稱輸入框 placeholder；空字串 fallback 到 _NAME_PLACEHOLDER_GENERIC
+
+
+@dataclass(frozen=True)
+class _Group:
+    """單一分組定義：標題 + 分組標頭 icon/色彩 + 指令清單"""
+    title: str
+    glyph: str    # lucide icon 檔名（src/ui_v2/icons/{glyph}.svg）
+    accent: str   # V2Theme 色票
+    commands: list[_Command]
 
 
 # ── 指令目錄（按使用情境分組；分組順序＝頁面呈現順序，常用置頂）──
-# 增刪指令或調整分組／順序，只動這份 _GROUPS。
-_GROUPS: list[tuple[str, list[_Command]]] = [
-    ("常用", [
+# 增刪指令或調整分組／順序，只動這份 _GROUPS；分組標頭 icon/色彩與標題同放一處，
+# 不需要另外維護一份用標題字串對照的表。
+_GROUPS: list[_Group] = [
+    _Group("常用", "star", T.ORANGE, [
         _Command("party_invite", "/邀請組隊", "/邀請組隊 {name}", "邀請指定玩家加入隊伍（限隊長使用）", True),
+        _Command("party_kick", "/踢出隊伍", "/踢出隊伍 {name}", "將指定玩家從隊伍中踢出（限隊長使用）", True),
         _Command("marker", "/箭頭", "/箭頭", "頭頂顯示箭頭標記，Boss 戰找自己很好用", False),
         _Command("hidefx", "/關閉", "/關閉", "關閉其他玩家的攻擊特效與音效，畫面清爽", False),
         _Command("reply", "/回覆", "/回覆", "秒回最後一封密語（也可打 /r）", False),
         _Command("firework", "/放煙火", "/放煙火", "放煙火慶祝（強化成功必備）", False),
     ]),
-    ("交易 / 私訊", [
+    _Group("交易 / 私訊", "coins", T.BLUE, [
         _Command("trade", "/交換", "/交換 {name}", "遠距交易指定玩家（免擠自由市場）", True),
-        _Command("whisper", "/密語", "/密語 {name}", "私訊指定玩家（名稱需含 #代碼，如 Apple#aSqOX）", True),
+        _Command("whisper", "/密語", "/密語 {name}", "私訊指定玩家（名稱需含 #代碼，如 Apple#aSqOX）", True,
+                 name_hint="輸入玩家名稱（含 #代碼）後按複製"),
         _Command("find", "/搜尋", "/搜尋 {name}", "尋找同頻道的指定玩家", True),
     ]),
-    ("聊天頻道", [
+    _Group("聊天頻道", "globe", T.CYAN, [
         _Command("all_chat", "/全體", "/全體", "切換為全體聊天（向頻道內所有玩家發送）", False),
         _Command("area_chat", "/地區", "/地區", "切換為地區聊天（向同張地圖內的玩家發送）", False),
         _Command("party_chat", "/隊伍", "/隊伍", "切換為隊伍聊天（發送給隊員）", False),
         _Command("guild_chat", "/公會", "/公會", "切換為公會聊天（發送給公會成員）", False),
     ]),
-    ("隊伍 / 公會", [
+    _Group("隊伍 / 公會", "user", T.GREEN, [
         _Command("party_create", "/建立隊伍", "/建立隊伍", "建立一個隊伍", False),
         _Command("party_leave", "/退出隊伍", "/退出隊伍", "離開目前的隊伍", False),
-        _Command("party_kick", "/踢出隊伍", "/踢出隊伍 {name}", "將指定玩家從隊伍中踢出（限隊長使用）", True),
         _Command("guild_invite", "/邀請進入公會", "/邀請進入公會 {name}", "邀請指定玩家加入公會（限公會長可用）", True),
     ]),
-    ("封鎖", [
+    _Group("封鎖", "eye-off", T.RED, [
         _Command("block", "/封鎖", "/封鎖 {name}", "封鎖指定玩家的聊天內容", True),
         _Command("unblock", "/解除封鎖", "/解除封鎖 {name}", "解除對指定玩家的聊天封鎖", True),
     ]),
-    ("其他", [
+    _Group("其他", "settings", T.PURPLE, [
         _Command("location", "/位置", "/位置", "確認目前地圖的位置情況", False),
         _Command("leave_raid", "/離開突擊", "/離開突擊", "離開突擊地圖（限突擊中使用）", False),
         _Command("leave_practice_raid", "/離開練習突擊", "/離開練習突擊", "離開突擊練習地圖（僅限突擊練習中使用）", False),
@@ -133,9 +145,9 @@ _GROUPS: list[tuple[str, list[_Command]]] = [
 ]
 
 # 攤平為單一指令清單（共用；保留向後相容）
-_COMMANDS: list[_Command] = [cmd for _, cmds in _GROUPS for cmd in cmds]
+_COMMANDS: list[_Command] = [cmd for g in _GROUPS for cmd in g.commands]
 
-_NAME_PLACEHOLDER = "輸入玩家名稱（含 #代碼）後按複製"
+_NAME_PLACEHOLDER_GENERIC = "輸入玩家名稱後按複製"
 
 
 # ════════════════════════════════════════════════════════════
@@ -352,17 +364,17 @@ class _NeedsNameCard(QFrame):
         add_row = QHBoxLayout()
         add_row.setSpacing(T.S_SM)
         self._input = QLineEdit()
-        self._input.setFixedHeight(26)
+        self._input.setFixedHeight(32)
         self._input.setStyleSheet(
             f"QLineEdit {{ color: {T.TEXT_HI}; background: {T.BG_INPUT};"
             f" border: 1px solid {T.BORDER}; border-radius: {T.R_SM}px;"
-            f" padding: 0 8px; font-size: 12px; }}"
+            f" padding: 0 8px; font-size: 13px; }}"
             f"QLineEdit:focus {{ border-color: {T.ORANGE}; }}")
-        self._input.setPlaceholderText(_NAME_PLACEHOLDER)
+        self._input.setPlaceholderText(cmd.name_hint or _NAME_PLACEHOLDER_GENERIC)
         self._input.returnPressed.connect(self._on_add_submit)
         add_row.addWidget(self._input, 1)
 
-        copy_btn = make_primary_button("新增並複製", padding="0 16px", weight=700, height=26)
+        copy_btn = make_primary_button("新增並複製", padding="0 16px", weight=700, height=32)
         copy_btn.setIcon(lucide_icon("copy", "#ffffff", 14, stroke=1.8))
         copy_btn.setIconSize(QSize(14, 14))
         copy_btn.clicked.connect(self._on_add_submit)
@@ -492,18 +504,27 @@ class CommandPageV2(QWidget):
         col = QVBoxLayout(host)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(T.S_XS)
-        for gi, (title, cmds) in enumerate(_GROUPS):
-            col.addWidget(self._build_group_header(title, first=(gi == 0)))
-            col.addWidget(self._build_group_body(cmds))
+        for gi, group in enumerate(_GROUPS):
+            col.addWidget(self._build_group_header(group, first=(gi == 0)))
+            col.addWidget(self._build_group_body(group.commands))
         col.addStretch()
         scroll.setWidget(host)
         root.addWidget(scroll, 1)
 
-    def _build_group_header(self, title: str, first: bool = False) -> QLabel:
-        """分組小標題（非首組上方留白以區隔分組）"""
-        lbl = T.make_label(title, T.FONT_LABEL, T.TEXT)
-        lbl.setContentsMargins(T.S_XS, 0 if first else T.S_SM, 0, 1)
-        return lbl
+    def _build_group_header(self, group: _Group, first: bool = False) -> QWidget:
+        """分組標頭：IconBadge + 標題 + 數量 chip（比照 skill_column_v2 的欄位標頭語言）
+
+        非首組上方留白以區隔分組。
+        """
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setContentsMargins(T.S_XS, 0 if first else T.S_SM, 0, 1)
+        h.setSpacing(T.S_SM)
+        h.addWidget(IconBadge(group.glyph, group.accent, 22))
+        h.addWidget(T.make_label(group.title, T.FONT_LABEL, T.TEXT))
+        h.addWidget(StatusChip(str(len(group.commands)), group.accent))
+        h.addStretch()
+        return row
 
     def _build_group_body(self, cmds: list[_Command]) -> QWidget:
         """一組指令：no-arg 卡片兩欄並排、needs_name 卡片整列（保留 _GROUPS 順序）"""
