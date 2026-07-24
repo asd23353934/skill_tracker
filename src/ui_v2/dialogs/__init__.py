@@ -4,6 +4,7 @@ from src.ui_v2.dialogs.potion_save_dialog_v2 import PotionSaveDialogV2
 from src.ui_v2.dialogs.potion_load_dialog_v2 import PotionLoadDialogV2
 from src.ui_v2.dialogs.settings_dialog_v2 import SettingsDialogV2
 from src.ui_v2.dialogs.profile_manager_dialog_v2 import ProfileManagerDialogV2
+from src.ui_v2.dialogs.changelog_dialog_v2 import ChangelogDialogV2
 
 __all__ = [
     "BaseDialogV2",
@@ -12,4 +13,5 @@ __all__ = [
     "PotionLoadDialogV2",
     "SettingsDialogV2",
     "ProfileManagerDialogV2",
+    "ChangelogDialogV2",
 ]

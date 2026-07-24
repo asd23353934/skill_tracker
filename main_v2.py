@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt, QTimer, QEvent
 from PySide6.QtGui import QIcon
 from src.ui.dispatcher import Dispatcher
 from src.ui_v2.toast_v2 import ToastManagerV2
-from src.ui_v2.dialogs import SettingsDialogV2
+from src.ui_v2.dialogs import SettingsDialogV2, ChangelogDialogV2
 
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.header_v2 import HeaderV2
@@ -141,6 +141,7 @@ class PreviewWindow(QMainWindow):
             root,
             self._on_page_change,
             on_settings_click=self._open_settings,
+            on_changelog_click=self._open_changelog,
         )
         outer.addWidget(self.sidebar)
 
@@ -195,6 +196,25 @@ class PreviewWindow(QMainWindow):
             toast = getattr(self.app_ctx, "toast", None)
             if toast is not None:
                 toast.show(f"設定無法開啟：{type(e).__name__}", "error")
+
+    def _open_changelog(self):
+        try:
+            ChangelogDialogV2(self).exec()  # modal：純顯示，避免切分頁時對話框狀態混亂
+        except Exception as e:
+            # exe console=False；把錯誤寫到檔案方便 debug
+            import traceback
+            try:
+                from src.infrastructure.helpers import user_data_path
+                log_path = user_data_path("error.log")
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"[_open_changelog] {type(e).__name__}: {e}\n")
+                    f.write(traceback.format_exc())
+                    f.write("\n---\n")
+            except Exception:
+                pass
+            toast = getattr(self.app_ctx, "toast", None)
+            if toast is not None:
+                toast.show(f"更新日記無法開啟：{type(e).__name__}", "error")
 
     # --------------------------------------------------
     # 自動更新檢查（與 V1 App._check_for_updates 等價）

@@ -82,6 +82,7 @@ src/ui_v2/               # V2 UI（正式 UI）
     window_picker_dialog_v2.py     # 視窗挑選器（縮圖卡片網格，選快捷鍵限定的目標視窗）
     profile_manager_dialog_v2.py   # 配置管理（切換 / 新增 / 複製 / 重命名 / 刪除）
     potion_save_dialog_v2.py / potion_load_dialog_v2.py
+    changelog_dialog_v2.py         # 更新日記（側邊欄版本號點擊開啟；解析 version.py 的 CHANGELOG 逐版本卡片呈現）
 docs/DESIGN_V2.md        # V2 設計規範（顏色、間距、元件契約）
 ```
 

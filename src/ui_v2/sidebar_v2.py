@@ -5,12 +5,22 @@ V2 側邊欄 — 主要頁面導覽（唯一導覽方式）
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QFrame, QLabel
-from PySide6.QtCore import Qt, QRect, QPropertyAnimation, QEasingCurve, QTimer, QSize
+from PySide6.QtCore import Qt, QRect, QPropertyAnimation, QEasingCurve, QTimer, QSize, Signal
 from PySide6.QtGui import QPixmap
 from src.infrastructure.helpers import resource_path
 from src.ui_v2.theme_v2 import V2Theme as T
 from src.ui_v2.lucide import lucide_icon
 from src.ui_v2.page_registry import PAGE_REGISTRY
+
+
+class _ClickableLabel(QLabel):
+    """可點擊的 QLabel（QLabel 預設不發 clicked 訊號）"""
+    clicked = Signal()
+
+    def mousePressEvent(self, e):  # noqa: N802
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(e)
 
 
 class AppLogo(QLabel):
@@ -36,10 +46,11 @@ TriangleLogo = AppLogo
 class SidebarV2(QWidget):
     """主要頁面導覽側邊欄（導覽項目讀自 page_registry.PAGE_REGISTRY）"""
 
-    def __init__(self, parent, on_change, on_settings_click=None):
+    def __init__(self, parent, on_change, on_settings_click=None, on_changelog_click=None):
         super().__init__(parent)
         self.on_change = on_change
         self._on_settings_click = on_settings_click
+        self._on_changelog_click = on_changelog_click
         self.current   = "skill"
         self._items    = {}
         self._build()
@@ -103,12 +114,15 @@ class SidebarV2(QWidget):
         except Exception:
             ver_text = ""
         if ver_text:
-            ver_lbl = QLabel(ver_text)
+            ver_lbl = _ClickableLabel(ver_text)
             ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             ver_lbl.setStyleSheet(
                 f"color: {T.TEXT_MUTED}; background: transparent;"
                 f" font-size: 9px; font-weight: 500;"
             )
+            ver_lbl.setCursor(Qt.CursorShape.PointingHandCursor)
+            ver_lbl.setToolTip("點擊查看更新日記")
+            ver_lbl.clicked.connect(self._open_changelog)
             lay.addWidget(ver_lbl)
         lay.addSpacing(6)
 
@@ -125,6 +139,10 @@ class SidebarV2(QWidget):
 
         self._apply_states()
         QTimer.singleShot(0, self._snap_indicator)
+
+    def _open_changelog(self):
+        if self._on_changelog_click:
+            self._on_changelog_click()
 
     def _make_btn(self, icon_name, tip):
         b = QPushButton()
