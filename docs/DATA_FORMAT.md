@@ -94,8 +94,28 @@ sound_overrides, alert_sound_overrides
 
 ---
 
+## 檔案實際落點（打包後）
+
+| 檔案 | 位置 | 理由 |
+|------|------|------|
+| `config.json` | `_internal/`（`resource_path`） | 靜態唯讀區，隨 ZIP 覆蓋更新 |
+| `config_user.json` | **exe 同層**（`user_data_path`） | 更新解壓只覆蓋 `_internal/`，user 資料必須在外面 |
+| `profiles/` | **exe 同層** | 同上 |
+| `potion_saves/` / `potion_autosave.json` | **exe 同層** | 同上 |
+
+`ConfigManager(config_path, user_dir=...)`：`config_path` 指靜態區，`user_dir` 指
+user 可變區目錄。`user_dir` 省略時退回與 `config.json` 同層（開發模式 / 測試 —— 兩者
+本來就同層，行為不變）。打包入口 `main_v2.py` 明確傳入 `user_data_path("")`。
+
+> ⚠️ v4.10.2 以前 user 檔寫在 `_internal/`（= config.json 同層）。該目錄是 PyInstaller
+> bundle，release ZIP 解壓時會逐檔覆寫 —— 只要 ZIP 內混進 `_internal/config_user.json`，
+> 使用者的設定就會被打回預設值。`ConfigManager._migrate_legacy_user_dir()` 負責在升級後
+> 把舊位置的資料接過來（只在新位置不存在時複製，絕不覆蓋使用者現有資料）。
+
 ## 升級行為
 
 - `config.json` 隨 release ZIP 更新（靜態區覆蓋 → 新技能 / items 自動帶入）
 - `config_user.json` / `profiles/` 在 ZIP 內不存在 → 升級不會覆蓋使用者個人狀態
+  - 由 `zip_release.py` 的 `is_user_data()` 在打包時排除，壓完再回讀 ZIP 二次確認，
+    驗出使用者資料就刪檔並中止發布
 - 第一次安裝的使用者會由 `ConfigManager` 自建 `config_user.json`（從 `DEFAULT_USER_SETTINGS`）和預設 profile

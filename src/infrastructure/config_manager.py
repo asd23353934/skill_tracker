@@ -6,8 +6,9 @@
 import json
 import logging
 import os
+import shutil
 
-from src.infrastructure.helpers import atomic_write_json
+from src.infrastructure.helpers import atomic_write_json, user_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +74,42 @@ class ConfigManager:
         "current_profile":      "預設配置",
     }
 
-    def __init__(self, config_path):
+    # 一次性遷移清單：v4.10.2 以前寫在 _internal/ 的 user 檔。
+    #
+    # **凍結於 v4.11.0，不要因為「一致性」而擴充。** 之後新增的 user 檔從第一天就
+    # 寫在 user_dir，從來沒進過 _internal/，加進來只是雜訊。新增 user 檔要改的是
+    # helpers.USER_DATA_FILES / USER_DATA_DIRS（打包排除清單）。
+    #
+    # 不標記「是否為目錄」—— 那是搬遷時 stat 一下就知道的事，多帶一個旗標等於多
+    # 一個會填錯的地方，而填錯的後果是 copy2 對目錄拋例外被 except 吞掉、該份
+    # 使用者資料在升級時靜默消失。
+    _LEGACY_MIGRATION_ENTRIES = (
+        'config_user.json',
+        'potion_autosave.json',
+        'profiles',
+        'potion_saves',
+    )
+
+    def __init__(self, config_path, user_dir=None):
+        """
+        Args:
+            config_path: config.json 路徑（靜態唯讀區；打包後在 PyInstaller bundle 內）
+            user_dir:    user 可變區目錄；**省略時取 `user_data_path("")`（exe 同層 /
+                         開發模式的專案根）**，也就是正確的落點。只有測試需要明確傳入
+                         tmp 目錄。
+
+                         預設值刻意不是「與 config.json 同層」—— 那正是 v4.10.2 出事
+                         的位置（config.json 在 `_internal/`，該目錄每次更新會被 ZIP
+                         逐檔覆寫，user 檔放進去會被洗成預設值）。讓「忘記傳」的結果
+                         是安全的，而不是重演該 bug。
+        """
         self.config_path = config_path
-        self.user_config_path = os.path.join(
-            os.path.dirname(config_path), 'config_user.json'
-        )
+        self.user_dir = user_dir or user_data_path("")
+        self.user_config_path = self._user_path('config_user.json')
+
+        # user 目錄搬家後，先把舊位置（config.json 同層）的既有資料接過來
+        self._migrate_legacy_user_dir(os.path.dirname(config_path))
+
         self.config = self._load_config()
         # 載入 user 可變區（settings / monsters / overlays），覆蓋 in-memory config
         self._load_or_migrate_user_config()
@@ -92,8 +124,45 @@ class ConfigManager:
             for m in self.config.get("monsters", [])
         }
 
-        self.profiles_dir = os.path.join(os.path.dirname(config_path), 'profiles')
+        self.profiles_dir = self._user_path('profiles')
         self._ensure_profiles_dir()
+
+    def _user_path(self, name: str) -> str:
+        """組出 user 可變區內某個檔案 / 目錄的路徑
+
+        所有 user 檔一律經此取得路徑，`self.user_dir` 只在這裡被 join 一次，
+        避免各處散落字面量而漏掉某一支沒跟著搬家。
+        """
+        return os.path.join(self.user_dir, name)
+
+    def _migrate_legacy_user_dir(self, legacy_dir: str):
+        """把舊版寫在 config.json 同層的 user 資料複製到 self.user_dir（一次性）。
+
+        v4.10.2 以前打包版把 config_user.json / profiles/ 等寫進 PyInstaller 的
+        `_internal/`（= config.json 同層），每次更新解壓都會被 ZIP 內容覆蓋。
+        改用 exe 同層後，這裡負責把既有資料接過來，讓升級的使用者不會掉設定。
+
+        只在目標不存在時複製（絕不覆蓋新位置已有的資料）；用 copy 而非 move，
+        舊檔留著也無害 —— 目標一旦存在就不會再搬。
+
+        Args:
+            legacy_dir: 舊落點（config.json 同層）；與 user_dir 相同時整段跳過
+        """
+        if os.path.abspath(self.user_dir) == os.path.abspath(legacy_dir):
+            return
+        for name in self._LEGACY_MIGRATION_ENTRIES:
+            src = os.path.join(legacy_dir, name)
+            dst = self._user_path(name)
+            if not os.path.exists(src) or os.path.exists(dst):
+                continue
+            try:
+                os.makedirs(self.user_dir, exist_ok=True)
+                # 是檔是目錄由來源決定，不靠額外旗標（填錯會靜默吃掉整份資料）
+                copy = shutil.copytree if os.path.isdir(src) else shutil.copy2
+                copy(src, dst)
+                logger.info("user 資料已從舊位置遷移：%s → %s", src, dst)
+            except Exception:
+                logger.exception("user 資料遷移失敗：%s → %s", src, dst)
 
     def _load_config(self):
         """載入配置文件"""
@@ -627,7 +696,7 @@ class ConfigManager:
 
     def _potion_saves_dir(self) -> str:
         """建立並回傳練功水錢存檔目錄的絕對路徑"""
-        path = os.path.join(os.path.dirname(self.config_path), "potion_saves")
+        path = self._user_path("potion_saves")
         if not os.path.exists(path):
             os.makedirs(path)
         return path
@@ -712,8 +781,8 @@ class ConfigManager:
     # ==================== 練功水錢自動保存 ====================
 
     def _potion_autosave_path(self) -> str:
-        """練功水錢自動保存檔案路徑（與 config.json 同層）"""
-        return os.path.join(os.path.dirname(self.config_path), "potion_autosave.json")
+        """練功水錢自動保存檔案路徑（user 可變區目錄）"""
+        return self._user_path("potion_autosave.json")
 
     def save_potion_autosave(self, data: dict) -> bool:
         """寫入練功水錢自動保存"""

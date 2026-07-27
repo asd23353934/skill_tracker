@@ -9,10 +9,20 @@
 """
 
 import json
+import os
 
 from src.infrastructure.config_manager import (
     ConfigManager, promote_recent, _MAX_RECENT_COMMAND_NAMES,
 )
+
+
+def _cm(config_path):
+    """建 ConfigManager，user 可變區指向 config.json 同層（測試用 tmp 目錄）
+
+    正式預設是 `user_data_path("")`（exe 同層 / 專案根），測試必須明確指定，
+    否則會寫進真實專案目錄。
+    """
+    return ConfigManager(config_path, user_dir=os.path.dirname(config_path))
 
 
 def _make_cm(tmp_path, *, recent=None, command_names=None):
@@ -29,7 +39,7 @@ def _make_cm(tmp_path, *, recent=None, command_names=None):
     data = {"skills": [], "items": [], "settings": settings, "monsters": [], "overlays": []}
     path = tmp_path / "config.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    return ConfigManager(str(path))
+    return _cm(str(path))
 
 
 # ── promote_recent 純函式 ──
@@ -72,7 +82,7 @@ def test_add_then_get_persists_and_promotes(tmp_path):
     cm.add_command_name("trade", "Apple#aSqOX")  # 重用 → 提到最前
     assert cm.get_command_names("trade") == ["Apple#aSqOX", "Bob#1a2b3"]
     # 重新載入驗證持久化（save 寫入 config_user.json）
-    cm2 = ConfigManager(cm.config_path)
+    cm2 = _cm(cm.config_path)
     assert cm2.get_command_names("trade") == ["Apple#aSqOX", "Bob#1a2b3"]
 
 
@@ -110,7 +120,7 @@ def test_invalid_key_is_safe(tmp_path):
 def test_remove_command_name(tmp_path):
     cm = _make_cm(tmp_path, command_names={"whisper": ["Bob#1a2b3", "Eve#2c2c2"]})
     assert cm.remove_command_name("whisper", "Bob#1a2b3") == ["Eve#2c2c2"]
-    cm2 = ConfigManager(cm.config_path)
+    cm2 = _cm(cm.config_path)
     assert cm2.get_command_names("whisper") == ["Eve#2c2c2"]
 
 

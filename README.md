@@ -20,9 +20,20 @@ python main.py
 
 ## 📦 發布前注意
 
+發布只有一條路：
+
+```bash
+python release.py
+```
+
+前置檢查 → strip config → build → restore → zip，一條龍跑完，不要單獨跑底下的步驟。
+
 - `settings` / `monsters` / `overlays` 從 `config-static-merge` 起儲存到 `config_user.json`（已在 `.gitignore`）
-- 如有動到 `config.json`，commit 前可手動跑一次 `python scripts/strip_config_for_release.py` 確認 user 可變區乾淨；確認後 `--restore` 還原
-- 完整打包流程見 `docs/RELEASE.md`
+- 打包後 `config_user.json` / `profiles/` / `potion_saves/` 一律放在**執行檔同層**，不在 `_internal/`
+  —— 後者是 PyInstaller bundle，更新解壓會逐檔覆寫，user 資料放進去會被洗掉
+- **新增任何使用者可寫檔案時，必須同步加進 `src/infrastructure/helpers.py` 的
+  `USER_DATA_FILES` / `USER_DATA_DIRS`** —— 那是打包排除的單一來源，漏加就會在使用者更新時覆蓋掉他們的資料
+- 完整流程與防線說明見 `docs/RELEASE.md`
 
 ---
 

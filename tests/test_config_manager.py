@@ -9,6 +9,15 @@ import pytest
 from src.infrastructure.config_manager import ConfigManager
 
 
+def _cm(config_path):
+    """建 ConfigManager，user 可變區指向 config.json 同層（測試用 tmp 目錄）
+
+    正式預設是 `user_data_path("")`（exe 同層 / 專案根），測試必須明確指定，
+    否則會寫進真實專案目錄。
+    """
+    return ConfigManager(config_path, user_dir=os.path.dirname(config_path))
+
+
 # ── fixtures ───────────────────────────────────────────────
 
 def _write_config(tmp_path, stripped=False, settings=None, monsters=None, overlays=None):
@@ -32,7 +41,7 @@ def _write_config(tmp_path, stripped=False, settings=None, monsters=None, overla
 
 @pytest.fixture
 def cm(tmp_path):
-    return ConfigManager(_write_config(tmp_path))
+    return _cm(_write_config(tmp_path))
 
 
 # ── _validate_filename ────────────────────────────────────
@@ -84,14 +93,14 @@ def test_load_creates_user_config_on_first_run(tmp_path):
     cfg = _write_config(tmp_path)
     user_path = tmp_path / "config_user.json"
     assert not user_path.exists()
-    ConfigManager(cfg)
+    _cm(cfg)
     # 第一次跑就應該寫出 user 檔
     assert user_path.exists()
 
 
 def test_stripped_config_uses_default_settings(tmp_path):
     cfg = _write_config(tmp_path, stripped=True)
-    cm = ConfigManager(cfg)
+    cm = _cm(cfg)
     assert cm.config["settings"]["player_name"] == "玩家1"
     # monsters 允許跟著 ship default（空 list）
     assert cm.config["monsters"] == []
@@ -105,14 +114,14 @@ def test_existing_user_config_overrides_inmemory(tmp_path):
         "monsters": [{"id": "m2", "respawn_time": 99, "name": "M2", "icon": "i2"}],
         "overlays": [],
     }, ensure_ascii=False), encoding="utf-8")
-    cm = ConfigManager(cfg)
+    cm = _cm(cfg)
     assert cm.config["settings"]["player_name"] == "custom"
     assert cm.config["monsters"][0]["id"] == "m2"
 
 
 def test_save_only_writes_user_config(tmp_path):
     cfg_path = _write_config(tmp_path)
-    cm = ConfigManager(cfg_path)
+    cm = _cm(cfg_path)
     # 記錄 config.json 原始 mtime
     cfg_mtime = os.path.getmtime(cfg_path)
     cm.set_settings("player_name", "changed")
@@ -305,7 +314,7 @@ def test_atomic_write_user_config_preserves_old_on_failure(tmp_path, monkeypatch
     from src.infrastructure import helpers as helpers_mod
 
     cfg = _write_config(tmp_path)
-    cm = ConfigManager(cfg)
+    cm = _cm(cfg)
     user_path = tmp_path / "config_user.json"
     original = user_path.read_text(encoding="utf-8")
 
@@ -331,7 +340,98 @@ def test_atomic_write_uses_replace_not_truncate(tmp_path, monkeypatch):
 
     monkeypatch.setattr(helpers_mod.os, "replace", _spy_replace)
 
-    cm = ConfigManager(_write_config(tmp_path))
+    cm = _cm(_write_config(tmp_path))
     cm.save_profile("foo", {"hotkeys": {}})
 
     assert any(dst.endswith("foo.json") for _, dst in calls)
+
+
+# ── user_dir 分離 + legacy 遷移 ────────────────────────────
+# 打包後 config.json 位於 PyInstaller 的 _internal/（每次更新被 ZIP 整包覆蓋），
+# user 可變區必須放 exe 同層才不會被更新洗掉。以下用兩個 tmp 子目錄模擬。
+
+def _split_dirs(tmp_path):
+    """建立 (bundle_dir, user_dir) 兩個目錄，模擬 _internal/ 與 exe 同層"""
+    bundle = tmp_path / "_internal"
+    user = tmp_path / "app"
+    bundle.mkdir()
+    user.mkdir()
+    return bundle, user
+
+
+def test_user_dir_keeps_user_data_out_of_bundle_dir(tmp_path):
+    """指定 user_dir 後，user 檔只寫進 user_dir，不落在 config.json 同層。"""
+    bundle, user = _split_dirs(tmp_path)
+    cfg = _write_config(bundle, stripped=True)
+
+    cm = ConfigManager(cfg, user_dir=str(user))
+    cm.ensure_default_profile()
+
+    assert (user / "config_user.json").exists()
+    assert (user / "profiles" / "預設配置.json").exists()
+    assert not (bundle / "config_user.json").exists()
+    assert not (bundle / "profiles").exists()
+
+
+def test_legacy_user_data_migrated_from_bundle_dir(tmp_path):
+    """升級情境：舊版寫在 _internal/ 的 user 資料要被接過來，設定不可遺失。"""
+    bundle, user = _split_dirs(tmp_path)
+    cfg = _write_config(bundle, stripped=True)
+    (bundle / "config_user.json").write_text(json.dumps({
+        "settings": {"player_name": "老玩家", "window_size": 128},
+        "monsters": [], "overlays": [],
+    }, ensure_ascii=False), encoding="utf-8")
+    (bundle / "profiles").mkdir()
+    (bundle / "profiles" / "我的配置.json").write_text(
+        json.dumps({"hotkeys": {"s1": "F1"}}), encoding="utf-8")
+    (bundle / "potion_autosave.json").write_text("{}", encoding="utf-8")
+
+    cm = ConfigManager(cfg, user_dir=str(user))
+
+    assert cm.config["settings"]["player_name"] == "老玩家"
+    assert cm.config["settings"]["window_size"] == 128
+    assert "我的配置" in cm.list_profiles()
+    assert cm.load_profile("我的配置")["hotkeys"] == {"s1": "F1"}
+    assert (user / "potion_autosave.json").exists()
+
+
+def test_migration_never_overwrites_existing_user_dir_data(tmp_path):
+    """更新後回歸：ZIP 帶來的預設 _internal/config_user.json 不得蓋掉使用者的設定。"""
+    bundle, user = _split_dirs(tmp_path)
+    cfg = _write_config(bundle, stripped=True)
+    # 使用者本機（exe 同層）已有自訂設定
+    (user / "config_user.json").write_text(json.dumps({
+        "settings": {"player_name": "我的名字", "window_size": 128},
+        "monsters": [], "overlays": [],
+    }, ensure_ascii=False), encoding="utf-8")
+    # _internal/ 內是更新解壓帶進來的全預設值
+    (bundle / "config_user.json").write_text(json.dumps({
+        "settings": {"player_name": "玩家1", "window_size": 96},
+        "monsters": [], "overlays": [],
+    }, ensure_ascii=False), encoding="utf-8")
+
+    cm = ConfigManager(cfg, user_dir=str(user))
+
+    assert cm.config["settings"]["player_name"] == "我的名字"
+    assert cm.config["settings"]["window_size"] == 128
+
+
+def test_potion_paths_follow_user_dir(tmp_path):
+    """練功水錢存檔 / autosave 也要跟著 user_dir，不落在 bundle 目錄。"""
+    bundle, user = _split_dirs(tmp_path)
+    cm = ConfigManager(_write_config(bundle, stripped=True), user_dir=str(user))
+
+    assert cm.save_potion_record("rec", {"a": 1}) is True
+    assert cm.save_potion_autosave({"b": 2}) is True
+
+    assert (user / "potion_saves" / "rec.json").exists()
+    assert (user / "potion_autosave.json").exists()
+    assert not (bundle / "potion_saves").exists()
+    assert not (bundle / "potion_autosave.json").exists()
+
+
+def test_default_user_dir_stays_beside_config(tmp_path):
+    """不傳 user_dir 時維持舊行為（開發模式：與 config.json 同層）。"""
+    cm = _cm(_write_config(tmp_path))
+    assert os.path.abspath(cm.user_dir) == os.path.abspath(str(tmp_path))
+    assert (tmp_path / "config_user.json").exists()

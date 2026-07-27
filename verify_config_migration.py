@@ -14,6 +14,15 @@ import tempfile
 from src.infrastructure.config_manager import ConfigManager
 
 
+def _cm(config_path: str) -> ConfigManager:
+    """建 ConfigManager，user 可變區指向 config.json 同層（驗證用 tmp 目錄）
+
+    正式預設是 `user_data_path("")`（exe 同層 / 專案根），此處必須明確指定，
+    否則會寫進真實專案目錄。
+    """
+    return ConfigManager(config_path, user_dir=os.path.dirname(config_path))
+
+
 _failures: list[str] = []
 
 
@@ -69,7 +78,7 @@ def test_fresh_install_creates_user_file():
         user_path = os.path.join(d, "config_user.json")
         _write(cfg_path, _stripped_config())
 
-        ConfigManager(cfg_path)
+        _cm(cfg_path)
         check("config_user.json created", os.path.exists(user_path), True)
 
         user = _read(user_path)
@@ -86,7 +95,7 @@ def test_migration_from_pre_split():
         user_path = os.path.join(d, "config_user.json")
         _write(cfg_path, _pre_split_config())
 
-        ConfigManager(cfg_path)
+        _cm(cfg_path)
         check("config_user.json created", os.path.exists(user_path), True)
 
         user = _read(user_path)
@@ -109,7 +118,7 @@ def test_existing_user_file_wins():
             "overlays": [],
         })
 
-        cm = ConfigManager(cfg_path)
+        cm = _cm(cfg_path)
         check("user file wins", cm.get_settings("sound_volume"), 50)
 
 
@@ -120,7 +129,7 @@ def test_save_writes_only_user_file():
         user_path = os.path.join(d, "config_user.json")
         _write(cfg_path, _stripped_config())
 
-        cm = ConfigManager(cfg_path)
+        cm = _cm(cfg_path)
         # 記下 config.json 的 byte 內容
         with open(cfg_path, "rb") as f:
             cfg_before = f.read()
@@ -143,7 +152,7 @@ def test_static_zone_refreshed_from_bundled():
         cfg_path = os.path.join(d, "config.json")
         user_path = os.path.join(d, "config_user.json")
         _write(cfg_path, _stripped_config())  # has 1 skill
-        ConfigManager(cfg_path)  # creates user file
+        _cm(cfg_path)  # creates user file
 
         # 模擬升級：bundled config.json 加入新技能
         new_cfg = _stripped_config()
@@ -157,7 +166,7 @@ def test_static_zone_refreshed_from_bundled():
             "overlays": [],
         })
 
-        cm = ConfigManager(cfg_path)
+        cm = _cm(cfg_path)
         skills_ids = [s["id"] for s in cm.config.get("skills", [])]
         check("bundled new skill picked up", "s2" in skills_ids, True)
         check("user sound_volume preserved",

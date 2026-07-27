@@ -11,6 +11,40 @@ import shutil
 import sys
 import zipfile
 
+from src.infrastructure.helpers import USER_DATA_DIRS, USER_DATA_FILES
+
+
+# ── 絕不可打包的使用者資料 ──
+# 開發者在 dist/ 跑過 exe 驗證時，程式會就地生成這些檔。它們一旦進了 ZIP，
+# update_launcher 解壓時會以「覆寫」語意蓋掉使用者本機的同名檔，把設定、配置、
+# 練功紀錄全部打回預設值（v4.10.2 即因 _internal/config_user.json 進 ZIP 而發生）。
+#
+# 清單的單一來源在 helpers.py（緊鄰產生這些路徑的 user_data_path），新增 user
+# 檔只需改那一處；這裡不另立一份，避免兩份清單漂移又重演同一個 bug。
+_EXCLUDE_FILES = USER_DATA_FILES
+_EXCLUDE_DIRS = USER_DATA_DIRS
+_EXCLUDE_SUFFIXES = (".bak",)
+
+
+def is_user_data(rel_path: str) -> bool:
+    """判斷 dist 內的相對路徑是否為使用者資料（不可打包）
+
+    以 basename / 路徑 component 比對，因此 `_internal/` 內與 exe 同層的
+    同名檔案都會被攔下（歷史版本兩處都寫過）。
+
+    Args:
+        rel_path: 相對於 dist/skill_tracker/ 的路徑
+
+    Returns:
+        True 表示屬於使用者資料，應排除
+    """
+    parts = rel_path.replace("\\", "/").split("/")
+    if parts[-1] in _EXCLUDE_FILES:
+        return True
+    if parts[-1].endswith(_EXCLUDE_SUFFIXES):
+        return True
+    return any(p in _EXCLUDE_DIRS for p in parts[:-1])
+
 
 def get_version() -> str:
     """從 version.py 讀取版本號"""
@@ -77,12 +111,15 @@ def zip_release() -> int:
         # sounds/ 尚未生成 → 直接在 dist 裡生成內建音效
         os.makedirs(dest_sounds, exist_ok=True)
         try:
-            from src.ui.sound_manager import BUILTIN_SOUNDS, _generate_wav
+            from src.infrastructure.sound_manager import BUILTIN_SOUNDS, _generate_wav
             for filename, info in BUILTIN_SOUNDS.items():
                 _generate_wav(os.path.join(dest_sounds, filename), info["tones"])
             print(f"  🔊  sounds/ 不存在，已在 dist 生成內建音效（{len(BUILTIN_SOUNDS)} 個）")
         except Exception as e:
-            print(f"  ⚠️  無法生成內建音效: {e}，已建立空目錄")
+            # 靜默失敗會讓發出去的 ZIP 內 sounds/ 是空的（使用者完全沒有提示音），
+            # 所以這裡不吞掉 —— 直接讓 zip_release 失敗，逼人處理
+            print(f"  ❌ 無法生成內建音效: {e}")
+            raise
     # ── update_launcher：複製到 exe 同層（程式去 exe 旁找，不在 _internal/）──
     for launcher_name in ("update_launcher.ps1", "update_launcher.bat"):
         src_launcher = launcher_name
@@ -108,29 +145,55 @@ def zip_release() -> int:
         os.remove(zip_path)
         print(f"  🗑️  已刪除舊版 {zip_name}")
 
-    # 計算檔案數量
-    total_files = sum(len(files) for _, _, files in os.walk(src_dir))
+    # 先分出「要壓的」與「使用者資料」，進度分母才會是真的壓縮檔數
+    to_compress: list[str] = []
+    skipped: list[str] = []
+    for root, _dirs, files in os.walk(src_dir):
+        for filename in sorted(files):
+            full_path = os.path.join(root, filename)
+            rel_path = os.path.relpath(full_path, src_dir)
+            # 使用者資料絕不進 ZIP（否則更新解壓會覆蓋掉使用者本機設定）
+            if is_user_data(rel_path):
+                skipped.append(rel_path.replace("\\", "/"))
+            else:
+                to_compress.append(full_path)
+
+    total_files = len(to_compress)
     print(f"  🔍 共 {total_files} 個檔案，壓縮中...")
 
-    compressed = 0
+    # 大小統計與壓縮走同一份清單，不再重走一次目錄樹
+    src_bytes = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        for root, _dirs, files in os.walk(src_dir):
-            for filename in sorted(files):
-                full_path = os.path.join(root, filename)
-                # arcname 保留 "skill_tracker/..." 結構（相對於 dist/）
-                arcname = os.path.relpath(full_path, "dist")
-                zf.write(full_path, arcname)
-                compressed += 1
-                if compressed % 50 == 0:
-                    print(f"    {compressed}/{total_files}...")
+        for compressed, full_path in enumerate(to_compress, start=1):
+            # arcname 保留 "skill_tracker/..." 結構（相對於 dist/）
+            zf.write(full_path, os.path.relpath(full_path, "dist"))
+            src_bytes += os.path.getsize(full_path)
+            if compressed % 50 == 0:
+                print(f"    {compressed}/{total_files}...")
 
-    # 統計結果
+    if skipped:
+        print()
+        print(f"  🛡️  已排除 {len(skipped)} 個使用者資料檔（不進 ZIP）：")
+        for rel in skipped:
+            print(f"      - {rel}")
+
+    # ── 最後防線：回讀 ZIP 內實際 entry 名稱，確認沒有使用者資料混入 ──
+    # 驗的是最終產物，擋「打包迴圈的路徑判斷寫錯」（relpath 算錯、skip 分支沒生效）。
+    # 刻意重用 is_user_data 而非手抄一份判定 —— 手抄的版本漏過 .bak 規則，
+    # 「獨立實作」反而製造破洞；清單本身共用 USER_DATA_*，齊不齊才是真防線。
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        leaked = [n for n in zf.namelist() if is_user_data(n)]
+    if leaked:
+        print()
+        print("❌ ZIP 內含使用者資料，已中止發布：")
+        for name in leaked:
+            print(f"   - {name}")
+        print("   這些檔案會在使用者更新時覆蓋掉他們的個人設定。")
+        os.remove(zip_path)
+        return 1
+
+    # 統計結果（src_bytes 已在壓縮迴圈中累加，不重走目錄樹）
     zip_bytes = os.path.getsize(zip_path)
-    src_bytes = sum(
-        os.path.getsize(os.path.join(r, f))
-        for r, _, files in os.walk(src_dir)
-        for f in files
-    )
     ratio = (1 - zip_bytes / src_bytes) * 100 if src_bytes > 0 else 0
 
     print()

@@ -44,6 +44,8 @@ class V2AppContext(AppCoreMixin):
         # 跨執行緒安全 dispatcher（pynput daemon → 主執行緒）；
         # 必須在 _init_domain_backing 前建好，因 hotkey/window manager 之後會 capture self
         self._dispatcher = Dispatcher(QApplication.instance())
+        # config.json 走 resource_path（打包後在 _internal/，唯讀靜態區）；
+        # user 可變區由 ConfigManager 預設放 exe 同層 —— _internal/ 每次更新會被 ZIP 整包覆蓋
         self._init_domain_backing(ConfigManager(resource_path("config.json")))
         self.overlay_page = None
         # toast 在此暫設 console bridge；PreviewWindow.__init__ 末段會替換為 ToastManagerV2

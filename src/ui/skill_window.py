@@ -13,6 +13,7 @@ from PySide6.QtGui import (
     QPainter, QPen, QColor, QFont, QFontMetrics, QPixmap, QImage, QBrush,
 )
 
+from src.infrastructure.window_topmost import bring_to_topmost
 from src.ui.theme import AppTheme
 from src.ui.window_geometry import clamp_to_screen
 from src.ui_v2.theme_v2 import V2Theme
@@ -98,11 +99,14 @@ class SkillWindow(QWidget):
             title:               標題文字（可選）
             idle_start:          是否以 idle 狀態啟動（常駐怪物）
         """
-        # 無邊框透明置頂工具視窗
+        # 無邊框透明置頂工具視窗。
+        # WindowDoesNotAcceptFocus → Windows 上即 WS_EX_NOACTIVATE：拖曳小窗或按
+        # 關閉鈕時不會把焦點從遊戲搶走（滑鼠事件照常送達，拖曳功能不受影響）。
         super().__init__(
             None,
             Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowDoesNotAcceptFocus
             | Qt.WindowType.Tool,
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -183,6 +187,7 @@ class SkillWindow(QWidget):
         )
         self.move(cx, cy)
         self.show()
+        self.raise_to_top()
 
         self._enter_anim = AppTheme.make_anim(
             self, b"windowOpacity", 0.0, self.window_alpha, duration=180)
@@ -571,6 +576,18 @@ class SkillWindow(QWidget):
     # 倒數邏輯
     # --------------------------------------------------
 
+    def raise_to_top(self):
+        """把小窗重新拉到所有置頂視窗的最前面（不奪取焦點）
+
+        `WindowStaysOnTopHint` 只在建立時宣告一次，之後出現的其他置頂視窗會排到
+        前面造成遮擋，因此在每次按鍵觸發 / 提前提示時重申一次。
+        """
+        # winId() 在 widget 已銷毀時會拋 RuntimeError（同 update_position 的處理）
+        try:
+            bring_to_topmost(int(self.winId()))
+        except Exception:
+            pass
+
     def start_countdown(self):
         """開始倒數/正數計時"""
         self.stop_countdown()
@@ -598,8 +615,12 @@ class SkillWindow(QWidget):
         self.start_countdown()
 
     def restart_countdown(self):
-        """重新開始計時（供 WindowManager 呼叫）"""
+        """重新開始計時（供 WindowManager 在按鍵觸發既有視窗時呼叫）
+
+        每次按鍵觸發都重申置頂，避免小窗被後來出現的其他置頂視窗蓋住。
+        """
         self.reset_countdown()
+        self.raise_to_top()
 
     def _tick(self):
         """計時 tick — 由 QTimer 觸發"""
@@ -741,6 +762,11 @@ class SkillWindow(QWidget):
     def _trigger_alert(self):
         """觸發提前提示：閃爍邊框 + 音效"""
         self.alert_triggered = True
+
+        # 提示的當下最需要被看見 → 重申置頂
+        # （循環技能每輪 _loop_restart 會重設 alert_triggered，故開了提前提示的
+        #   循環技能每輪都會經由這裡重申一次）
+        self.raise_to_top()
 
         # 開始邊框閃爍
         self._flash_count  = 0

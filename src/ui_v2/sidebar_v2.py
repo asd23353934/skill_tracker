@@ -107,7 +107,7 @@ class SidebarV2(QWidget):
         sw.addWidget(settings)
         lay.addWidget(settings_wrap)
 
-        # ── 版本號（最底、小號淡色）──
+        # ── 版本號（最底，做成淡灰 chip 讓「可點擊」看得出來）──
         try:
             from version import get_version
             ver_text = f"v{get_version()}"
@@ -116,14 +116,17 @@ class SidebarV2(QWidget):
         if ver_text:
             ver_lbl = _ClickableLabel(ver_text)
             ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            # QSS 帶 :hover selector 時 Qt 會自動設 WA_Hover，不需手動開
             ver_lbl.setStyleSheet(
-                f"color: {T.TEXT_MUTED}; background: transparent;"
-                f" font-size: 9px; font-weight: 500;"
+                f"QLabel {{ color: {T.TEXT_DIM}; background: {T.BG_ELEVATED};"
+                f" border-radius: {T.R_SM}px; padding: 3px 8px;"
+                f" font-size: 10px; font-weight: 600; }}"
+                f"QLabel:hover {{ color: {T.TEXT}; background: {T.BG_HOVER}; }}"
             )
             ver_lbl.setCursor(Qt.CursorShape.PointingHandCursor)
             ver_lbl.setToolTip("點擊查看更新日記")
             ver_lbl.clicked.connect(self._open_changelog)
-            lay.addWidget(ver_lbl)
+            lay.addWidget(ver_lbl, 0, Qt.AlignmentFlag.AlignHCenter)
         lay.addSpacing(6)
 
         # 活動指示條（左側橘色 3px）

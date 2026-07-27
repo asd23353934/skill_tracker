@@ -26,10 +26,11 @@ profiles/                # 使用者配置檔 JSON（gitignored）
 images/                  # 技能 / 怪物圖示
 sounds/                  # 音效檔案
 icon.ico / icon.png      # app icon（.ico 給 exe；.png 給 V2 sidebar logo）
+release.py               # 發布單一入口（前置檢查→strip→build→restore→zip；唯一該跑的打包指令）
 scripts/
-  strip_config_for_release.py  # release 前清 config.json 內可變區（--restore 還原）
+  strip_config_for_release.py  # release 前清 config.json 內可變區（--restore 還原）；由 release.py 呼叫
 src/infrastructure/      # 外部邊界（檔案 I/O、OS、第三方）
-  config_manager.py      # 靜態 config.json + 可變 config_user.json 分檔讀寫
+  config_manager.py      # 靜態 config.json（_internal/）+ 可變 config_user.json（exe 同層）分檔讀寫 + legacy 位置遷移
   skill_loader.py        # 技能元資料載入
   repositories.py        # SkillRepository / 其他資料存取
   sound_manager.py       # 音效播放 / 清單 / 匯入
@@ -37,6 +38,7 @@ src/infrastructure/      # 外部邊界（檔案 I/O、OS、第三方）
   updater.py             # 版本更新檢查
   mapleworld_scanner.py  # MapleWorld 資源掃描（Unity / Web，背景執行緒 + callback）
   window_enum.py         # 視窗列舉 / 前景 exe / PrintWindow 縮圖（Windows ctypes，快捷鍵限定用）
+  window_topmost.py      # 置頂重申 SetWindowPos(HWND_TOPMOST, NOACTIVATE)；倒數小窗每次觸發拉回最前且不搶焦點
 src/domain/              # 純 Python 領域層（零 Qt 依賴）
   models.py              # 領域資料模型
   services.py            # SkillService / MonsterService

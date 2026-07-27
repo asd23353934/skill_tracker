@@ -56,6 +56,36 @@ def user_data_path(relative_path):
     return os.path.join(base, relative_path)
 
 
+# ── 使用者可變資料清單（單一來源）──
+# 定義在 user_data_path() 旁邊，因為這裡是產生這些路徑的唯一地方。
+#
+# 新增任何一種「程式執行時寫出、屬於使用者的」檔案時，**必須**同步加進來 ——
+# 漏加的後果是該檔會被打包進 release ZIP，更新解壓時逐檔覆寫掉使用者本機的
+# 同名檔（v4.10.2 就是 config_user.json 漏在外面，使用者設定全被打回預設）。
+#
+# zip_release.py import 這兩個集合來排除打包。
+USER_DATA_FILES = frozenset({
+    "config_user.json",             # ConfigManager：settings / monsters / overlays
+    "potion_autosave.json",         # ConfigManager：練功水錢自動保存
+    "mapleworld_classify_cache.json",  # mapleworld_widgets_v2：分類快取
+    "update_log.txt",               # update_launcher.ps1：更新記錄
+    "update_failed.txt",            # update_launcher.ps1：失敗 marker
+    "error.log",                    # window_manager：視窗建立失敗記錄
+})
+
+USER_DATA_DIRS = frozenset({
+    "profiles",                     # ConfigManager：使用者配置檔
+    "potion_saves",                 # ConfigManager：練功水錢存檔
+    "mapleworld",                   # mapleworld_scanner：掃描到的資源圖
+})
+
+# 注意：sounds/ 與 overlays/ 同樣是使用者可寫目錄（SoundManager.sounds_dir /
+# OverlayManager._OVERLAYS_DIR 都走 user_data_path），但**刻意不列入**——
+# 目前 release ZIP 需要靠它們夾帶出廠預設音效與預設浮動圖。代價是使用者自訂
+# 檔案若與開發機檔名相同，更新時會被覆蓋。要根治需把出廠預設改放
+# `_internal/sounds_default/`、首次啟動缺檔才複製到使用者目錄。
+
+
 def darken_color(hex_color, factor=0.8):
     """將顏色變暗
 

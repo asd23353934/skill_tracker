@@ -31,10 +31,14 @@ class CommandHotkeyOverlayV2(QWidget):
 
     def __init__(self, bindings: list[tuple[str, str]], on_close,
                  position: tuple[int, int] = _DEFAULT_POSITION):
+        # WindowDoesNotAcceptFocus（Windows 上即 WS_EX_NOACTIVATE）：這是常駐的
+        # 對照窗，使用者會在遊戲進行中拖它或按關閉鈕 —— 不能因此把焦點搶走。
+        # 用它而非 WA_ShowWithoutActivating，後者只管首次 show，之後的點擊照樣搶焦點。
         super().__init__(
             None,
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.WindowDoesNotAcceptFocus
             | Qt.WindowType.Tool,
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -89,6 +93,11 @@ class CommandHotkeyOverlayV2(QWidget):
     def set_bindings(self, bindings: list[tuple[str, str]]):
         """依目前快捷鍵重建清單內容
 
+        每一列都是獨立的 QWidget 容器（而非裸 QHBoxLayout）—— 清空時
+        `takeAt(0).widget()` 才取得到東西可刪。改綁按鍵會呼叫本方法就地刷新，
+        若列是裸 layout，其中的 QLabel 仍掛在 _card 上，脫離 layout 後會留在
+        原位繼續顯示，畫面上就會看到舊按鍵沒被清掉、與新按鍵並存。
+
         Args:
             bindings: [(KEY, 指令關鍵字), ...]；空清單顯示提示文字
         """
@@ -107,23 +116,44 @@ class CommandHotkeyOverlayV2(QWidget):
             self._list_layout.addWidget(empty)
         else:
             for key, label in bindings:
-                row = QHBoxLayout()
-                row.setSpacing(T.S_SM)
-                key_lbl = QLabel(key)
-                key_lbl.setTextFormat(Qt.TextFormat.PlainText)
-                key_lbl.setFixedWidth(48)
-                key_lbl.setStyleSheet(
-                    f"color: {T.ORANGE}; background: transparent;"
-                    f" font-size: 12px; font-weight: 700;")
-                row.addWidget(key_lbl)
-                cmd_lbl = QLabel(label)
-                cmd_lbl.setTextFormat(Qt.TextFormat.PlainText)
-                cmd_lbl.setStyleSheet(
-                    f"color: {T.TEXT_HI}; background: transparent; font-size: 12px;")
-                row.addWidget(cmd_lbl, 1)
-                self._list_layout.addLayout(row)
+                self._list_layout.addWidget(self._make_row(key, label))
 
+        # 重建後 _card 的 sizeHint 雖已更新，失效鏈卻止於 _card 自己的 layout，
+        # self 的 outer layout 從未被 dirty → 不 activate 的話 adjustSize() 讀到
+        # 的還是舊 hint，視窗刪到剩一列時外框會停在舊高度。
+        self._card.layout().activate()
         self.adjustSize()
+
+    def _make_row(self, key: str, label: str) -> QWidget:
+        """建立一列「按鍵 → 指令」的顯示元件
+
+        Args:
+            key:   實體按鍵名稱
+            label: 指令關鍵字（含名稱）
+
+        Returns:
+            承載該列的 QWidget（供 _list_layout 以 addWidget 管理）
+        """
+        row_w = QWidget()
+        row_w.setStyleSheet("background: transparent;")
+        row = QHBoxLayout(row_w)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(T.S_SM)
+
+        key_lbl = QLabel(key)
+        key_lbl.setTextFormat(Qt.TextFormat.PlainText)
+        key_lbl.setFixedWidth(48)
+        key_lbl.setStyleSheet(
+            f"color: {T.ORANGE}; background: transparent;"
+            f" font-size: 12px; font-weight: 700;")
+        row.addWidget(key_lbl)
+
+        cmd_lbl = QLabel(label)
+        cmd_lbl.setTextFormat(Qt.TextFormat.PlainText)
+        cmd_lbl.setStyleSheet(
+            f"color: {T.TEXT_HI}; background: transparent; font-size: 12px;")
+        row.addWidget(cmd_lbl, 1)
+        return row_w
 
     # ── 拖曳移動（點卡片背景任一處皆可拖曳，關閉鈕自行消化點擊）──
     def mousePressEvent(self, e):  # noqa: N802
