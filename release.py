@@ -223,8 +223,10 @@ def main() -> int:
             print("=" * 55)
             print("🔨 [3/5] PyInstaller build")
             print("=" * 55)
-            if not _run([sys.executable, "-m", "PyInstaller", "skill_tracker.spec"],
-                        "PyInstaller build"):
+            # --noconfirm：dist/ 非空時不跳互動確認直接覆蓋。
+            # 順帶清掉上次在 dist/ 跑 exe 驗證時生成的使用者資料，不留殘骸。
+            if not _run([sys.executable, "-m", "PyInstaller", "--noconfirm",
+                         "skill_tracker.spec"], "PyInstaller build"):
                 return 1
     finally:
         print()
