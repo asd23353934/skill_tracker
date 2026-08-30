@@ -7,7 +7,7 @@
 import time
 import math
 
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget, QToolTip
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF
 from PySide6.QtGui import (
     QPainter, QPen, QColor, QFont, QFontMetrics, QPixmap, QImage, QBrush,
@@ -29,13 +29,20 @@ class SkillWindow(QWidget):
     COLOR_TEXT         = V2Theme.TEXT_HI        # 倒數文字：亮白
     COLOR_OUTLINE      = V2Theme.BG_BOTTOM      # 文字描邊：深黑
     COLOR_CLOSE        = V2Theme.TEXT_HI        # 關閉鈕常態 X（亮白更顯眼）
-    COLOR_CLOSE_BG     = V2Theme.BG_ELEVATED    # 關閉鈕常態底色（半透明灰）
+    COLOR_BTN_BG       = V2Theme.BG_ELEVATED    # 按鈕常態底色（半透明灰，關閉／重置共用）
     COLOR_CLOSE_HOVER  = V2Theme.TEXT_HI        # 關閉鈕 hover X
     COLOR_CLOSE_HOVER_BG = V2Theme.ORANGE       # 關閉鈕 hover 底色
+    COLOR_RESET        = V2Theme.TEXT_HI        # 重置鈕常態圖示
+    COLOR_RESET_HOVER  = V2Theme.BG_BOTTOM      # 重置鈕 hover 圖示（深色壓在亮青底上）
+    COLOR_RESET_HOVER_BG = V2Theme.CYAN         # 重置鈕 hover 底色
     COLOR_FLASH        = V2Theme.YELLOW         # 提前提示閃爍
     COLOR_HOTKEY       = V2Theme.ORANGE         # 圖片下方按鍵字幕（橘色＝可按的鍵）
     COLOR_HOTKEY_BG    = V2Theme.BG_ELEVATED    # 按鍵字幕底：深黑灰、不透明
     FONT_FAMILY        = V2Theme.FONT_FAMILY    # 統一字型家族
+
+    # 按鈕 tooltip 文案
+    RESET_TOOLTIP = "重置"
+    CLOSE_TOOLTIP = "關閉"
 
     # 按鍵字幕與圖片之間的間距（像素）
     HOTKEY_GAP = 3
@@ -164,8 +171,9 @@ class SkillWindow(QWidget):
         self._flash_active = False
         self._flash_count  = 0
 
-        # 關閉按鈕 hover
+        # 關閉／重置按鈕 hover
         self._close_hovered = False
+        self._reset_hovered = False
 
         # 防止重複關閉
         self._closed = False
@@ -246,15 +254,14 @@ class SkillWindow(QWidget):
         self._hotkey_y0     = self._img_y1 + gap
         self._total_height  = self._hotkey_y0 + self._hotkey_height
 
-        # 關閉按鈕矩形（圖片區域右上角）
-        close_size = 16
-        pad        = 2
-        self._close_rect = QRect(
-            self._canvas_width - close_size - pad - bw,
-            self._img_y0 + pad + bw,
-            close_size,
-            close_size,
-        )
+        # 關閉按鈕（圖片區域右上角）+ 重置按鈕（緊鄰關閉鈕左側）
+        btn_size = 16
+        btn_pad  = 2
+        btn_gap  = 2
+        btn_y    = self._img_y0 + btn_pad + bw
+        close_x  = self._canvas_width - btn_size - btn_pad - bw
+        self._close_rect = QRect(close_x, btn_y, btn_size, btn_size)
+        self._reset_rect = QRect(close_x - btn_size - btn_gap, btn_y, btn_size, btn_size)
 
     # --------------------------------------------------
     # 圖片載入與遮罩
@@ -384,7 +391,8 @@ class SkillWindow(QWidget):
         # 內框半徑比外框小 1px，保持同心弧度觀感
         painter.drawRoundedRect(inner_rect, V2Theme.R_SM - 1, V2Theme.R_SM - 1)
 
-        # ===== 關閉按鈕 =====
+        # ===== 重置 / 關閉按鈕 =====
+        self._paint_reset_btn(painter)
         self._paint_close_btn(painter)
 
         # ===== 按鍵字幕（圖片下方，字級自動縮放避免跑版）=====
@@ -494,34 +502,57 @@ class SkillWindow(QWidget):
         painter.setPen(QColor(self.COLOR_HOTKEY))
         painter.drawText(rect, flags, text)
 
-    def _paint_close_btn(self, painter: QPainter):
-        """繪製關閉按鈕 — V2 風格：常態 dim X、hover 時 ORANGE 圓角填色 + 亮 X"""
+    def _paint_icon_btn(self, painter: QPainter, rect: QRect, icon_name: str,
+                        hovered: bool, accent: str,
+                        icon_color: str, hover_icon_color: str):
+        """繪製小圓角圖示按鈕（關閉 / 重置共用）
+
+        Args:
+            painter:          目前的 QPainter
+            rect:             按鈕矩形
+            icon_name:        lucide icon 名稱（與 V2 header 同一套 icon）
+            hovered:          是否 hover 中
+            accent:           框線色，同時也是 hover 底色
+            icon_color:       常態圖示顏色
+            hover_icon_color: hover 圖示顏色
+        """
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        # 底色：常態深灰、hover ORANGE；都帶圓角
-        bg_rect = QRectF(self._close_rect)
-        if self._close_hovered:
-            bg_color = QColor(self.COLOR_CLOSE_HOVER_BG)
-            x_color  = QColor(self.COLOR_CLOSE_HOVER)
+        # 底色：常態深灰、hover 換成 accent；都帶圓角
+        if hovered:
+            bg_color = QColor(accent)
+            fg_color = QColor(hover_icon_color)
         else:
-            bg_color = QColor(self.COLOR_CLOSE_BG)
+            bg_color = QColor(self.COLOR_BTN_BG)
             bg_color.setAlpha(220)   # 常態略透，避免過搶
-            x_color  = QColor(self.COLOR_CLOSE)
+            fg_color = QColor(icon_color)
 
-        # 細 ORANGE 框線讓按鈕邊緣可見
-        painter.setPen(QPen(QColor(V2Theme.ORANGE), 1))
+        # 細 accent 框線讓按鈕邊緣可見
+        painter.setPen(QPen(QColor(accent), 1))
         painter.setBrush(QBrush(bg_color))
-        painter.drawRoundedRect(bg_rect, V2Theme.R_SM, V2Theme.R_SM)
+        painter.drawRoundedRect(QRectF(rect), V2Theme.R_SM, V2Theme.R_SM)
 
-        # 用 lucide "x" SVG 繪製關閉符號（與 V2 header 同一套 icon）
-        cr       = self._close_rect
-        icon_sz  = 10                                          # 在 16×16 按鈕內留 3px padding
-        pix      = lucide_pixmap("x", x_color.name(), icon_sz, stroke=1.8)
-        px       = cr.x() + (cr.width()  - icon_sz) // 2
-        py       = cr.y() + (cr.height() - icon_sz) // 2
+        icon_sz = 10                                           # 在 16×16 按鈕內留 3px padding
+        pix     = lucide_pixmap(icon_name, fg_color.name(), icon_sz, stroke=1.8)
+        px      = rect.x() + (rect.width()  - icon_sz) // 2
+        py      = rect.y() + (rect.height() - icon_sz) // 2
         painter.drawPixmap(px, py, pix)
         painter.restore()
+
+    def _paint_close_btn(self, painter: QPainter):
+        """繪製關閉按鈕 — V2 風格：常態 dim X、hover 時 ORANGE 圓角填色 + 亮 X"""
+        self._paint_icon_btn(
+            painter, self._close_rect, "x", self._close_hovered,
+            self.COLOR_CLOSE_HOVER_BG, self.COLOR_CLOSE, self.COLOR_CLOSE_HOVER,
+        )
+
+    def _paint_reset_btn(self, painter: QPainter):
+        """繪製重置按鈕 — 與關閉鈕同尺寸同風格，hover 時 CYAN 填色以資區別"""
+        self._paint_icon_btn(
+            painter, self._reset_rect, "rotate-ccw", self._reset_hovered,
+            self.COLOR_RESET_HOVER_BG, self.COLOR_RESET, self.COLOR_RESET_HOVER,
+        )
 
     # --------------------------------------------------
     # 閃爍邊框
@@ -544,26 +575,58 @@ class SkillWindow(QWidget):
     # --------------------------------------------------
 
     def mousePressEvent(self, event):  # noqa: N802
-        """左鍵點擊：關閉按鈕判斷或開始拖曳"""
+        """左鍵點擊：關閉 / 重置按鈕判斷或開始拖曳"""
         if event.button() == Qt.MouseButton.LeftButton:
-            if self._close_rect.contains(event.position().toPoint()):
+            pos = event.position().toPoint()
+            if self._close_rect.contains(pos):
                 self.close()
+            elif self._reset_rect.contains(pos):
+                self.reset_to_zero()
             else:
                 gp = event.globalPosition().toPoint()
                 if self.on_drag_start:
                     self.on_drag_start(gp.x(), gp.y())
 
     def mouseMoveEvent(self, event):  # noqa: N802
-        """滑鼠移動：更新 hover 狀態並通知拖曳"""
-        pos         = event.position().toPoint()
-        new_hovered = self._close_rect.contains(pos)
-        if new_hovered != self._close_hovered:
-            self._close_hovered = new_hovered
+        """滑鼠移動：更新 hover 狀態 / tooltip 並通知拖曳"""
+        pos = event.position().toPoint()
+        gp  = event.globalPosition().toPoint()
+
+        close_hovered = self._close_rect.contains(pos)
+        reset_hovered = self._reset_rect.contains(pos)
+        if (close_hovered, reset_hovered) != (self._close_hovered, self._reset_hovered):
+            self._close_hovered = close_hovered
+            self._reset_hovered = reset_hovered
+            self._sync_tooltip(gp)
             self.update()
 
-        gp = event.globalPosition().toPoint()
         if self.on_drag_motion:
             self.on_drag_motion(gp.x(), gp.y())
+
+    def leaveEvent(self, event):  # noqa: N802
+        """滑鼠離開小窗：清掉按鈕 hover 高亮與 tooltip，避免狀態殘留"""
+        if self._close_hovered or self._reset_hovered:
+            self._close_hovered = False
+            self._reset_hovered = False
+            QToolTip.hideText()
+            self.update()
+        super().leaveEvent(event)
+
+    def _sync_tooltip(self, global_pos):
+        """依目前 hover 的按鈕顯示 / 收起 tooltip
+
+        小窗是全自繪的 frameless widget（沒有子 widget 可掛 setToolTip），
+        因此在 hover 狀態切換的當下手動呼叫 QToolTip。
+
+        Args:
+            global_pos: 滑鼠螢幕座標 QPoint
+        """
+        if self._reset_hovered:
+            QToolTip.showText(global_pos, self.RESET_TOOLTIP, self)
+        elif self._close_hovered:
+            QToolTip.showText(global_pos, self.CLOSE_TOOLTIP, self)
+        else:
+            QToolTip.hideText()
 
     def mouseReleaseEvent(self, event):  # noqa: N802
         """左鍵釋放：結束拖曳"""
@@ -576,15 +639,18 @@ class SkillWindow(QWidget):
     # 倒數邏輯
     # --------------------------------------------------
 
-    def raise_to_top(self):
+    def raise_to_top(self, *, show: bool = True):
         """把小窗重新拉到所有置頂視窗的最前面（不奪取焦點）
 
         `WindowStaysOnTopHint` 只在建立時宣告一次，之後出現的其他置頂視窗會排到
-        前面造成遮擋，因此在每次按鍵觸發 / 提前提示時重申一次。
+        前面造成遮擋，因此在每次按鍵觸發 / 提前提示 / 前景視窗切換時重申一次。
+
+        Args:
+            show: 轉給 bring_to_topmost —— 定期重申時傳 False，只調 z-order
         """
         # winId() 在 widget 已銷毀時會拋 RuntimeError（同 update_position 的處理）
         try:
-            bring_to_topmost(int(self.winId()))
+            bring_to_topmost(int(self.winId()), show=show)
         except Exception:
             pass
 
@@ -613,6 +679,35 @@ class SkillWindow(QWidget):
         self._last_overlay_degree = -1
         self._update_display()
         self.start_countdown()
+
+    def reset_to_zero(self):
+        """重置：把進行中的倒數直接歸零（循環則歸零並停止循環）
+
+        由小窗上的重置鈕觸發。不播完成音、不觸發提前提示。歸零之後：
+
+        - 常駐 / 循環技能 → 停在 0 待機，可再按快捷鍵重新計時（循環不自動續跑）
+        - 怪物正數視窗     → 回到 0 待機
+        - 一般技能         → 比照自然結束，短暫顯示 0 後自動關閉
+        """
+        if self._closed:
+            return
+
+        self.stop_countdown()
+        if self._flash_timer.isActive():
+            self._flash_timer.stop()
+        self._flash_active = False
+        self._flash_count  = 0
+
+        self.remaining            = 0
+        self.alert_triggered      = True   # 已歸零，本輪不再觸發提前提示
+        self._last_overlay_degree = -1
+        self._update_display_text("0")
+        self._update_overlay(0)
+        self.update()
+
+        if not (self.is_permanent or self.is_loop or self.count_up):
+            # 一般技能：與自然結束一致，短暫顯示 0 後收掉小窗
+            QTimer.singleShot(2000, self.close)
 
     def restart_countdown(self):
         """重新開始計時（供 WindowManager 在按鍵觸發既有視窗時呼叫）

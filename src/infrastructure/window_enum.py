@@ -4,6 +4,7 @@
 供「快捷鍵限定前景視窗」功能使用：
 - list_windows()：列出目前可見、有標題的頂層視窗（hwnd / title / pid / exe）
 - get_foreground_exe()：取得前景視窗的執行檔名稱（小寫 basename），供 hotkey 比對
+- get_foreground_hwnd()：只取前景視窗 handle（不查 process），供前景切換輪詢
 - capture_window_thumbnail(hwnd)：用 PrintWindow 擷取視窗畫面為 BGRA bytes，
   與 z-order 無關（挑選器在最前景也能抓到背景視窗內容）；最小化或失敗回 None
 
@@ -127,6 +128,24 @@ def get_foreground_exe() -> str:
     except Exception:
         logger.debug("get_foreground_exe 失敗", exc_info=True)
         return ""
+
+
+def get_foreground_hwnd() -> int:
+    """取得目前前景視窗的 handle；非 Windows / 失敗回 0。
+
+    只做一次 user32 呼叫、不查 process，成本遠低於 get_foreground_exe()，
+    供「前景是否換了」這種高頻比對使用；需要執行檔名稱請改用 get_foreground_exe()。
+
+    Returns:
+        前景視窗 hwnd（整數）；取不到回 0
+    """
+    if not _IS_WINDOWS:
+        return 0
+    try:
+        return int(user32.GetForegroundWindow() or 0)
+    except Exception:
+        logger.debug("get_foreground_hwnd 失敗", exc_info=True)
+        return 0
 
 
 def list_windows() -> list[dict]:

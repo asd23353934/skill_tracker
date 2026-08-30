@@ -241,6 +241,14 @@
       "subcategory": "海盜"
     },
     {
+      "id": "海盜-海鷗特戰隊",
+      "name": "海鷗特戰隊",
+      "icon": "海盜-海鷗特戰隊.png",
+      "cooldown": 5,
+      "category": "player",
+      "subcategory": "海盜"
+    },
+    {
       "id": "20130907185517a4d-普通拉圖斯",
       "name": "反盾",
       "icon": "20130907185517a4d.png",

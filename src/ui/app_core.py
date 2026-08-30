@@ -268,15 +268,23 @@ class AppCoreMixin:
         """保存全域設定（profile 狀態由 auto_save_current_profile 負責）"""
         self.config_manager.save()
 
-    def _update_permanent_skill(self, skill_id, is_permanent):
-        """依 is_permanent 開關常駐視窗"""
-        was = self.skill_permanent.get(skill_id, False)
-        if is_permanent and not was:
-            if skill_id not in self.window_manager.active_windows:
-                self.window_manager.create_permanent_window(skill_id)
-        elif not is_permanent and was:
-            if skill_id in self.window_manager.active_windows:
-                self.window_manager.active_windows[skill_id].close()
+    def _update_persistent_skill(self, skill_id):
+        """依目前的常駐 / 循環旗標建立或收掉待機小窗
+
+        常駐與循環都要常駐顯示，因此只要其一為開就保留 0 待機小窗、兩者皆關才收掉。
+        旗標直接讀 SkillService 的即時值，呼叫前請先完成狀態更新。
+
+        Args:
+            skill_id: 技能 ID
+        """
+        wm = self.window_manager
+        persistent = (self.skill_permanent.get(skill_id, False)
+                      or self.skill_loop.get(skill_id, False))
+        if persistent:
+            if skill_id not in wm.active_windows:
+                wm.create_permanent_window(skill_id)
+        elif skill_id in wm.active_windows:
+            wm.active_windows[skill_id].close()
 
     def _dialog_parent(self):
         """V1 App 為 QMainWindow 自身；V2AppContext 取當前 active window。"""
@@ -359,18 +367,10 @@ class AppCoreMixin:
         if not result["permanent"] and skill_id in self.permanent_vars:
             self.permanent_vars[skill_id].setChecked(False)
 
-        if new_value:
-            if setting_type == "permanent":
-                if skill_id in self.window_manager.active_windows:
-                    self.window_manager.active_windows[skill_id].close()
-                if skill_id not in self.window_manager.active_windows:
-                    self.window_manager.create_permanent_window(skill_id)
-            elif setting_type == "loop":
-                if skill_id in self.window_manager.active_windows:
-                    self.window_manager.active_windows[skill_id].close()
-        else:
-            if skill_id in self.window_manager.active_windows:
-                self.window_manager.active_windows[skill_id].close()
+        # 常駐與循環都要常駐顯示：先收掉舊小窗，再依新旗標重建 0 待機小窗
+        if new_value and skill_id in self.window_manager.active_windows:
+            self.window_manager.active_windows[skill_id].close()
+        self._update_persistent_skill(skill_id)
 
         self._save_config()
         self.auto_save_current_profile()
@@ -437,7 +437,7 @@ class AppCoreMixin:
                         self.window_manager.active_windows[sid].close()
 
             for sid, val in results.items():
-                self._update_permanent_skill(sid, val)
+                self._update_persistent_skill(sid)
                 if sid in self.permanent_vars:
                     self.permanent_vars[sid].setChecked(val)
 
@@ -455,8 +455,7 @@ class AppCoreMixin:
             for sid, val in results.items():
                 if sid in self.loop_vars:
                     self.loop_vars[sid].setChecked(val)
-                if not val and sid in self.window_manager.active_windows:
-                    self.window_manager.active_windows[sid].close()
+                self._update_persistent_skill(sid)
 
         elif setting_type == "alert":
             results = self.skill_service.toggle_all_alert()

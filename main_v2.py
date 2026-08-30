@@ -57,6 +57,8 @@ class V2AppContext(AppCoreMixin):
         # 啟動 hotkey + 還原常駐視窗，行為與 V1 等價
         self.hotkey_manager.start()
         self.window_manager.initialize_persistent_skills()
+        # 切到遊戲 / 其他置頂視窗後，小窗會被壓到後面 —— 監看前景變化並重申置頂
+        self.window_manager.start_topmost_watch()
 
     def after(self, ms: int, fn):
         """執行緒安全：透過 _Dispatcher 排回主執行緒（V1 等價）"""

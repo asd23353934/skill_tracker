@@ -7,6 +7,8 @@
 2. SkillWindow 帶 WS_EX_TOPMOST
 3. 被後來出現的其他置頂視窗蓋住後，restart_countdown()（= 按鍵再次觸發）
    能把小窗重新拉回 z-order 最前面
+4. WindowManager.reassert_topmost()（前景切換 watcher 的實際動作，show=False）
+   同樣能把待機中的小窗拉回最前面
 
 第 3 點用 EnumWindows 的回呼順序判定 —— 該順序即為 z-order（前→後）。
 
@@ -25,6 +27,7 @@ from PySide6.QtCore import Qt
 
 from src.infrastructure.window_enum import GWL_EXSTYLE, WNDENUMPROC, user32
 from src.ui.skill_window import SkillWindow
+from src.ui.window_manager import WindowManager
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ICON = os.path.join(HERE, "icon.png")
@@ -118,6 +121,19 @@ def main():
     win._trigger_alert()
     app.processEvents()
     check("alert 後小窗在前面", z_index(hwnd) < z_index(intruder_hwnd), True)
+
+    print("[5] 前景切換 watcher：reassert_topmost 重申置頂")
+    # watcher 只在前景 hwnd 變動時呼叫 reassert_topmost（觸發條件由 pytest 覆蓋），
+    # 這裡驗證它實際打出去的 SetWindowPos(show=False) 真的會改 z-order
+    wm = WindowManager(app=object())
+    wm.active_windows["topmost_demo"] = win
+    intruder.raise_()
+    app.processEvents()
+    check("重申前小窗被壓在後面", z_index(hwnd) > z_index(intruder_hwnd), True)
+
+    wm.reassert_topmost()
+    app.processEvents()
+    check("reassert 後小窗回到前面", z_index(hwnd) < z_index(intruder_hwnd), True)
 
     intruder.close()
     win.close()

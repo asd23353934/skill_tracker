@@ -6,8 +6,10 @@ Phase 4 將完整重寫為 PySide6 SkillWindow
 
 import logging
 import os
+import sys
 
 from src.infrastructure.helpers import resource_path
+from src.infrastructure.window_enum import get_foreground_hwnd
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,9 @@ def _get_skill_window_cls():
 class WindowManager:
     """技能視窗管理器"""
 
+    # 前景切換輪詢間隔（毫秒）—— 只比對前景 hwnd，變了才重申 z-order
+    TOPMOST_WATCH_MS = 500
+
     def __init__(self, app):
         self.app = app
         self.active_windows = {}
@@ -34,6 +39,10 @@ class WindowManager:
         self.V_GAP = 6
         self.MAX_PER_ROW = 10
 
+        # 置頂重申 watcher（start_topmost_watch 才建立 QTimer）
+        self._topmost_timer = None
+        self._last_foreground_hwnd = 0
+
         # 群組拖曳數據
         self.drag_data = {
             "x": 0, "y": 0,
@@ -41,6 +50,54 @@ class WindowManager:
             "start_x": 0, "start_y": 0,
             "screen_x": 0, "screen_y": 0,
         }
+
+    # ==================== 置頂重申（前景切換偵測）====================
+
+    def start_topmost_watch(self):
+        """啟動「前景視窗換了 → 重申小窗置頂」的輪詢
+
+        `WS_EX_TOPMOST` 只保證壓過非置頂視窗；遊戲 / 模擬器 / 其他 overlay 這類
+        同樣置頂的視窗一旦後取得前景，就會排到小窗前面。原本只在按鍵觸發與提前
+        提示時重申，待機中的常駐 / 循環小窗因此會一直被蓋住。
+
+        這裡每 TOPMOST_WATCH_MS 只做一次 GetForegroundWindow 比對，**前景真的換了**
+        才對所有小窗重申一次 z-order —— 穩態成本是一次整數呼叫（沒有小窗時連這個
+        都省下），切視窗當下才有實際工作，不會有持續的 SetWindowPos 造成閃爍。
+
+        非 Windows 平台不啟動（bring_to_topmost 本來就是 no-op）。
+        """
+        if self._topmost_timer is not None or sys.platform != "win32":
+            return
+        from PySide6.QtCore import QTimer
+
+        self._topmost_timer = QTimer()
+        self._topmost_timer.setInterval(self.TOPMOST_WATCH_MS)
+        self._topmost_timer.timeout.connect(self._topmost_tick)
+        self._topmost_timer.start()
+
+    def stop_topmost_watch(self):
+        """停止置頂重申輪詢"""
+        if self._topmost_timer is not None:
+            self._topmost_timer.stop()
+            self._topmost_timer = None
+
+    def _topmost_tick(self):
+        """輪詢一次 —— 前景視窗換了才重申所有小窗置頂"""
+        if not self.active_windows:
+            return
+        hwnd = get_foreground_hwnd()
+        if not hwnd or hwnd == self._last_foreground_hwnd:
+            return
+        self._last_foreground_hwnd = hwnd
+        self.reassert_topmost()
+
+    def reassert_topmost(self):
+        """對所有存活的小窗重申一次 topmost（不移動、不搶焦點）"""
+        for window in list(self.active_windows.values()):
+            try:
+                window.raise_to_top(show=False)
+            except Exception:
+                logger.debug("重申置頂失敗", exc_info=True)
 
     # ==================== 技能視窗管理 ====================
 
@@ -200,7 +257,11 @@ class WindowManager:
         return candidate if os.path.exists(candidate) else None
 
     def create_permanent_window(self, skill_id):
-        """建立技能常駐視窗"""
+        """建立技能待機視窗（常駐 / 循環共用）
+
+        常駐與循環都以 0 待機顯示、等待快捷鍵觸發；差別只在計時結束後的行為
+        （常駐回到待機、循環直接跑下一輪）。呼叫端負責保證兩者其一已開啟。
+        """
         skill = self.app.skill_manager.get_skill(skill_id)
         if not skill:
             return
@@ -213,6 +274,9 @@ class WindowManager:
         skill_image      = getattr(self.app.skill_manager, "skill_images", {}).get(skill_id)
         skill_image_path = self.app.skill_manager.skill_image_paths.get(skill_id)
         alert_enabled    = self.app.skill_alert_enabled.get(skill_id, False)
+        is_loop          = self.app.skill_loop.get(skill_id, False)
+        # 循環開啟時 permanent 必為 False（兩者互斥）；都沒開時仍以常駐待機呈現
+        is_permanent     = self.app.skill_permanent.get(skill_id, False) or not is_loop
 
         SkillWindow = _get_skill_window_cls()
         if SkillWindow is None:
@@ -225,7 +289,7 @@ class WindowManager:
                 self.app.enable_sound, skill_id,
                 enable_end_sound=self.app.enable_end_sound,
                 enable_alert_sound=self.app.enable_alert_sound,
-                is_permanent=True, is_loop=False,
+                is_permanent=is_permanent, is_loop=is_loop,
                 start_at_zero=True,
                 window_alpha=self.app.window_alpha,
                 alert_enabled=alert_enabled,
@@ -253,9 +317,11 @@ class WindowManager:
                 pass
 
     def initialize_persistent_skills(self):
-        """初始化常駐技能與常駐怪物（循環技能不初始化，等待按鍵觸發）"""
-        for skill_id, is_permanent in self.app.skill_permanent.items():
-            if is_permanent and skill_id not in self.active_windows:
+        """初始化常駐 / 循環技能與常駐怪物（皆以 0 待機顯示，等待按鍵觸發）"""
+        persistent_ids = [sid for sid, on in self.app.skill_permanent.items() if on]
+        persistent_ids += [sid for sid, on in self.app.skill_loop.items() if on]
+        for skill_id in persistent_ids:
+            if skill_id not in self.active_windows:
                 self.create_permanent_window(skill_id)
 
         for monster in self.app.get_all_monsters():

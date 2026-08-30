@@ -405,13 +405,14 @@ class SkillDetailDialogV2(BaseDialogV2):
         app.skill_loop[sid]          = new_loop
         app.skill_alert_enabled[sid] = new_alert
 
-        # 常駐視窗生命週期
+        # 待機小窗生命週期（常駐與循環都要常駐顯示）
         wm = getattr(app, "window_manager", None)
         if wm is not None:
+            persistent = new_perm or new_loop
             win = wm.active_windows.get(sid)
-            if new_perm and win is None:
+            if persistent and win is None:
                 wm.create_permanent_window(sid)
-            elif not new_perm and win is not None and not new_loop:
+            elif not persistent and win is not None:
                 win.close()
             elif win is not None:
                 win.is_permanent  = new_perm

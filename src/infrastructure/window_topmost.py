@@ -41,25 +41,29 @@ if _IS_WINDOWS:
     user32.SetWindowPos.restype = wintypes.BOOL
 
 
-def bring_to_topmost(hwnd: int) -> bool:
+def bring_to_topmost(hwnd: int, *, show: bool = True) -> bool:
     """把視窗重新拉到 topmost 群組最前面，且不奪取鍵盤焦點。
 
-    供技能倒數小窗在每次按鍵觸發 / 提前提示時呼叫，避免被後來出現的其他置頂
-    視窗蓋住。不移動、不改變大小，只調整 z-order。
+    供技能倒數小窗在按鍵觸發 / 提前提示 / 前景視窗切換時呼叫，避免被後來出現的
+    其他置頂視窗蓋住。不移動、不改變大小，只調整 z-order。
 
     Args:
         hwnd: 視窗 handle（Qt 端用 `int(widget.winId())` 取得）
+        show: 是否一併帶 SWP_SHOWWINDOW。視窗剛建立時需要；純粹重申 z-order 的
+              定期路徑傳 False，只動順序、不觸發顯示流程
 
     Returns:
         成功回 True；非 Windows、hwnd 無效或呼叫失敗回 False
     """
     if not _IS_WINDOWS or not hwnd:
         return False
+    flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+    if show:
+        flags |= SWP_SHOWWINDOW
     try:
         return bool(user32.SetWindowPos(
             wintypes.HWND(hwnd), wintypes.HWND(HWND_TOPMOST),
-            0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            0, 0, 0, 0, flags,
         ))
     except Exception:
         logger.debug("bring_to_topmost 失敗 hwnd=%r", hwnd, exc_info=True)
